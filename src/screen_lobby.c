@@ -18,6 +18,18 @@ static int gWaitingForMesh = FALSE;
 static long gConnectStartTick = 0;
 static long gLastMeshRetryTick = 0;
 
+/* Pre-built Pascal strings */
+static const unsigned char kLobbyTitle[]  = {5, 'L','o','b','b','y'};
+static const unsigned char kLobbyConn[]   = {13, 'C','o','n','n','e','c','t','i','n','g','.','.','.'};
+static const unsigned char kLobbySearch[] = {15, 'S','e','a','r','c','h','i','n','g','.',' ',' ',' ',' ',' '};
+static const unsigned char kLobbyStart[]  = {21, 'P','r','e','s','s',' ','R','e','t','u','r','n',' ','t','o',' ','S','t','a','r','t'};
+static const unsigned char kLobbySP[]     = {21, 'S','p','a','c','e',':',' ','S','i','n','g','l','e','-','p','l','a','y','e','r',' '};
+
+/* Cached StringWidth values */
+static short gLobbyTitleW = 0, gLobbyConnW = 0, gLobbySearchW = 0;
+static short gLobbyStartW = 0, gLobbySPW = 0;
+static int gLobbyWidthsCached = FALSE;
+
 void Lobby_Init(void)
 {
     gConnecting = FALSE;
@@ -141,52 +153,7 @@ void Lobby_Draw(WindowPtr window)
 {
     short centerX, y;
     int peerCount, i;
-
-    Str255 titleStr, searchStr, startStr, spStr, connStr, foundStr;
     short strW;
-
-    /* Title: "Lobby" */
-    titleStr[0] = 5;
-    titleStr[1] = 'L'; titleStr[2] = 'o'; titleStr[3] = 'b';
-    titleStr[4] = 'b'; titleStr[5] = 'y';
-
-    /* "Connecting..." */
-    connStr[0] = 13;
-    connStr[1] = 'C'; connStr[2] = 'o'; connStr[3] = 'n';
-    connStr[4] = 'n'; connStr[5] = 'e'; connStr[6] = 'c';
-    connStr[7] = 't'; connStr[8] = 'i'; connStr[9] = 'n';
-    connStr[10] = 'g'; connStr[11] = '.'; connStr[12] = '.';
-    connStr[13] = '.';
-
-    /* "Found N player(s):" */
-    foundStr[0] = 9;
-    foundStr[1] = 'F'; foundStr[2] = 'o'; foundStr[3] = 'u';
-    foundStr[4] = 'n'; foundStr[5] = 'd'; foundStr[6] = ' ';
-    foundStr[7] = '0'; foundStr[8] = ':'; foundStr[9] = ' ';
-
-    searchStr[0] = 15;
-    searchStr[1] = 'S'; searchStr[2] = 'e'; searchStr[3] = 'a';
-    searchStr[4] = 'r'; searchStr[5] = 'c'; searchStr[6] = 'h';
-    searchStr[7] = 'i'; searchStr[8] = 'n'; searchStr[9] = 'g';
-    searchStr[10] = '.'; searchStr[11] = '.'; searchStr[12] = '.';
-    searchStr[13] = ' '; searchStr[14] = ' '; searchStr[15] = ' ';
-
-    startStr[0] = 21;
-    startStr[1] = 'P'; startStr[2] = 'r'; startStr[3] = 'e';
-    startStr[4] = 's'; startStr[5] = 's'; startStr[6] = ' ';
-    startStr[7] = 'R'; startStr[8] = 'e'; startStr[9] = 't';
-    startStr[10] = 'u'; startStr[11] = 'r'; startStr[12] = 'n';
-    startStr[13] = ' '; startStr[14] = 't'; startStr[15] = 'o';
-    startStr[16] = ' '; startStr[17] = 'S'; startStr[18] = 't';
-    startStr[19] = 'a'; startStr[20] = 'r'; startStr[21] = 't';
-
-    spStr[0] = 21;
-    spStr[1] = 'S'; spStr[2] = 'p'; spStr[3] = 'a'; spStr[4] = 'c';
-    spStr[5] = 'e'; spStr[6] = ':'; spStr[7] = ' '; spStr[8] = 'S';
-    spStr[9] = 'i'; spStr[10] = 'n'; spStr[11] = 'g'; spStr[12] = 'l';
-    spStr[13] = 'e'; spStr[14] = '-'; spStr[15] = 'p'; spStr[16] = 'l';
-    spStr[17] = 'a'; spStr[18] = 'y'; spStr[19] = 'e'; spStr[20] = 'r';
-    spStr[21] = ' ';
 
     centerX = gGame.playWidth / 2;
     peerCount = Net_GetDiscoveredPeerCount();
@@ -194,33 +161,50 @@ void Lobby_Draw(WindowPtr window)
     /* Draw to offscreen work buffer, then blit */
     Renderer_BeginScreenDraw();
 
+    /* Cache StringWidth on first draw (needs valid port) */
+    if (!gLobbyWidthsCached) {
+        TextSize(24);
+        gLobbyTitleW = StringWidth((ConstStr255Param)kLobbyTitle);
+        TextSize(14);
+        gLobbyConnW = StringWidth((ConstStr255Param)kLobbyConn);
+        gLobbySearchW = StringWidth((ConstStr255Param)kLobbySearch);
+        TextSize(12);
+        gLobbyStartW = StringWidth((ConstStr255Param)kLobbyStart);
+        gLobbySPW = StringWidth((ConstStr255Param)kLobbySP);
+        gLobbyWidthsCached = TRUE;
+    }
+
     /* Title */
     TextSize(24);
     ForeColor(whiteColor);
-    strW = StringWidth(titleStr);
-    MoveTo(centerX - strW / 2, 40);
-    DrawString(titleStr);
+    MoveTo(centerX - gLobbyTitleW / 2, 40);
+    DrawString((ConstStr255Param)kLobbyTitle);
 
     /* Peer list */
     TextSize(14);
     y = 80;
 
     if (gConnecting) {
-        strW = StringWidth(connStr);
-        MoveTo(centerX - strW / 2, y);
-        DrawString(connStr);
+        MoveTo(centerX - gLobbyConnW / 2, y);
+        DrawString((ConstStr255Param)kLobbyConn);
     } else if (peerCount == 0) {
-        strW = StringWidth(searchStr);
-        MoveTo(centerX - strW / 2, y);
-        DrawString(searchStr);
+        MoveTo(centerX - gLobbySearchW / 2, y);
+        DrawString((ConstStr255Param)kLobbySearch);
     } else {
-        /* Show "Found N:" header */
+        /* Show "Found N:" header -- digit is dynamic */
+        Str255 foundStr;
+        foundStr[0] = 9;
+        foundStr[1] = 'F'; foundStr[2] = 'o'; foundStr[3] = 'u';
+        foundStr[4] = 'n'; foundStr[5] = 'd'; foundStr[6] = ' ';
         foundStr[7] = (unsigned char)('0' + peerCount);
+        foundStr[8] = ':'; foundStr[9] = ' ';
+
         strW = StringWidth(foundStr);
         MoveTo(centerX - strW / 2, y);
         DrawString(foundStr);
         y += 24;
 
+        /* Peer names (dynamic, must be built each frame) */
         for (i = 0; i < peerCount && i < MAX_PLAYERS - 1; i++) {
             const char *name = Net_GetDiscoveredPeerName(i);
             const char *addr = Net_GetDiscoveredPeerAddress(i);
@@ -229,7 +213,6 @@ void Lobby_Draw(WindowPtr window)
             const char *src;
 
             if (!name) continue;
-            /* Show "name (ip)" */
             src = name;
             while (*src && len < 240) {
                 peerStr[len + 1] = *src;
@@ -260,17 +243,15 @@ void Lobby_Draw(WindowPtr window)
     y = gGame.playHeight - 60;
     if (peerCount >= 1 && !gConnecting) {
         TextSize(12);
-        strW = StringWidth(startStr);
-        MoveTo(centerX - strW / 2, y);
-        DrawString(startStr);
+        MoveTo(centerX - gLobbyStartW / 2, y);
+        DrawString((ConstStr255Param)kLobbyStart);
     }
 
     y += 20;
     if (!gConnecting) {
         TextSize(12);
-        strW = StringWidth(spStr);
-        MoveTo(centerX - strW / 2, y);
-        DrawString(spStr);
+        MoveTo(centerX - gLobbySPW / 2, y);
+        DrawString((ConstStr255Param)kLobbySP);
     }
 
     Renderer_EndScreenDraw(window);

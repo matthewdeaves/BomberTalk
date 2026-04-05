@@ -349,7 +349,7 @@ void Net_SendBombPlaced(short col, short row, short range)
     msg.gridCol = (unsigned char)col;
     msg.gridRow = (unsigned char)row;
     msg.range = (unsigned char)range;
-    msg.fuseFrames = (unsigned char)(BOMB_FUSE_TICKS / FRAME_TICKS);
+    msg.fuseTicks = (unsigned char)BOMB_FUSE_TICKS;
 
     PT_Broadcast(gPTCtx, MSG_BOMB_PLACED, &msg, sizeof(msg));
 }

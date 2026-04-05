@@ -133,7 +133,7 @@ typedef struct {
     unsigned char gridCol;
     unsigned char gridRow;
     unsigned char range;
-    unsigned char fuseFrames;
+    unsigned char fuseTicks;
 } MsgBombPlaced;
 
 typedef struct {
@@ -172,7 +172,7 @@ typedef struct {
     short       animFrame;
     int         alive;
     int         active;
-    short       deathTimer;  /* frames remaining for death flash (0=alive or fully dead) */
+    short       deathTimer;  /* ticks remaining for death flash (0=alive or fully dead) */
     short       bombsAvailable;
     short       bombRange;
     unsigned char playerID;

@@ -12,6 +12,14 @@
 
 static long gLoadingStartTick;
 
+/* Pre-built Pascal strings */
+static const unsigned char kLoadTitle[] = {10, 'B','o','m','b','e','r','T','a','l','k'};
+static const unsigned char kLoadSub[]   = {10, 'L','o','a','d','i','n','g','.','.','.'};
+
+/* Cached widths */
+static short gLoadTitleW = 0, gLoadSubW = 0;
+static int gLoadWidthsCached = FALSE;
+
 void Loading_Init(void)
 {
     gLoadingStartTick = TickCount();
@@ -27,38 +35,30 @@ void Loading_Update(void)
 void Loading_Draw(WindowPtr window)
 {
     short centerX, centerY;
-    Str255 title;
-    Str255 subtitle;
-    short titleWidth, subtitleWidth;
 
     centerX = gGame.playWidth / 2;
     centerY = gGame.playHeight / 2;
 
-    /* Pascal strings */
-    title[0] = 10;
-    title[1] = 'B'; title[2] = 'o'; title[3] = 'm'; title[4] = 'b';
-    title[5] = 'e'; title[6] = 'r'; title[7] = 'T'; title[8] = 'a';
-    title[9] = 'l'; title[10] = 'k';
-
-    subtitle[0] = 10;
-    subtitle[1] = 'L'; subtitle[2] = 'o'; subtitle[3] = 'a';
-    subtitle[4] = 'd'; subtitle[5] = 'i'; subtitle[6] = 'n';
-    subtitle[7] = 'g'; subtitle[8] = '.'; subtitle[9] = '.';
-    subtitle[10] = '.';
-
     /* Draw to offscreen work buffer, then blit */
     Renderer_BeginScreenDraw();
 
+    /* Cache widths on first draw (needs valid port) */
+    if (!gLoadWidthsCached) {
+        TextSize(24);
+        gLoadTitleW = StringWidth((ConstStr255Param)kLoadTitle);
+        TextSize(12);
+        gLoadSubW = StringWidth((ConstStr255Param)kLoadSub);
+        gLoadWidthsCached = TRUE;
+    }
+
     TextSize(24);
     ForeColor(whiteColor);
-    titleWidth = StringWidth(title);
-    MoveTo(centerX - titleWidth / 2, centerY - 20);
-    DrawString(title);
+    MoveTo(centerX - gLoadTitleW / 2, centerY - 20);
+    DrawString((ConstStr255Param)kLoadTitle);
 
     TextSize(12);
-    subtitleWidth = StringWidth(subtitle);
-    MoveTo(centerX - subtitleWidth / 2, centerY + 20);
-    DrawString(subtitle);
+    MoveTo(centerX - gLoadSubW / 2, centerY + 20);
+    DrawString((ConstStr255Param)kLoadSub);
 
     Renderer_EndScreenDraw(window);
 }

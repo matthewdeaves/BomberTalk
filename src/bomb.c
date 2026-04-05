@@ -90,6 +90,7 @@ static void ExplodeBomb(Bomb *b, int broadcast)
     short col, row;
     short dCol[4] = {0, 0, -1, 1};
     short dRow[4] = {-1, 1, 0, 0};
+    int blocksDestroyed = FALSE;
 
     CLOG_DEBUG("Bomb exploding at (%d,%d) range=%d",
                b->gridCol, b->gridRow, b->range);
@@ -115,10 +116,15 @@ static void ExplodeBomb(Bomb *b, int broadcast)
             if (TileMap_GetTile(col, row) == TILE_BLOCK) {
                 TileMap_SetTile(col, row, TILE_FLOOR);
                 if (broadcast) Net_SendBlockDestroyed(col, row);
-                Renderer_RebuildBackground();
+                blocksDestroyed = TRUE;
                 break;
             }
         }
+    }
+
+    /* Rebuild background once after all blocks destroyed (not per-block) */
+    if (blocksDestroyed) {
+        Renderer_RebuildBackground();
     }
 
     /* Broadcast explosion (only if local fuse expired) */

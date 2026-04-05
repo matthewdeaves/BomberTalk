@@ -155,7 +155,7 @@ void Game_Draw(WindowPtr window)
     for (i = 0; i < MAX_PLAYERS; i++) {
         if (!gGame.players[i].active) continue;
         if (gGame.players[i].deathTimer > 0) {
-            /* Flash: visible every other DEATH_FLASH_RATE frames */
+            /* Flash: visible every other DEATH_FLASH_RATE ticks */
             if ((gGame.players[i].deathTimer / DEATH_FLASH_RATE) & 1) {
                 Renderer_DrawPlayer(i,
                     gGame.players[i].gridCol, gGame.players[i].gridRow,

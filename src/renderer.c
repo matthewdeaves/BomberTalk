@@ -335,10 +335,19 @@ void Renderer_Shutdown(void)
 
 /* ==== Tile Drawing ==== */
 
+/* Color constants for tile rendering (static to avoid per-tile stack alloc) */
+static const RGBColor kTileGreen     = {0x5500, 0xAA00, 0x5500};
+static const RGBColor kTileGray      = {0x7700, 0x7700, 0x7700};
+static const RGBColor kTileDarkGray  = {0x5500, 0x5500, 0x5500};
+static const RGBColor kTileBrown     = {0x9900, 0x6600, 0x3300};
+static const RGBColor kTileDarkBrown = {0x7700, 0x4400, 0x2200};
+
 /*
  * DrawTileRect -- Fallback: draw a colored/patterned rectangle for a tile.
  * Mac SE: 1-bit patterns (black, white, gray).
  * Color Macs: RGBForeColor rectangles.
+ *
+ * Caller must have already set port to bg and locked it.
  */
 static void DrawTileRect(short tileType, short col, short row)
 {
@@ -347,16 +356,7 @@ static void DrawTileRect(short tileType, short col, short row)
 
     SetRect(&r, col * ts, row * ts, (col + 1) * ts, (row + 1) * ts);
 
-    SavePort();
-    SetPortBg();
-    LockBg();
-
     if (gGame.isMacSE) {
-        /* 1-bit: use black/white/gray patterns.
-         * Must reset fore/back color before FillRect -- pattern
-         * uses foreColor for black bits, backColor for white bits. */
-        ForeColor(blackColor);
-        BackColor(whiteColor);
         switch (tileType) {
         case TILE_FLOOR:
         case TILE_SPAWN:
@@ -377,31 +377,22 @@ static void DrawTileRect(short tileType, short col, short row)
             break;
         }
     } else {
-        /* Color: RGB rectangles */
-        RGBColor green, gray, darkGray, brown, darkBrown;
-
-        green.red = 0x5500; green.green = 0xAA00; green.blue = 0x5500;
-        gray.red = 0x7700; gray.green = 0x7700; gray.blue = 0x7700;
-        darkGray.red = 0x5500; darkGray.green = 0x5500; darkGray.blue = 0x5500;
-        brown.red = 0x9900; brown.green = 0x6600; brown.blue = 0x3300;
-        darkBrown.red = 0x7700; darkBrown.green = 0x4400; darkBrown.blue = 0x2200;
-
         switch (tileType) {
         case TILE_FLOOR:
         case TILE_SPAWN:
-            RGBForeColor(&green);
+            RGBForeColor(&kTileGreen);
             PaintRect(&r);
             break;
         case TILE_WALL:
-            RGBForeColor(&gray);
+            RGBForeColor(&kTileGray);
             PaintRect(&r);
-            RGBForeColor(&darkGray);
+            RGBForeColor(&kTileDarkGray);
             FrameRect(&r);
             break;
         case TILE_BLOCK:
-            RGBForeColor(&brown);
+            RGBForeColor(&kTileBrown);
             PaintRect(&r);
-            RGBForeColor(&darkBrown);
+            RGBForeColor(&kTileDarkBrown);
             FrameRect(&r);
             break;
         default:
@@ -410,12 +401,15 @@ static void DrawTileRect(short tileType, short col, short row)
             break;
         }
     }
-
-    UnlockBg();
-    RestorePort();
 }
 
-static void DrawTileFromSheet(short tileIndex, short col, short row)
+/*
+ * DrawTileFromSheet -- Blit a tile from the PICT tile sheet to bg.
+ * Caller must have locked both tileSheet and bg.
+ * sheetBits is passed in to avoid per-tile GetGWorldPixMap.
+ */
+static void DrawTileFromSheet(short tileIndex, short col, short row,
+                              BitMap *sheetBits)
 {
     Rect srcRect, dstRect;
     short ts = gGame.tileSize;
@@ -423,38 +417,61 @@ static void DrawTileFromSheet(short tileIndex, short col, short row)
     SetRect(&srcRect, tileIndex * ts, 0, (tileIndex + 1) * ts, ts);
     SetRect(&dstRect, col * ts, row * ts, (col + 1) * ts, (row + 1) * ts);
 
-    LockPixels(GetGWorldPixMap(gTileSheet));
-    LockBg();
-
-    CopyBits(
-        (BitMap *)*GetGWorldPixMap(gTileSheet),
-        GetBgBits(),
-        &srcRect, &dstRect, srcCopy, NULL);
-
-    UnlockBg();
-    UnlockPixels(GetGWorldPixMap(gTileSheet));
+    CopyBits(sheetBits, GetBgBits(),
+             &srcRect, &dstRect, srcCopy, NULL);
 }
 
+/*
+ * Renderer_RebuildBackground -- Redraw all tiles to the background buffer.
+ *
+ * Port save/lock hoisted here (once) instead of per-tile.
+ * Source: Tricks of the Mac Game Programming Gurus (1995).
+ */
 void Renderer_RebuildBackground(void)
 {
     TileMap *map;
     short r, c;
     unsigned char tile;
+    int useSheet;
+    BitMap *sheetBits = NULL;
 
     map = TileMap_Get();
+    useSheet = (gPICTsLoaded && !gGame.isMacSE);
+
+    /* Lock + set port once for the whole rebuild */
+    SavePort();
+    SetPortBg();
+    LockBg();
+
+    if (gGame.isMacSE) {
+        ForeColor(blackColor);
+        BackColor(whiteColor);
+    }
+
+    if (useSheet) {
+        LockPixels(GetGWorldPixMap(gTileSheet));
+        sheetBits = (BitMap *)*GetGWorldPixMap(gTileSheet);
+    }
 
     for (r = 0; r < GRID_ROWS; r++) {
         for (c = 0; c < GRID_COLS; c++) {
             tile = map->tiles[r][c];
-            if (gPICTsLoaded && !gGame.isMacSE) {
+            if (useSheet) {
                 short idx = (tile == TILE_SPAWN) ? 0 : tile;
                 if (idx > 3) idx = 0;
-                DrawTileFromSheet(idx, c, r);
+                DrawTileFromSheet(idx, c, r, sheetBits);
             } else {
                 DrawTileRect(tile, c, r);
             }
         }
     }
+
+    if (useSheet) {
+        UnlockPixels(GetGWorldPixMap(gTileSheet));
+    }
+
+    UnlockBg();
+    RestorePort();
 }
 
 /* ==== Per-Frame Rendering ==== */

@@ -21,7 +21,7 @@ int  Bomb_ExistsAt(short col, short row);
 typedef struct {
     short col;
     short row;
-    short timer;    /* frames remaining to display */
+    short timer;    /* ticks remaining to display */
 } Explosion;
 
 Explosion *Bomb_GetExplosions(short *count);

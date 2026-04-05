@@ -11,7 +11,7 @@
 #include "tilemap.h"
 #include "bomb.h"
 
-#define MOVE_COOLDOWN 6  /* frames between moves */
+#define MOVE_COOLDOWN_TICKS 12  /* ~200ms at 60 ticks/sec */
 
 static short gMoveCooldown[MAX_PLAYERS];
 
@@ -80,9 +80,9 @@ void Player_Update(short playerID)
     /* Only handle input for local player */
     if (playerID != gGame.localPlayerID) return;
 
-    /* Movement cooldown */
+    /* Movement cooldown (tick-based) */
     if (gMoveCooldown[playerID] > 0) {
-        gMoveCooldown[playerID]--;
+        gMoveCooldown[playerID] -= gGame.deltaTicks;
         return;
     }
 
@@ -114,6 +114,6 @@ void Player_Update(short playerID)
         p->gridRow = newRow;
         p->pixelX = TileMap_ColToPixel(newCol);
         p->pixelY = TileMap_RowToPixel(newRow);
-        gMoveCooldown[playerID] = MOVE_COOLDOWN;
+        gMoveCooldown[playerID] = MOVE_COOLDOWN_TICKS;
     }
 }
