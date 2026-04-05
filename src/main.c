@@ -1,0 +1,318 @@
+/*
+ * main.c -- BomberTalk entry point
+ *
+ * InitToolbox, window creation, main event loop with screen dispatch.
+ * Source: Black Art of Macintosh Game Programming (1996) Ch. 2-3,
+ *         Tricks of the Mac Game Programming Gurus (1995) p.12-45.
+ */
+
+#include "game.h"
+#include "screens.h"
+#include "renderer.h"
+#include "input.h"
+#include "net.h"
+#include <clog.h>
+
+/* The single global game state */
+GameState gGame;
+
+/* ---- Local state ---- */
+static int      gQuitting = FALSE;
+static long     gLastFrameTick = 0;
+static short    gFPSFrameCount = 0;
+static long     gFPSLastTick = 0;
+
+/*
+ * InitToolbox -- Initialize all Mac Toolbox managers
+ *
+ * MaxApplZone + MoreMasters MUST come first (CLAUDE.md gotcha).
+ * Source: Tricks of the Mac Game Programming Gurus (1995) p.12,
+ *         Black Art (1996) Ch. 2.
+ */
+static void InitToolbox(void)
+{
+    MaxApplZone();
+    MoreMasters();
+    MoreMasters();
+    MoreMasters();
+    MoreMasters();
+
+    InitGraf(&qd.thePort);
+    InitFonts();
+    FlushEvents(everyEvent, 0);
+    InitWindows();
+    InitMenus();
+    TEInit();
+    InitDialogs(0L);
+    InitCursor();
+
+    qd.randSeed = TickCount();
+}
+
+/*
+ * SetupMenus -- Apple menu + File menu with Quit
+ *
+ * Source: Macintosh Game Programming Techniques (1996) Ch. 4.
+ */
+static void SetupMenus(void)
+{
+    MenuHandle appleMenu, fileMenu;
+
+    appleMenu = NewMenu(rMenuApple, "\p\x14");
+    AppendResMenu(appleMenu, 'DRVR');
+    InsertMenu(appleMenu, 0);
+
+    fileMenu = NewMenu(rMenuFile, "\pFile");
+    AppendMenu(fileMenu, "\pQuit/Q");
+    InsertMenu(fileMenu, 0);
+
+    DrawMenuBar();
+}
+
+/*
+ * DetectScreenSize -- Determine if we're on Mac SE (512x342)
+ *                     or a color Mac (640x480+).
+ */
+static void DetectScreenSize(void)
+{
+    Rect screenRect;
+
+    screenRect = qd.screenBits.bounds;
+
+    if (screenRect.right - screenRect.left <= 512) {
+        gGame.isMacSE = TRUE;
+        gGame.tileSize = TILE_SIZE_SMALL;
+        gGame.playWidth = PLAY_WIDTH_SMALL;
+        gGame.playHeight = PLAY_HEIGHT_SMALL;
+    } else {
+        gGame.isMacSE = FALSE;
+        gGame.tileSize = TILE_SIZE_LARGE;
+        gGame.playWidth = PLAY_WIDTH_LARGE;
+        gGame.playHeight = PLAY_HEIGHT_LARGE;
+    }
+}
+
+/*
+ * CreateGameWindow -- Open the game window sized to play area
+ *
+ * Uses NewCWindow for color Macs, NewWindow for Mac SE.
+ * Source: Black Art (1996) p.34, CLAUDE.md Mac SE gotcha.
+ */
+static void CreateGameWindow(void)
+{
+    Rect bounds;
+    Rect screenRect;
+    short screenW, screenH;
+    short winLeft, winTop;
+
+    screenRect = qd.screenBits.bounds;
+    screenW = screenRect.right - screenRect.left;
+    screenH = screenRect.bottom - screenRect.top;
+
+    winLeft = (screenW - gGame.playWidth) / 2;
+    winTop = (screenH - gGame.playHeight) / 2 + 20; /* menu bar offset */
+
+    SetRect(&bounds, winLeft, winTop,
+            winLeft + gGame.playWidth, winTop + gGame.playHeight);
+
+    if (gGame.isMacSE) {
+        /* Mac SE: no Color QuickDraw, use NewWindow */
+        gGame.window = NewWindow(
+            0L, &bounds, "\pBomberTalk", TRUE,
+            noGrowDocProc, (WindowPtr)-1L, FALSE, 0L);
+    } else {
+        gGame.window = (WindowPtr)NewCWindow(
+            0L, &bounds, "\pBomberTalk", TRUE,
+            noGrowDocProc, (WindowPtr)-1L, FALSE, 0L);
+    }
+
+    if (gGame.window == NULL) {
+        SysBeep(30);
+        ExitToShell();
+    }
+
+    SetPort(gGame.window);
+}
+
+/*
+ * HandleMenuChoice -- Process menu selections
+ */
+static void HandleMenuChoice(long menuChoice)
+{
+    short menu, item;
+
+    menu = (short)((menuChoice >> 16) & 0xFFFF);
+    item = (short)(menuChoice & 0xFFFF);
+
+    if (menu == rMenuFile && item == 1) {
+        gQuitting = TRUE;
+    }
+
+    HiliteMenu(0);
+}
+
+/*
+ * HandleEvent -- Process Mac OS events
+ *
+ * Keyboard input for movement uses GetKeys() polling (input.c),
+ * NOT keyDown events. keyDown only used for Cmd-Q quit.
+ * Source: Black Art (1996) Ch. 3, all six books agree.
+ */
+static void HandleEvent(EventRecord *event)
+{
+    WindowPtr whichWindow;
+    short part;
+
+    switch (event->what) {
+    case mouseDown:
+        part = FindWindow(event->where, &whichWindow);
+        switch (part) {
+        case inMenuBar:
+            HandleMenuChoice(MenuSelect(event->where));
+            break;
+        case inDrag:
+            DragWindow(whichWindow, event->where,
+                       &qd.screenBits.bounds);
+            break;
+        case inContent:
+            if (whichWindow != FrontWindow())
+                SelectWindow(whichWindow);
+            break;
+        }
+        break;
+
+    case keyDown:
+    case autoKey:
+        if (event->modifiers & cmdKey) {
+            HandleMenuChoice(MenuKey(
+                (char)(event->message & charCodeMask)));
+        }
+        break;
+
+    case updateEvt:
+        whichWindow = (WindowPtr)event->message;
+        BeginUpdate(whichWindow);
+        Renderer_BlitToWindow(gGame.window);
+        EndUpdate(whichWindow);
+        break;
+    }
+}
+
+/*
+ * MainLoop -- WaitNextEvent + fixed-rate game update
+ *
+ * Source: Black Art (1996) Ch. 8, Tricks of the Gurus (1995).
+ * WaitNextEvent(sleep=0) so we never yield CPU.
+ * GetKeys() for input, PT_Poll() for networking, every iteration.
+ */
+static void MainLoop(void)
+{
+    EventRecord event;
+    long currentTick;
+    long elapsed;
+
+    gLastFrameTick = TickCount();
+
+    while (!gQuitting) {
+        if (WaitNextEvent(everyEvent, &event, EVENT_TICKS, NULL)) {
+            HandleEvent(&event);
+        }
+
+        Net_Poll();
+
+        currentTick = TickCount();
+        if (currentTick - gLastFrameTick >= FRAME_TICKS) {
+            elapsed = currentTick - gLastFrameTick;
+            if (elapsed > 10) elapsed = 10; /* cap to ~1/6 sec */
+            gGame.deltaTicks = (short)elapsed;
+            gLastFrameTick = currentTick;
+
+            Input_Poll();
+
+            /* Toggle FPS display with F key */
+            if (Input_WasKeyPressed(KEY_F)) {
+                gGame.showFPS = !gGame.showFPS;
+            }
+
+            Screens_Update();
+            Screens_Draw(gGame.window);
+
+            /* FPS counting: update every second (60 ticks) */
+            gFPSFrameCount++;
+            if (currentTick - gFPSLastTick >= 60) {
+                gGame.fpsValue = gFPSFrameCount;
+                gFPSFrameCount = 0;
+                gFPSLastTick = currentTick;
+            }
+
+            /* Draw FPS overlay directly on window */
+            if (gGame.showFPS) {
+                Renderer_DrawFPS(gGame.fpsValue);
+            }
+        }
+    }
+}
+
+/*
+ * InitGameState -- Zero out the global game state
+ */
+static void InitGameState(void)
+{
+    short i;
+
+    gGame.currentScreen = SCREEN_LOADING;
+    gGame.numPlayers = 0;
+    gGame.localPlayerID = -1;
+    gGame.numActiveBombs = 0;
+    gGame.gameRunning = FALSE;
+    gGame.roundStartTick = 0;
+    gGame.gameStartReceived = FALSE;
+    gGame.deltaTicks = FRAME_TICKS;
+    gGame.showFPS = FALSE;
+    gGame.fpsValue = 0;
+
+    for (i = 0; i < MAX_PLAYERS; i++) {
+        gGame.players[i].active = FALSE;
+        gGame.players[i].alive = FALSE;
+        gGame.players[i].playerID = (unsigned char)i;
+        gGame.players[i].bombsAvailable = 1;
+        gGame.players[i].bombRange = 1;
+        gGame.players[i].peer = NULL;
+    }
+
+    for (i = 0; i < MAX_BOMBS; i++) {
+        gGame.bombs[i].active = FALSE;
+    }
+}
+
+/* ---- Entry Point ---- */
+int main(void)
+{
+    InitToolbox();
+    clog_set_file("BomberTalk Log");
+    clog_init("BomberTalk", CLOG_LVL_INFO);
+
+    CLOG_INFO("BomberTalk starting");
+
+    DetectScreenSize();
+    SetupMenus();
+    CreateGameWindow();
+    InitGameState();
+
+    Input_Init();
+    Renderer_Init(gGame.window);
+    Net_Init("BomberTalk");
+
+    Screens_Init();
+
+    CLOG_INFO("Entering main loop");
+    MainLoop();
+
+    CLOG_INFO("Shutting down");
+    Net_Shutdown();
+    Renderer_Shutdown();
+    DisposeWindow(gGame.window);
+    clog_shutdown();
+
+    return 0;
+}
