@@ -8,13 +8,23 @@
  * Color Macs: GWorld-based (Color QuickDraw / QDOffscreen).
  * Mac SE:     BitMap + GrafPort (classic QuickDraw, 1-bit monochrome).
  *
+ * Performance optimizations (002-perf-extensibility):
+ *   - Dirty rectangle tracking at tile granularity
+ *   - Frame-level sprite LockPixels batching
+ *   - Static const color constants (no stack allocation)
+ *   - Cached PixMap pointers
+ *   - 32-bit aligned CopyBits rectangles
+ *
  * Source: Black Art (1996) texture loading, Tricks of the Gurus (1995),
- *         Sex Lies and Video Games (1996) buffered animation.
+ *         Sex Lies and Video Games (1996) buffered animation,
+ *         Mac Game Programming (2002) Ch.6 dirty rectangles,
+ *         Macintosh Game Programming Techniques (1996) Ch.7 LockPixels.
  */
 
 #include "renderer.h"
 #include "tilemap.h"
 #include <clog.h>
+#include <string.h>
 
 /* ---- Color Mac: GWorld-based offscreen ---- */
 #include <QDOffscreen.h>
@@ -41,13 +51,122 @@ static GDHandle gSavedScreenDevice = NULL;
 
 static int gPICTsLoaded = FALSE;
 
+/* ---- Static color constants (T012) ---- */
+static const RGBColor kPlayerWhite  = {0xFFFF, 0xFFFF, 0xFFFF};
+static const RGBColor kPlayerRed    = {0xFFFF, 0x0000, 0x0000};
+static const RGBColor kPlayerBlue   = {0x0000, 0x0000, 0xFFFF};
+static const RGBColor kPlayerYellow = {0xFFFF, 0xFFFF, 0x0000};
+static const RGBColor kExplosionOrange = {0xFFFF, 0x6600, 0x0000};
+
+static const RGBColor *kPlayerColors[MAX_PLAYERS] = {
+    &kPlayerWhite, &kPlayerRed, &kPlayerBlue, &kPlayerYellow
+};
+
+/* ---- Tile drawing colors ---- */
+static const RGBColor kTileGreen     = {0x5500, 0xAA00, 0x5500};
+static const RGBColor kTileGray      = {0x7700, 0x7700, 0x7700};
+static const RGBColor kTileDarkGray  = {0x5500, 0x5500, 0x5500};
+static const RGBColor kTileBrown     = {0x9900, 0x6600, 0x3300};
+static const RGBColor kTileDarkBrown = {0x7700, 0x4400, 0x2200};
+
+/* ---- Cached PixMap pointers (T013) ---- */
+static BitMap *gCachedPlayerPM[MAX_PLAYERS];
+static BitMap *gCachedBombPM = NULL;
+static BitMap *gCachedExplosionPM = NULL;
+
+/* ---- Dirty rectangle grid (T015) ---- */
+static unsigned char gDirtyGrid[MAX_GRID_ROWS][MAX_GRID_COLS];
+static short gDirtyCount = 0;
+static short gDirtyTotal = 0;
+
+/* ==== Dirty Rectangle API ==== */
+
+void Renderer_MarkDirty(short col, short row)
+{
+    if (col < 0 || col >= TileMap_GetCols() ||
+        row < 0 || row >= TileMap_GetRows()) return;
+    if (gDirtyGrid[row][col]) return;
+    gDirtyGrid[row][col] = 1;
+    gDirtyCount++;
+}
+
+void Renderer_MarkAllDirty(void)
+{
+    memset(gDirtyGrid, 1, sizeof(gDirtyGrid));
+    gDirtyCount = gDirtyTotal;
+}
+
+void Renderer_ClearDirty(void)
+{
+    memset(gDirtyGrid, 0, sizeof(gDirtyGrid));
+    gDirtyCount = 0;
+}
+
+/* ==== Sprite lock batching (T013-T014) ==== */
+
+static void LockAllSprites(void)
+{
+    short i;
+    if (gGame.isMacSE) return;
+
+    for (i = 0; i < MAX_PLAYERS; i++) {
+        if (gPlayerSprites[i] != NULL) {
+            LockPixels(GetGWorldPixMap(gPlayerSprites[i]));
+            gCachedPlayerPM[i] = (BitMap *)*GetGWorldPixMap(gPlayerSprites[i]);
+        } else {
+            gCachedPlayerPM[i] = NULL;
+        }
+    }
+    if (gBombSprite != NULL) {
+        LockPixels(GetGWorldPixMap(gBombSprite));
+        gCachedBombPM = (BitMap *)*GetGWorldPixMap(gBombSprite);
+    }
+    if (gExplosionSprite != NULL) {
+        LockPixels(GetGWorldPixMap(gExplosionSprite));
+        gCachedExplosionPM = (BitMap *)*GetGWorldPixMap(gExplosionSprite);
+    }
+}
+
+static void UnlockAllSprites(void)
+{
+    short i;
+    if (gGame.isMacSE) return;
+
+    for (i = 0; i < MAX_PLAYERS; i++) {
+        if (gPlayerSprites[i] != NULL) {
+            UnlockPixels(GetGWorldPixMap(gPlayerSprites[i]));
+        }
+        gCachedPlayerPM[i] = NULL;
+    }
+    if (gBombSprite != NULL) {
+        UnlockPixels(GetGWorldPixMap(gBombSprite));
+    }
+    gCachedBombPM = NULL;
+    if (gExplosionSprite != NULL) {
+        UnlockPixels(GetGWorldPixMap(gExplosionSprite));
+    }
+    gCachedExplosionPM = NULL;
+}
+
+/* ==== 32-bit alignment helper (T016) ==== */
+
+static void AlignRect32(Rect *r)
+{
+    if (gGame.isMacSE) {
+        /* 1-bit: align to 32-pixel boundaries */
+        r->left &= ~31;
+        r->right = (r->right + 31) & ~31;
+    } else {
+        /* 8-bit: align to 4-pixel boundaries */
+        r->left &= ~3;
+        r->right = (r->right + 3) & ~3;
+    }
+    if (r->right > gGame.playWidth)
+        r->right = gGame.playWidth;
+}
+
 /* ==== Offscreen buffer abstraction ==== */
 
-/*
- * GetBgBits / GetWorkBits -- Return BitMap* for CopyBits calls.
- * On color Macs this dereferences the GWorld PixMap handle.
- * On Mac SE this returns the static BitMap.
- */
 static BitMap *GetBgBits(void)
 {
     if (gGame.isMacSE)
@@ -62,10 +181,6 @@ static BitMap *GetWorkBits(void)
     return (BitMap *)*GetGWorldPixMap(gWorkBuffer);
 }
 
-/*
- * LockBg / UnlockBg / LockWork / UnlockWork
- * GWorld pixels must be locked before access; BitMaps need no locking.
- */
 static void LockBg(void)
 {
     if (!gGame.isMacSE)
@@ -90,10 +205,6 @@ static void UnlockWork(void)
         UnlockPixels(GetGWorldPixMap(gWorkBuffer));
 }
 
-/*
- * SetPortBg / SetPortWork -- Direct drawing to the offscreen buffer.
- * Caller must save/restore port.
- */
 static void SetPortBg(void)
 {
     if (gGame.isMacSE)
@@ -110,10 +221,6 @@ static void SetPortWork(void)
         SetGWorld(gWorkBuffer, NULL);
 }
 
-/*
- * SavePort / RestorePort -- Save and restore the current port.
- * Must handle both GWorld (CGrafPtr+GDHandle) and plain GrafPort.
- */
 static CGrafPtr gSavedPort = NULL;
 static GDHandle gSavedDevice = NULL;
 
@@ -203,22 +310,13 @@ static void LoadPICTResources(void)
 
 /* ==== Mac SE: Offscreen BitMap allocation ==== */
 
-/*
- * AllocOffscreenBitMap -- Create an offscreen BitMap + GrafPort for Mac SE.
- *
- * Source: Macintosh Game Animation (1985), Black Art (1996) Ch. 5
- *         for pre-Color-QuickDraw offscreen drawing.
- *
- * rowBytes must be even (word-aligned) for QuickDraw.
- * Memory: 240x208 at 1-bit = 6240 bytes per buffer.
- */
 static int AllocOffscreenBitMap(GrafPort *port, BitMap *bits, Ptr *storage,
                                  short width, short height)
 {
     short rowBytes;
     long bufSize;
 
-    rowBytes = ((width + 15) / 16) * 2; /* round up to word boundary */
+    rowBytes = ((width + 15) / 16) * 2;
     bufSize = (long)rowBytes * height;
 
     *storage = NewPtrClear(bufSize);
@@ -232,7 +330,6 @@ static int AllocOffscreenBitMap(GrafPort *port, BitMap *bits, Ptr *storage,
     SetPortBits(bits);
     port->portRect = bits->bounds;
 
-    /* Clip to bounds */
     ClipRect(&bits->bounds);
 
     return TRUE;
@@ -249,7 +346,6 @@ void Renderer_Init(WindowPtr window)
     SetRect(&bounds, 0, 0, gGame.playWidth, gGame.playHeight);
 
     if (gGame.isMacSE) {
-        /* Mac SE: offscreen BitMap + GrafPort (no Color QuickDraw) */
         if (!AllocOffscreenBitMap(&gBgPortSE, &gBgBitsSE, &gBgStorageSE,
                                    gGame.playWidth, gGame.playHeight)) {
             CLOG_ERR("Failed to create SE background bitmap");
@@ -265,7 +361,6 @@ void Renderer_Init(WindowPtr window)
         CLOG_INFO("Mac SE offscreen bitmaps allocated: %ldB each",
                    (long)gBgBitsSE.rowBytes * gGame.playHeight);
     } else {
-        /* Color Macs: GWorld offscreen buffers */
         QDErr err;
 
         err = NewGWorld(&gBackground, 0, &bounds, NULL, NULL, 0);
@@ -287,6 +382,10 @@ void Renderer_Init(WindowPtr window)
     if (!gGame.isMacSE) {
         LoadPICTResources();
     }
+
+    /* Initialize dirty rect tracking */
+    gDirtyTotal = TileMap_GetCols() * TileMap_GetRows();
+    Renderer_ClearDirty();
 
     /* Build the initial background */
     Renderer_RebuildBackground();
@@ -335,20 +434,6 @@ void Renderer_Shutdown(void)
 
 /* ==== Tile Drawing ==== */
 
-/* Color constants for tile rendering (static to avoid per-tile stack alloc) */
-static const RGBColor kTileGreen     = {0x5500, 0xAA00, 0x5500};
-static const RGBColor kTileGray      = {0x7700, 0x7700, 0x7700};
-static const RGBColor kTileDarkGray  = {0x5500, 0x5500, 0x5500};
-static const RGBColor kTileBrown     = {0x9900, 0x6600, 0x3300};
-static const RGBColor kTileDarkBrown = {0x7700, 0x4400, 0x2200};
-
-/*
- * DrawTileRect -- Fallback: draw a colored/patterned rectangle for a tile.
- * Mac SE: 1-bit patterns (black, white, gray).
- * Color Macs: RGBForeColor rectangles.
- *
- * Caller must have already set port to bg and locked it.
- */
 static void DrawTileRect(short tileType, short col, short row)
 {
     Rect r;
@@ -403,11 +488,6 @@ static void DrawTileRect(short tileType, short col, short row)
     }
 }
 
-/*
- * DrawTileFromSheet -- Blit a tile from the PICT tile sheet to bg.
- * Caller must have locked both tileSheet and bg.
- * sheetBits is passed in to avoid per-tile GetGWorldPixMap.
- */
 static void DrawTileFromSheet(short tileIndex, short col, short row,
                               BitMap *sheetBits)
 {
@@ -431,14 +511,16 @@ void Renderer_RebuildBackground(void)
 {
     TileMap *map;
     short r, c;
+    short mapCols, mapRows;
     unsigned char tile;
     int useSheet;
     BitMap *sheetBits = NULL;
 
     map = TileMap_Get();
+    mapCols = TileMap_GetCols();
+    mapRows = TileMap_GetRows();
     useSheet = (gPICTsLoaded && !gGame.isMacSE);
 
-    /* Lock + set port once for the whole rebuild */
     SavePort();
     SetPortBg();
     LockBg();
@@ -453,8 +535,8 @@ void Renderer_RebuildBackground(void)
         sheetBits = (BitMap *)*GetGWorldPixMap(gTileSheet);
     }
 
-    for (r = 0; r < GRID_ROWS; r++) {
-        for (c = 0; c < GRID_COLS; c++) {
+    for (r = 0; r < mapRows; r++) {
+        for (c = 0; c < mapCols; c++) {
             tile = map->tiles[r][c];
             if (useSheet) {
                 short idx = (tile == TILE_SPAWN) ? 0 : tile;
@@ -472,22 +554,19 @@ void Renderer_RebuildBackground(void)
 
     UnlockBg();
     RestorePort();
+
+    /* Mark all tiles dirty after background rebuild */
+    Renderer_MarkAllDirty();
 }
 
 /* ==== Per-Frame Rendering ==== */
 
 void Renderer_BeginFrame(void)
 {
-    Rect bounds;
-    SetRect(&bounds, 0, 0, gGame.playWidth, gGame.playHeight);
-
     LockBg();
     LockWork();
 
-    /* Ensure clean port state before CopyBits (Mac SE fix).
-     * CopyBits on classic QuickDraw can be affected by the
-     * destination port's fore/back color for pattern transfers.
-     * Source: Tricks of the Mac Game Programming Gurus (1995). */
+    /* Ensure clean port state before CopyBits (Mac SE fix) */
     if (gGame.isMacSE) {
         SavePort();
         SetPortWork();
@@ -496,11 +575,39 @@ void Renderer_BeginFrame(void)
         RestorePort();
     }
 
-    CopyBits(GetBgBits(), GetWorkBits(),
-             &bounds, &bounds, srcCopy, NULL);
+    /* Dirty rect optimization (T017):
+     * If all dirty or >50% dirty, do full-screen CopyBits.
+     * Otherwise copy only dirty tile rects with 32-bit alignment. */
+    if (gDirtyCount >= gDirtyTotal || gDirtyCount > gDirtyTotal / 2) {
+        Rect bounds;
+        SetRect(&bounds, 0, 0, gGame.playWidth, gGame.playHeight);
+        CopyBits(GetBgBits(), GetWorkBits(),
+                 &bounds, &bounds, srcCopy, NULL);
+    } else {
+        short r, c;
+        short ts = gGame.tileSize;
+        short mapCols = TileMap_GetCols();
+        short mapRows = TileMap_GetRows();
+
+        for (r = 0; r < mapRows; r++) {
+            for (c = 0; c < mapCols; c++) {
+                if (gDirtyGrid[r][c]) {
+                    Rect tileRect;
+                    SetRect(&tileRect, c * ts, r * ts,
+                            (c + 1) * ts, (r + 1) * ts);
+                    AlignRect32(&tileRect);
+                    CopyBits(GetBgBits(), GetWorkBits(),
+                             &tileRect, &tileRect, srcCopy, NULL);
+                }
+            }
+        }
+    }
 
     UnlockBg();
     /* Keep work buffer locked for sprite drawing */
+
+    /* Lock all sprite GWorlds and cache PixMap pointers (T014) */
+    LockAllSprites();
 }
 
 void Renderer_DrawPlayer(short playerID, short col, short row, short facing)
@@ -512,32 +619,29 @@ void Renderer_DrawPlayer(short playerID, short col, short row, short facing)
 
     SetRect(&dstRect, col * ts, row * ts, (col + 1) * ts, (row + 1) * ts);
 
-    if (!gGame.isMacSE && gPICTsLoaded && gPlayerSprites[playerID] != NULL) {
+    if (!gGame.isMacSE && gPICTsLoaded &&
+        gCachedPlayerPM[playerID] != NULL) {
         Rect srcRect;
         SetRect(&srcRect, 0, 0, ts, ts);
 
-        LockPixels(GetGWorldPixMap(gPlayerSprites[playerID]));
         CopyBits(
-            (BitMap *)*GetGWorldPixMap(gPlayerSprites[playerID]),
+            gCachedPlayerPM[playerID],
             GetWorkBits(),
             &srcRect, &dstRect, transparent, NULL);
-        UnlockPixels(GetGWorldPixMap(gPlayerSprites[playerID]));
     } else {
-        /* Fallback: colored/patterned rectangle per player */
         SavePort();
         SetPortWork();
 
         InsetRect(&dstRect, 2, 2);
 
         if (gGame.isMacSE) {
-            /* 1-bit: black filled square with white marker inside.
-             * Local player: white cross. Remote: white center dot.
-             * dstRect is already inset by 2, so 12x12 on 16px tiles. */
             short w = dstRect.right - dstRect.left;
             short h = dstRect.bottom - dstRect.top;
             short cx = dstRect.left + w / 2;
             short cy = dstRect.top + h / 2;
             Rect mark;
+
+            (void)h;
 
             ForeColor(blackColor);
             BackColor(whiteColor);
@@ -545,28 +649,19 @@ void Renderer_DrawPlayer(short playerID, short col, short row, short facing)
 
             ForeColor(whiteColor);
             if (playerID == gGame.localPlayerID) {
-                /* Horizontal bar of cross */
                 SetRect(&mark, dstRect.left + 1, cy - 1,
                         dstRect.right - 1, cy + 1);
                 PaintRect(&mark);
-                /* Vertical bar of cross */
                 SetRect(&mark, cx - 1, dstRect.top + 1,
                         cx + 1, dstRect.bottom - 1);
                 PaintRect(&mark);
             } else {
-                /* Center dot */
                 SetRect(&mark, cx - 2, cy - 2, cx + 2, cy + 2);
                 PaintRect(&mark);
             }
             ForeColor(blackColor);
         } else {
-            RGBColor colors[4];
-            colors[0].red = 0xFFFF; colors[0].green = 0xFFFF; colors[0].blue = 0xFFFF;
-            colors[1].red = 0xFFFF; colors[1].green = 0x0000; colors[1].blue = 0x0000;
-            colors[2].red = 0x0000; colors[2].green = 0x0000; colors[2].blue = 0xFFFF;
-            colors[3].red = 0xFFFF; colors[3].green = 0xFFFF; colors[3].blue = 0x0000;
-
-            RGBForeColor(&colors[playerID & 3]);
+            RGBForeColor(kPlayerColors[playerID & 3]);
             PaintRect(&dstRect);
             ForeColor(blackColor);
             FrameRect(&dstRect);
@@ -583,16 +678,14 @@ void Renderer_DrawBomb(short col, short row)
 
     SetRect(&dstRect, col * ts, row * ts, (col + 1) * ts, (row + 1) * ts);
 
-    if (!gGame.isMacSE && gPICTsLoaded && gBombSprite != NULL) {
+    if (!gGame.isMacSE && gPICTsLoaded && gCachedBombPM != NULL) {
         Rect srcRect;
         SetRect(&srcRect, 0, 0, ts, ts);
 
-        LockPixels(GetGWorldPixMap(gBombSprite));
         CopyBits(
-            (BitMap *)*GetGWorldPixMap(gBombSprite),
+            gCachedBombPM,
             GetWorkBits(),
             &srcRect, &dstRect, transparent, NULL);
-        UnlockPixels(GetGWorldPixMap(gBombSprite));
     } else {
         SavePort();
         SetPortWork();
@@ -612,29 +705,22 @@ void Renderer_DrawExplosion(short col, short row)
 
     SetRect(&dstRect, col * ts, row * ts, (col + 1) * ts, (row + 1) * ts);
 
-    if (!gGame.isMacSE && gPICTsLoaded && gExplosionSprite != NULL) {
+    if (!gGame.isMacSE && gPICTsLoaded && gCachedExplosionPM != NULL) {
         Rect srcRect;
         SetRect(&srcRect, 0, 0, ts, ts);
 
-        LockPixels(GetGWorldPixMap(gExplosionSprite));
         CopyBits(
-            (BitMap *)*GetGWorldPixMap(gExplosionSprite),
+            gCachedExplosionPM,
             GetWorkBits(),
             &srcRect, &dstRect, transparent, NULL);
-        UnlockPixels(GetGWorldPixMap(gExplosionSprite));
     } else {
         SavePort();
         SetPortWork();
 
         if (gGame.isMacSE) {
-            /* 1-bit: invert the rect for explosion effect */
             InvertRect(&dstRect);
         } else {
-            RGBColor orange;
-            orange.red = 0xFFFF;
-            orange.green = 0x6600;
-            orange.blue = 0x0000;
-            RGBForeColor(&orange);
+            RGBForeColor(&kExplosionOrange);
             PaintRect(&dstRect);
         }
 
@@ -654,7 +740,6 @@ void Renderer_DrawText(const char *text, short x, short y)
     Str255 pstr;
     short len = 0;
 
-    /* Convert C string to Pascal string */
     while (text[len] && len < 255) {
         pstr[len + 1] = text[len];
         len++;
@@ -692,28 +777,54 @@ void Renderer_ClearWork(void)
 
 void Renderer_EndFrame(WindowPtr window)
 {
+    /* Unlock all sprite GWorlds (T014) */
+    UnlockAllSprites();
+
     UnlockWork();
     Renderer_BlitToWindow(window);
 }
 
 void Renderer_BlitToWindow(WindowPtr window)
 {
-    Rect bounds;
     GrafPtr savePort;
 
     if (window == NULL) return;
     if (!gGame.isMacSE && gWorkBuffer == NULL) return;
     if (gGame.isMacSE && gWorkStorageSE == NULL) return;
 
-    SetRect(&bounds, 0, 0, gGame.playWidth, gGame.playHeight);
-
     GetPort(&savePort);
     SetPort(window);
 
     LockWork();
 
-    CopyBits(GetWorkBits(), &window->portBits,
-             &bounds, &bounds, srcCopy, NULL);
+    /* Dirty rect optimization for work->window blit (T018) */
+    if (gDirtyCount >= gDirtyTotal || gDirtyCount > gDirtyTotal / 2) {
+        Rect bounds;
+        SetRect(&bounds, 0, 0, gGame.playWidth, gGame.playHeight);
+        CopyBits(GetWorkBits(), &window->portBits,
+                 &bounds, &bounds, srcCopy, NULL);
+    } else {
+        short r, c;
+        short ts = gGame.tileSize;
+        short mapCols = TileMap_GetCols();
+        short mapRows = TileMap_GetRows();
+
+        for (r = 0; r < mapRows; r++) {
+            for (c = 0; c < mapCols; c++) {
+                if (gDirtyGrid[r][c]) {
+                    Rect tileRect;
+                    SetRect(&tileRect, c * ts, r * ts,
+                            (c + 1) * ts, (r + 1) * ts);
+                    AlignRect32(&tileRect);
+                    CopyBits(GetWorkBits(), &window->portBits,
+                             &tileRect, &tileRect, srcCopy, NULL);
+                }
+            }
+        }
+    }
+
+    /* Clear dirty grid after blit */
+    Renderer_ClearDirty();
 
     UnlockWork();
 
@@ -724,10 +835,8 @@ void Renderer_BlitToWindow(WindowPtr window)
 
 void Renderer_BeginScreenDraw(void)
 {
-    /* Clear work buffer to black */
     Renderer_ClearWork();
 
-    /* Save current port and switch to work buffer */
     if (gGame.isMacSE) {
         GetPort((GrafPtr *)&gSavedScreenCPort);
         SetPort(&gWorkPortSE);
@@ -740,7 +849,6 @@ void Renderer_BeginScreenDraw(void)
 
 void Renderer_EndScreenDraw(WindowPtr window)
 {
-    /* Restore port */
     if (gGame.isMacSE) {
         SetPort((GrafPtr)gSavedScreenCPort);
     } else {
@@ -750,16 +858,11 @@ void Renderer_EndScreenDraw(WindowPtr window)
     gSavedScreenCPort = NULL;
     gSavedScreenDevice = NULL;
 
-    /* Blit to window */
+    /* For screen draws, mark all dirty so full blit happens */
+    Renderer_MarkAllDirty();
     Renderer_BlitToWindow(window);
 }
 
-/*
- * Renderer_DrawFPS -- Draw FPS counter in bottom-right corner of window.
- *
- * Draws directly to the window port (overlay, not buffered).
- * Source: Black Art (1996) Ch. 8 frame rate monitoring.
- */
 void Renderer_DrawFPS(short fps)
 {
     GrafPtr savePort;
@@ -774,7 +877,6 @@ void Renderer_DrawFPS(short fps)
     GetPort(&savePort);
     SetPort(gGame.window);
 
-    /* Build "XX fps" Pascal string */
     tens = fps / 10;
     ones = fps % 10;
     if (tens > 0) {
@@ -799,7 +901,6 @@ void Renderer_DrawFPS(short fps)
     x = gGame.playWidth - strW - 4;
     y = gGame.playHeight - 4;
 
-    /* Background rectangle for readability */
     SetRect(&bgRect, x - 2, y - 10, gGame.playWidth, gGame.playHeight);
     ForeColor(blackColor);
     PaintRect(&bgRect);
@@ -808,7 +909,6 @@ void Renderer_DrawFPS(short fps)
     MoveTo(x, y);
     DrawString(fpsStr);
 
-    /* Restore port state */
     ForeColor(blackColor);
     BackColor(whiteColor);
     SetPort(savePort);

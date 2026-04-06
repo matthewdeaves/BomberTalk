@@ -34,7 +34,7 @@ else()
 endif()
 
 # Compiler flags: C89 with warnings (no -pedantic due to clog variadic macros)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c89 -Wall -Wextra")
 
 # Game sources
 set(GAME_SOURCES

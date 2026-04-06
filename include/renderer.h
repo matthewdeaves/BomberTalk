@@ -27,6 +27,11 @@ void Renderer_DrawText(const char *text, short x, short y);
 void Renderer_EndFrame(WindowPtr window);
 void Renderer_BlitToWindow(WindowPtr window);
 
+/* Dirty rectangle tracking */
+void Renderer_MarkDirty(short col, short row);
+void Renderer_MarkAllDirty(void);
+void Renderer_ClearDirty(void);
+
 /* Clear the work buffer (for screens that don't use tile rendering) */
 void Renderer_ClearWork(void);
 

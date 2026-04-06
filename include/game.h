@@ -23,9 +23,14 @@
 #include <OSUtils.h>
 #include <Sound.h>
 
+/* ---- Protocol Version ---- */
+#define BT_PROTOCOL_VERSION 2
+
 /* ---- Grid Constants ---- */
 #define GRID_COLS       15
 #define GRID_ROWS       13
+#define MAX_GRID_COLS   31
+#define MAX_GRID_ROWS   25
 
 /* Tile size is set at runtime based on screen dimensions:
  * 32x32 for 640x480+ (color Macs), 16x16 for 512x342 (Mac SE).
@@ -154,13 +159,20 @@ typedef struct {
 
 typedef struct {
     unsigned char numPlayers;
-    unsigned char pad;
+    unsigned char version;
 } MsgGameStart;
 
 typedef struct {
     unsigned char winnerID;
     unsigned char pad;
 } MsgGameOver;
+
+/* ---- Player Stats (for future power-ups / character editor) ---- */
+typedef struct {
+    short bombsMax;     /* Maximum bombs placeable at once (default 1) */
+    short bombRange;    /* Explosion range in tiles (default 1) */
+    short speedTicks;   /* Movement cooldown in ticks (default 12 = ~0.2s) */
+} PlayerStats;
 
 /* ---- Game Entity Structs ---- */
 typedef struct {
@@ -174,7 +186,7 @@ typedef struct {
     int         active;
     short       deathTimer;  /* ticks remaining for death flash (0=alive or fully dead) */
     short       bombsAvailable;
-    short       bombRange;
+    PlayerStats stats;
     unsigned char playerID;
     char        name[32];
     void        *peer; /* PT_Peer* -- opaque to avoid header dep */
@@ -190,7 +202,12 @@ typedef struct {
 } Bomb;
 
 typedef struct {
-    unsigned char tiles[GRID_ROWS][GRID_COLS];
+    short cols;
+    short rows;
+    unsigned char tiles[MAX_GRID_ROWS][MAX_GRID_COLS];
+    short spawnCols[MAX_PLAYERS];
+    short spawnRows[MAX_PLAYERS];
+    short spawnCount;
 } TileMap;
 
 /* ---- Global Game State ---- */

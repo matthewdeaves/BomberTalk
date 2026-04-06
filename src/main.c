@@ -9,6 +9,7 @@
 #include "game.h"
 #include "screens.h"
 #include "renderer.h"
+#include "tilemap.h"
 #include "input.h"
 #include "net.h"
 #include <clog.h>
@@ -82,14 +83,11 @@ static void DetectScreenSize(void)
     if (screenRect.right - screenRect.left <= 512) {
         gGame.isMacSE = TRUE;
         gGame.tileSize = TILE_SIZE_SMALL;
-        gGame.playWidth = PLAY_WIDTH_SMALL;
-        gGame.playHeight = PLAY_HEIGHT_SMALL;
     } else {
         gGame.isMacSE = FALSE;
         gGame.tileSize = TILE_SIZE_LARGE;
-        gGame.playWidth = PLAY_WIDTH_LARGE;
-        gGame.playHeight = PLAY_HEIGHT_LARGE;
     }
+    /* playWidth/playHeight set after TileMap_Init (dynamic grid dims) */
 }
 
 /*
@@ -276,7 +274,9 @@ static void InitGameState(void)
         gGame.players[i].alive = FALSE;
         gGame.players[i].playerID = (unsigned char)i;
         gGame.players[i].bombsAvailable = 1;
-        gGame.players[i].bombRange = 1;
+        gGame.players[i].stats.bombsMax = 1;
+        gGame.players[i].stats.bombRange = 1;
+        gGame.players[i].stats.speedTicks = 12;
         gGame.players[i].peer = NULL;
     }
 
@@ -295,6 +295,14 @@ int main(void)
     CLOG_INFO("BomberTalk starting");
 
     DetectScreenSize();
+
+    /* Load tilemap early so dimensions are known for window/buffer sizing */
+    TileMap_Init();
+
+    /* Update play dimensions from loaded tilemap (T027/T030) */
+    gGame.playWidth = TileMap_GetCols() * gGame.tileSize;
+    gGame.playHeight = TileMap_GetRows() * gGame.tileSize;
+
     SetupMenus();
     CreateGameWindow();
     InitGameState();
@@ -304,6 +312,9 @@ int main(void)
     Net_Init("BomberTalk");
 
     Screens_Init();
+
+    /* Memory budget check (T038) */
+    CLOG_INFO("Free heap after init: %ld bytes", FreeMem());
 
     CLOG_INFO("Entering main loop");
     MainLoop();

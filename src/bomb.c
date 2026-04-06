@@ -47,6 +47,7 @@ int Bomb_PlaceAt(short col, short row, short range, unsigned char ownerID)
             b->ownerID = ownerID;
             b->active = TRUE;
             gGame.numActiveBombs++;
+            Renderer_MarkDirty(col, row);
             CLOG_DEBUG("Bomb placed at (%d,%d) by player %d", col, row, ownerID);
             return TRUE;
         }
@@ -97,6 +98,7 @@ static void ExplodeBomb(Bomb *b, int broadcast)
 
     /* Center tile */
     AddExplosion(b->gridCol, b->gridRow);
+    Renderer_MarkDirty(b->gridCol, b->gridRow);
 
     /* Four directions */
     for (dir = 0; dir < 4; dir++) {
@@ -105,12 +107,13 @@ static void ExplodeBomb(Bomb *b, int broadcast)
             row = b->gridRow + dRow[dir] * dist;
 
             /* Stop at walls */
-            if (col < 0 || col >= GRID_COLS ||
-                row < 0 || row >= GRID_ROWS) break;
+            if (col < 0 || col >= TileMap_GetCols() ||
+                row < 0 || row >= TileMap_GetRows()) break;
 
             if (TileMap_GetTile(col, row) == TILE_WALL) break;
 
             AddExplosion(col, row);
+            Renderer_MarkDirty(col, row);
 
             /* Destroy blocks and stop */
             if (TileMap_GetTile(col, row) == TILE_BLOCK) {
@@ -185,6 +188,8 @@ void Bomb_Update(void)
     for (i = gExplosionCount - 1; i >= 0; i--) {
         gExplosions[i].timer -= dt;
         if (gExplosions[i].timer <= 0) {
+            /* Mark tile dirty when explosion expires */
+            Renderer_MarkDirty(gExplosions[i].col, gExplosions[i].row);
             /* Remove by swapping with last */
             gExplosions[i] = gExplosions[gExplosionCount - 1];
             gExplosionCount--;
