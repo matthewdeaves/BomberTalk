@@ -55,6 +55,7 @@ static void on_disconnected(PT_Peer *peer, PT_DisconnectReason reason,
     for (i = 0; i < MAX_PLAYERS; i++) {
         if (gGame.players[i].active && gGame.players[i].peer == peer) {
             gGame.players[i].active = FALSE;
+            gGame.players[i].peer = NULL;
             CLOG_INFO("Player %d marked inactive (disconnect)", i);
             break;
         }
@@ -145,7 +146,7 @@ static void on_block_destroyed(PT_Peer *peer, const void *data, size_t len,
 
     TileMap_SetTile((short)msg->gridCol, (short)msg->gridRow, TILE_FLOOR);
     Renderer_MarkDirty((short)msg->gridCol, (short)msg->gridRow);
-    Renderer_RebuildBackground();
+    Renderer_RequestRebuildBackground();
 }
 
 static void on_player_killed(PT_Peer *peer, const void *data, size_t len,

@@ -22,8 +22,8 @@ void Game_Init(void)
 {
     short i;
 
-    /* Initialize tilemap from level data */
-    TileMap_Init();
+    /* Restore tilemap from cached initial state (no Resource Manager calls) */
+    TileMap_Reset();
     Bomb_Init();
 
     /* Initialize players at map-derived spawn positions (T026) */
