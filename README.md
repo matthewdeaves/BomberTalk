@@ -2,6 +2,23 @@
 
 A networked Bomberman clone for Classic Macintosh, built to prove the [PeerTalk](https://github.com/matthewdeaves/peertalk) SDK works across three generations of Mac hardware.
 
+Read the full write-up: [BomberTalk Alpha](https://matthewdeaves.com/blog/2026-04-06-bombertalk-alpha/)
+
+<p align="center">
+  <img src="docs/images/6400-game-closeup.webp" alt="BomberTalk gameplay on Performa 6400" width="360">
+  <img src="docs/images/mac-se-game.webp" alt="BomberTalk gameplay on Mac SE in monochrome" width="360">
+</p>
+<p align="center">
+  <em>Performa 6400 (colour, 32x32 tiles) and Mac SE (monochrome, 16x16 tiles) running the same game</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/6400-lobby.webp" alt="BomberTalk lobby on Performa 6400 showing two discovered peers" width="360">
+</p>
+<p align="center">
+  <em>Lobby — peers discovered automatically via UDP broadcast</em>
+</p>
+
 ## Targets
 
 | Platform | CPU | System | Network | Build Dir |
