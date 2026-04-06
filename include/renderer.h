@@ -17,6 +17,9 @@ void Renderer_Shutdown(void);
 /* Rebuild the static background (call when blocks destroyed) */
 void Renderer_RebuildBackground(void);
 
+/* Request deferred rebuild -- coalesces multiple calls into one per frame */
+void Renderer_RequestRebuildBackground(void);
+
 /* Per-frame rendering: copy bg to work, draw sprites, blit to window */
 void Renderer_BeginFrame(void);
 void Renderer_DrawTile(short tileIndex, short col, short row);

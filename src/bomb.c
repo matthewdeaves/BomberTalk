@@ -7,9 +7,13 @@
 #include "net.h"
 #include "renderer.h"
 #include <clog.h>
+#include <string.h>
 
 static Explosion gExplosions[MAX_EXPLOSIONS];
 static short gExplosionCount = 0;
+
+/* Spatial grid for O(1) bomb-position lookups */
+static unsigned char gBombGrid[MAX_GRID_ROWS][MAX_GRID_COLS];
 
 #define EXPLOSION_DURATION_TICKS 20  /* ~0.33 sec at 60 ticks/sec */
 
@@ -20,6 +24,7 @@ void Bomb_Init(void)
         gGame.bombs[i].active = FALSE;
     }
     gExplosionCount = 0;
+    memset(gBombGrid, 0, sizeof(gBombGrid));
 }
 
 int Bomb_PlaceAt(short col, short row, short range, unsigned char ownerID)
@@ -27,14 +32,8 @@ int Bomb_PlaceAt(short col, short row, short range, unsigned char ownerID)
     short i;
     Bomb *b;
 
-    /* Check if bomb already at this location */
-    for (i = 0; i < MAX_BOMBS; i++) {
-        if (gGame.bombs[i].active &&
-            gGame.bombs[i].gridCol == col &&
-            gGame.bombs[i].gridRow == row) {
-            return FALSE;
-        }
-    }
+    /* O(1) duplicate check via spatial grid */
+    if (gBombGrid[row][col]) return FALSE;
 
     /* Find empty slot */
     for (i = 0; i < MAX_BOMBS; i++) {
@@ -46,6 +45,7 @@ int Bomb_PlaceAt(short col, short row, short range, unsigned char ownerID)
             b->range = range;
             b->ownerID = ownerID;
             b->active = TRUE;
+            gBombGrid[row][col] = 1;
             gGame.numActiveBombs++;
             Renderer_MarkDirty(col, row);
             CLOG_DEBUG("Bomb placed at (%d,%d) by player %d", col, row, ownerID);
@@ -57,15 +57,7 @@ int Bomb_PlaceAt(short col, short row, short range, unsigned char ownerID)
 
 int Bomb_ExistsAt(short col, short row)
 {
-    short i;
-    for (i = 0; i < MAX_BOMBS; i++) {
-        if (gGame.bombs[i].active &&
-            gGame.bombs[i].gridCol == col &&
-            gGame.bombs[i].gridRow == row) {
-            return TRUE;
-        }
-    }
-    return FALSE;
+    return gBombGrid[row][col];
 }
 
 /*
@@ -125,9 +117,9 @@ static void ExplodeBomb(Bomb *b, int broadcast)
         }
     }
 
-    /* Rebuild background once after all blocks destroyed (not per-block) */
+    /* Request deferred rebuild -- coalesced to once per frame */
     if (blocksDestroyed) {
-        Renderer_RebuildBackground();
+        Renderer_RequestRebuildBackground();
     }
 
     /* Broadcast explosion (only if local fuse expired) */
@@ -166,6 +158,7 @@ static void ExplodeBomb(Bomb *b, int broadcast)
     }
 
     b->active = FALSE;
+    gBombGrid[b->gridRow][b->gridCol] = 0;
     gGame.numActiveBombs--;
 }
 

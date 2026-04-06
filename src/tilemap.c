@@ -10,6 +10,7 @@
 #include <string.h>
 
 static TileMap gMap;
+static TileMap gInitialMap;
 
 /* Default spawn corners (fallback when map has insufficient spawns) */
 static const short kDefaultSpawnCols[MAX_PLAYERS] = {1, 13, 1, 13};
@@ -148,6 +149,14 @@ void TileMap_Init(void)
 
     /* Scan spawn points */
     TileMap_ScanSpawns();
+
+    /* Cache initial map state for fast round resets */
+    memcpy(&gInitialMap, &gMap, sizeof(TileMap));
+}
+
+void TileMap_Reset(void)
+{
+    memcpy(&gMap, &gInitialMap, sizeof(TileMap));
 }
 
 TileMap *TileMap_Get(void)

@@ -74,6 +74,9 @@ static BitMap *gCachedPlayerPM[MAX_PLAYERS];
 static BitMap *gCachedBombPM = NULL;
 static BitMap *gCachedExplosionPM = NULL;
 
+/* ---- Deferred background rebuild flag ---- */
+static int gNeedRebuildBg = FALSE;
+
 /* ---- Dirty rectangle grid (T015) ---- */
 static unsigned char gDirtyGrid[MAX_GRID_ROWS][MAX_GRID_COLS];
 static short gDirtyCount = 0;
@@ -516,6 +519,8 @@ void Renderer_RebuildBackground(void)
     int useSheet;
     BitMap *sheetBits = NULL;
 
+    CLOG_INFO("RebuildBackground");
+
     map = TileMap_Get();
     mapCols = TileMap_GetCols();
     mapRows = TileMap_GetRows();
@@ -525,10 +530,8 @@ void Renderer_RebuildBackground(void)
     SetPortBg();
     LockBg();
 
-    if (gGame.isMacSE) {
-        ForeColor(blackColor);
-        BackColor(whiteColor);
-    }
+    ForeColor(blackColor);
+    BackColor(whiteColor);
 
     if (useSheet) {
         LockPixels(GetGWorldPixMap(gTileSheet));
@@ -559,21 +562,30 @@ void Renderer_RebuildBackground(void)
     Renderer_MarkAllDirty();
 }
 
+void Renderer_RequestRebuildBackground(void)
+{
+    gNeedRebuildBg = TRUE;
+}
+
 /* ==== Per-Frame Rendering ==== */
 
 void Renderer_BeginFrame(void)
 {
+    /* Check deferred rebuild flag before dirty rect processing */
+    if (gNeedRebuildBg) {
+        gNeedRebuildBg = FALSE;
+        Renderer_RebuildBackground();
+    }
+
     LockBg();
     LockWork();
 
-    /* Ensure clean port state before CopyBits (Mac SE fix) */
-    if (gGame.isMacSE) {
-        SavePort();
-        SetPortWork();
-        ForeColor(blackColor);
-        BackColor(whiteColor);
-        RestorePort();
-    }
+    /* Ensure clean color state before srcCopy CopyBits (all platforms) */
+    SavePort();
+    SetPortWork();
+    ForeColor(blackColor);
+    BackColor(whiteColor);
+    RestorePort();
 
     /* Dirty rect optimization (T017):
      * If all dirty or >50% dirty, do full-screen CopyBits.
@@ -794,6 +806,10 @@ void Renderer_BlitToWindow(WindowPtr window)
 
     GetPort(&savePort);
     SetPort(window);
+
+    /* Ensure clean color state before srcCopy CopyBits (all platforms) */
+    ForeColor(blackColor);
+    BackColor(whiteColor);
 
     LockWork();
 

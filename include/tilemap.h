@@ -10,6 +10,7 @@
 #include "game.h"
 
 void TileMap_Init(void);
+void TileMap_Reset(void);
 void TileMap_LoadFromResource(void);
 void TileMap_ScanSpawns(void);
 unsigned char TileMap_GetTile(short col, short row);

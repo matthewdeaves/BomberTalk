@@ -109,7 +109,9 @@ Two offscreen buffers: **background** (static tilemap) and **work** (per-frame c
 - All sprite GWorlds locked once in BeginFrame, cached as `static BitMap *` pointers, unlocked in EndFrame
 
 **Performance rules:**
-- `Renderer_RebuildBackground()` redraws all tiles — call sparingly (once after explosion, not per-block)
+- ForeColor(blackColor)/BackColor(whiteColor) MUST be set before every srcCopy CopyBits call on ALL platforms (per "Sex, Lies and Video Games" 1996 benchmarks — up to 2.5x penalty without)
+- `Renderer_RebuildBackground()` redraws all tiles — only call directly for initialization (Renderer_Init, Game_Init)
+- `Renderer_RequestRebuildBackground()` sets deferred flag — use for gameplay events (explosions, network block-destroy). Coalesced to one rebuild per frame in BeginFrame.
 - Port save/lock is hoisted to `RebuildBackground`, not per-tile
 - Pascal strings and `StringWidth()` results are cached as statics in screen draw functions
 - `RGBColor` constants are `static const` at file scope, not stack-allocated per tile
@@ -135,10 +137,12 @@ Single `GameState gGame` struct holds all game state. Key fields:
 - `playWidth` / `playHeight` — computed from `TileMap_GetCols() * tileSize` after tilemap load
 - `players[MAX_PLAYERS]` — all player state including `peer` pointer, `PlayerStats stats` (bombsMax, bombRange, speedTicks)
 - `bombs[MAX_BOMBS]` — active bomb state with tick-based fuse timers
+- Bomb module maintains `gBombGrid[MAX_GRID_ROWS][MAX_GRID_COLS]` for O(1) `Bomb_ExistsAt()` lookups. Grid set on placement, cleared on explosion.
 
 ### TileMap & TMAP Resource (`tilemap.c`)
 
-- `TileMap_Init()` loads from `'TMAP'` resource 128, falls back to `level1.h` static data
+- `TileMap_Init()` loads from `'TMAP'` resource 128, falls back to `level1.h` static data. Caches initial state for TileMap_Reset().
+- `TileMap_Reset()` restores tilemap from cached initial state — use for round restarts instead of TileMap_Init(). No Resource Manager calls.
 - Format: 2-byte cols + 2-byte rows + (cols*rows) tile bytes (big-endian, row-major)
 - Dimensions clamped to [7-31] cols, [7-25] rows. Unknown tile values sanitized to TILE_FLOOR.
 - `TileMap_ScanSpawns()` finds TILE_SPAWN tiles top-left to bottom-right, fills remaining with default corners
@@ -187,6 +191,9 @@ Six classic Mac game programming books in `books/` — consult before implementi
 ## Active Technologies
 - C89/C90 (Retro68 cross-compiler) + PeerTalk SDK (latest, commit 7e89304), clog (latest, commit e8d5da9), Retro68/RetroPPC toolchains (002-perf-extensibility)
 - Classic Mac resource fork ('TMAP' resource type for map data) (002-perf-extensibility)
+- C89/C90 (Retro68 cross-compiler) + PeerTalk SDK, clog, Retro68/RetroPPC toolchains, Classic Mac Toolbox (QuickDraw, Resource Manager) (003-optimize-correctness)
+- Mac resource fork ('TMAP' resource type 128), static level data fallback (003-optimize-correctness)
 
 ## Recent Changes
+- 003-optimize-correctness: ForeColor/BackColor normalization on all platforms (not just Mac SE) for faster CopyBits. Deferred background rebuild via Renderer_RequestRebuildBackground() batching multiple block-destroys to one rebuild per frame. TileMap_Reset() for round restarts without Resource Manager calls. Spatial bomb grid (gBombGrid) for O(1) Bomb_ExistsAt(). Peer pointer NULLed on disconnect.
 - 002-perf-extensibility: Dirty rectangle renderer optimization, LockPixels hoisting, static color constants, 32-bit CopyBits alignment. Protocol versioning (BT_PROTOCOL_VERSION 2) with lobby mismatch indicator. TMAP resource-based map loading with dynamic grid dimensions. PlayerStats struct replacing standalone bombRange. -std=c89 enforced in CMake.
