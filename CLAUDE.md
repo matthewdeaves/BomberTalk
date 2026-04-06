@@ -50,6 +50,10 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE=$RETRO68_TOOLCHAIN/powerpc-apple-macos/cmake/ret
 
 After changes, always build and verify all three targets compile clean before committing.
 
+## Hardware Deployment
+
+Deploy builds to real Classic Mac hardware using the [classic-mac-hardware-mcp](https://github.com/matthewdeaves/classic-mac-hardware-mcp) MCP server. See that repo's README for setup. Never use raw FTP scripts — the MCP server handles rate limiting and path normalization for RumpusFTP.
+
 ## Architecture
 
 ### Main Loop (`main.c`)

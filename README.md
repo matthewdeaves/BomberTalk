@@ -45,6 +45,8 @@ Read the full write-up: [BomberTalk Alpha](https://matthewdeaves.com/blog/2026-0
 
 Both clog and PeerTalk must be built for each target architecture before building BomberTalk.
 
+For deploying to real Classic Mac hardware via Claude Code, set up the [classic-mac-hardware-mcp](https://github.com/matthewdeaves/classic-mac-hardware-mcp) server (see its README for configuration).
+
 ## Building
 
 ```bash

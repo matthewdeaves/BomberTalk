@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "classic-mac-hardware": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/matthewdeaves/classic-mac-hardware-mcp",
+        "classic-mac-hardware-mcp"
+      ],
+      "env": {
+        "MACHINES_CONFIG": "~/.config/classic-mac-hardware/machines.json"
+      }
+    }
+  }
+}
