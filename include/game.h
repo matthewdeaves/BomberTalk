@@ -228,6 +228,9 @@ typedef struct {
     short           deltaTicks;     /* actual elapsed ticks since last frame */
     int             showFPS;
     short           fpsValue;
+    int             pendingGameOver;  /* remote game over received, wait for death anims */
+    unsigned char   pendingWinner;    /* winner ID from remote MSG_GAME_OVER */
+    short           gameOverTimeout;  /* safety timeout ticks for pending game over */
     WindowPtr       window;
 } GameState;
 
