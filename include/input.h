@@ -10,6 +10,7 @@
 
 void Input_Init(void);
 void Input_Poll(void);
+void Input_ConsumeFrame(void);
 int  Input_IsKeyDown(unsigned char keyCode);
 int  Input_WasKeyPressed(unsigned char keyCode);
 

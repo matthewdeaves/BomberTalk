@@ -217,6 +217,7 @@ static void MainLoop(void)
         }
 
         Net_Poll();
+        Input_Poll();  /* accumulate key edges every iteration, not just per frame */
 
         currentTick = TickCount();
         if (currentTick - gLastFrameTick >= FRAME_TICKS) {
@@ -224,8 +225,6 @@ static void MainLoop(void)
             if (elapsed > 10) elapsed = 10; /* cap to ~1/6 sec */
             gGame.deltaTicks = (short)elapsed;
             gLastFrameTick = currentTick;
-
-            Input_Poll();
 
             /* Toggle FPS display with F key */
             if (Input_WasKeyPressed(KEY_F)) {
@@ -247,6 +246,8 @@ static void MainLoop(void)
             if (gGame.showFPS) {
                 Renderer_DrawFPS(gGame.fpsValue);
             }
+
+            Input_ConsumeFrame();  /* clear accumulated edges after frame */
         }
     }
 }
@@ -268,6 +269,9 @@ static void InitGameState(void)
     gGame.deltaTicks = FRAME_TICKS;
     gGame.showFPS = FALSE;
     gGame.fpsValue = 0;
+    gGame.pendingGameOver = FALSE;
+    gGame.pendingWinner = 0xFF;
+    gGame.gameOverTimeout = 0;
 
     for (i = 0; i < MAX_PLAYERS; i++) {
         gGame.players[i].active = FALSE;
@@ -320,10 +324,17 @@ int main(void)
     MainLoop();
 
     CLOG_INFO("Shutting down");
-    Net_Shutdown();
+    CLOG_INFO("Shutdown: renderer");
     Renderer_Shutdown();
-    DisposeWindow(gGame.window);
+    CLOG_INFO("Shutdown: window");
+    if (gGame.window) {
+        DisposeWindow(gGame.window);
+        gGame.window = NULL;
+    }
+    CLOG_INFO("Shutdown: net");
+    Net_Shutdown();
     clog_shutdown();
 
-    return 0;
+    ExitToShell();
+    return 0; /* not reached */
 }

@@ -204,7 +204,7 @@ static void on_game_over(PT_Peer *peer, const void *data, size_t len,
     if (len < sizeof(MsgGameOver)) return;
     msg = (const MsgGameOver *)data;
 
-    CLOG_INFO("Game over! Winner: %d", msg->winnerID);
+    CLOG_INFO("Game over received: winner=%d", msg->winnerID);
 
     /* Bounds check winnerID (T024) */
     if (msg->winnerID < MAX_PLAYERS) {
@@ -213,11 +213,11 @@ static void on_game_over(PT_Peer *peer, const void *data, size_t len,
         CLOG_INFO("No winner (draw or invalid ID: 0x%02X)", msg->winnerID);
     }
 
-    gGame.gameRunning = FALSE;
-
-    /* Transition back to lobby, preserving connections */
-    gGame.gameStartReceived = FALSE;
-    Screens_TransitionTo(SCREEN_LOBBY);
+    /* Defer transition: let death animations finish before going to lobby.
+     * Game_Update will handle the actual transition. */
+    gGame.pendingGameOver = TRUE;
+    gGame.pendingWinner = msg->winnerID;
+    gGame.gameOverTimeout = 180; /* 3 second safety timeout */
 }
 
 /* ---- UDP Log Broadcast ---- */

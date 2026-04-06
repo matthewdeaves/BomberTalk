@@ -150,10 +150,33 @@ void Game_Update(void)
             }
         }
 
+        /* Handle pending remote game over: wait for death anims or timeout */
+        if (gGame.pendingGameOver) {
+            gGame.gameOverTimeout -= gGame.deltaTicks;
+            if (!anyDying || gGame.gameOverTimeout <= 0) {
+                if (gGame.gameOverTimeout <= 0) {
+                    CLOG_WARN("Game over timeout, forcing transition");
+                }
+                CLOG_INFO("Game over (remote): winner=%d", gGame.pendingWinner);
+                gGame.gameRunning = FALSE;
+                gGame.pendingGameOver = FALSE;
+                gGame.gameStartReceived = FALSE;
+                Screens_TransitionTo(SCREEN_LOBBY);
+            }
+            return;
+        }
+
         if (!anyDying && aliveCount <= 1 && gGame.numPlayers > 1) {
             unsigned char winner = (aliveCount == 1) ?
                                    (unsigned char)lastAlive : 0xFF;
-            CLOG_INFO("Game over! Winner: %d", winner);
+            CLOG_INFO("Game over! Winner: %d (alive=%d dying=%d)",
+                      winner, aliveCount, anyDying);
+            for (i = 0; i < gGame.numPlayers; i++) {
+                CLOG_INFO("  P%d: active=%d alive=%d death=%d",
+                          i, gGame.players[i].active,
+                          gGame.players[i].alive,
+                          gGame.players[i].deathTimer);
+            }
             Net_SendGameOver(winner);
             gGame.gameRunning = FALSE;
 
