@@ -1,0 +1,17 @@
+build-68k/
+build-ppc-ot/
+build-ppc-mactcp/
+build/
+*.o
+*.a
+*.bin
+*.dsk
+*.out
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.vscode/
+.idea/
+*.log
+.env*
