@@ -14,10 +14,6 @@
 #include "net.h"
 #include <clog.h>
 
-/* Spawn corners: player ID -> (col, row) */
-static const short kSpawnCols[MAX_PLAYERS] = {1, 13, 1, 13};
-static const short kSpawnRows[MAX_PLAYERS] = {1, 1, 11, 11};
-
 static short gLastSentCol = -1;
 static short gLastSentRow = -1;
 static short gLastSentFacing = -1;
@@ -30,9 +26,9 @@ void Game_Init(void)
     TileMap_Init();
     Bomb_Init();
 
-    /* Initialize players at spawn positions */
+    /* Initialize players at map-derived spawn positions (T026) */
     for (i = 0; i < gGame.numPlayers; i++) {
-        Player_Init(i, kSpawnCols[i], kSpawnRows[i]);
+        Player_Init(i, TileMap_GetSpawnCol(i), TileMap_GetSpawnRow(i));
     }
 
     /* Set local player */
@@ -57,8 +53,15 @@ void Game_Update(void)
 {
     short i;
     Player *local;
+    short oldCols[MAX_PLAYERS], oldRows[MAX_PLAYERS];
 
     if (!gGame.gameRunning) return;
+
+    /* Record positions before update for dirty tracking (T019) */
+    for (i = 0; i < MAX_PLAYERS; i++) {
+        oldCols[i] = gGame.players[i].gridCol;
+        oldRows[i] = gGame.players[i].gridRow;
+    }
 
     /* Update local player movement */
     Player_Update(gGame.localPlayerID);
@@ -78,11 +81,42 @@ void Game_Update(void)
         /* Bomb placement */
         if (Input_WasKeyPressed(KEY_SPACE) && local->bombsAvailable > 0) {
             if (Bomb_PlaceAt(local->gridCol, local->gridRow,
-                             local->bombRange, local->playerID)) {
+                             local->stats.bombRange, local->playerID)) {
                 local->bombsAvailable--;
                 Net_SendBombPlaced(local->gridCol, local->gridRow,
-                                   local->bombRange);
+                                   local->stats.bombRange);
             }
+        }
+    }
+
+    /* Mark dirty tiles for players that moved or are active (T019) */
+    for (i = 0; i < MAX_PLAYERS; i++) {
+        if (!gGame.players[i].active) continue;
+        if (gGame.players[i].gridCol != oldCols[i] ||
+            gGame.players[i].gridRow != oldRows[i]) {
+            Renderer_MarkDirty(oldCols[i], oldRows[i]);
+            Renderer_MarkDirty(gGame.players[i].gridCol,
+                               gGame.players[i].gridRow);
+        }
+        /* Always mark active player positions dirty (sprites drawn into work) */
+        if (gGame.players[i].alive || gGame.players[i].deathTimer > 0) {
+            Renderer_MarkDirty(gGame.players[i].gridCol,
+                               gGame.players[i].gridRow);
+        }
+    }
+
+    /* Mark active bombs and explosions dirty (sprites drawn into work) */
+    for (i = 0; i < MAX_BOMBS; i++) {
+        if (gGame.bombs[i].active) {
+            Renderer_MarkDirty(gGame.bombs[i].gridCol,
+                               gGame.bombs[i].gridRow);
+        }
+    }
+    {
+        short expCount;
+        Explosion *exps = Bomb_GetExplosions(&expCount);
+        for (i = 0; i < expCount; i++) {
+            Renderer_MarkDirty(exps[i].col, exps[i].row);
         }
     }
 

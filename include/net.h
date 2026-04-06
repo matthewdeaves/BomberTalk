@@ -26,6 +26,8 @@ void Net_SendGameStart(unsigned char numPlayers);
 void Net_SendGameOver(unsigned char winnerID);
 
 /* Query state */
+int Net_HasVersionMismatch(void);
+void Net_ResetVersionMismatch(void);
 int Net_GetDiscoveredPeerCount(void);
 const char *Net_GetDiscoveredPeerName(int index);
 const char *Net_GetDiscoveredPeerAddress(int index);

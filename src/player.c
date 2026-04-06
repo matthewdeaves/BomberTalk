@@ -31,8 +31,10 @@ void Player_Init(short playerID, short spawnCol, short spawnRow)
     p->alive = TRUE;
     p->active = TRUE;
     p->deathTimer = 0;
-    p->bombsAvailable = 1;
-    p->bombRange = 1;
+    p->stats.bombsMax = 1;
+    p->stats.bombRange = 1;
+    p->stats.speedTicks = 12;
+    p->bombsAvailable = p->stats.bombsMax;
     p->playerID = (unsigned char)playerID;
     p->peer = NULL;
 
@@ -114,6 +116,6 @@ void Player_Update(short playerID)
         p->gridRow = newRow;
         p->pixelX = TileMap_ColToPixel(newCol);
         p->pixelY = TileMap_RowToPixel(newRow);
-        gMoveCooldown[playerID] = MOVE_COOLDOWN_TICKS;
+        gMoveCooldown[playerID] = p->stats.speedTicks;
     }
 }

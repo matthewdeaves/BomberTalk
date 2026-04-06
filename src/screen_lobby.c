@@ -24,10 +24,11 @@ static const unsigned char kLobbyConn[]   = {13, 'C','o','n','n','e','c','t','i'
 static const unsigned char kLobbySearch[] = {15, 'S','e','a','r','c','h','i','n','g','.',' ',' ',' ',' ',' '};
 static const unsigned char kLobbyStart[]  = {21, 'P','r','e','s','s',' ','R','e','t','u','r','n',' ','t','o',' ','S','t','a','r','t'};
 static const unsigned char kLobbySP[]     = {21, 'S','p','a','c','e',':',' ','S','i','n','g','l','e','-','p','l','a','y','e','r',' '};
+static const unsigned char kLobbyVMis[]  = {18, 'V','e','r','s','i','o','n',' ','m','i','s','m','a','t','c','h','!',' '};
 
 /* Cached StringWidth values */
 static short gLobbyTitleW = 0, gLobbyConnW = 0, gLobbySearchW = 0;
-static short gLobbyStartW = 0, gLobbySPW = 0;
+static short gLobbyStartW = 0, gLobbySPW = 0, gLobbyVMisW = 0;
 static int gLobbyWidthsCached = FALSE;
 
 void Lobby_Init(void)
@@ -36,6 +37,7 @@ void Lobby_Init(void)
     gWaitingForMesh = FALSE;
     gConnectStartTick = 0;
     gLastMeshRetryTick = 0;
+    Net_ResetVersionMismatch();
     Net_StartDiscovery();
     CLOG_INFO("Lobby entered, discovery started");
 }
@@ -171,6 +173,7 @@ void Lobby_Draw(WindowPtr window)
         TextSize(12);
         gLobbyStartW = StringWidth((ConstStr255Param)kLobbyStart);
         gLobbySPW = StringWidth((ConstStr255Param)kLobbySP);
+        gLobbyVMisW = StringWidth((ConstStr255Param)kLobbyVMis);
         gLobbyWidthsCached = TRUE;
     }
 
@@ -237,6 +240,14 @@ void Lobby_Draw(WindowPtr window)
             DrawString(peerStr);
             y += 20;
         }
+    }
+
+    /* Version mismatch warning (T025) */
+    if (Net_HasVersionMismatch()) {
+        TextSize(12);
+        ForeColor(whiteColor);
+        MoveTo(centerX - gLobbyVMisW / 2, y + 10);
+        DrawString((ConstStr255Param)kLobbyVMis);
     }
 
     /* Instructions */

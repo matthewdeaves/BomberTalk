@@ -94,17 +94,26 @@ Two offscreen buffers: **background** (static tilemap) and **work** (per-frame c
 - Mac SE: BitMap + GrafPort (manual allocation, 1-bit monochrome)
 
 **Gameplay frame:**
-1. `Renderer_BeginFrame()` — CopyBits bg→work, keeps work locked
-2. Draw bombs, explosions, players into work buffer
-3. `Renderer_EndFrame()` — unlocks work, CopyBits work→window
+1. `Renderer_BeginFrame()` — dirty rect CopyBits bg→work (partial or full), locks sprite PixMaps
+2. Draw bombs, explosions, players into work buffer (using cached PixMap pointers)
+3. `Renderer_EndFrame()` — unlocks sprites, unlocks work, dirty rect CopyBits work→window, clears dirty grid
 
 **Menu/loading/lobby screens:** Use `Renderer_BeginScreenDraw()` / `Renderer_EndScreenDraw()` which clear work to black and draw text directly.
 
+**Dirty Rectangle System** (002-perf-extensibility):
+- Tile-granularity boolean grid `gDirtyGrid[MAX_GRID_ROWS][MAX_GRID_COLS]`
+- `Renderer_MarkDirty(col, row)` — mark a tile for redraw next frame
+- `Renderer_MarkAllDirty()` — full-screen mode (called after RebuildBackground)
+- If >50% tiles dirty, falls back to full-screen CopyBits (avoids overhead of per-tile iteration)
+- 32-bit aligned CopyBits rects via `AlignRect32()` — longword moves on both SE (32-pixel) and color (4-pixel)
+- All sprite GWorlds locked once in BeginFrame, cached as `static BitMap *` pointers, unlocked in EndFrame
+
 **Performance rules:**
-- `Renderer_RebuildBackground()` redraws all 195 tiles — call sparingly (once after explosion, not per-block)
+- `Renderer_RebuildBackground()` redraws all tiles — call sparingly (once after explosion, not per-block)
 - Port save/lock is hoisted to `RebuildBackground`, not per-tile
 - Pascal strings and `StringWidth()` results are cached as statics in screen draw functions
 - `RGBColor` constants are `static const` at file scope, not stack-allocated per tile
+- Mark tiles dirty in every code path that changes visible state: player move, bomb place/explode, block destroy, explosion expire, network position update
 
 ### Network Layer (`net.c`)
 
@@ -114,6 +123,8 @@ Thin wrapper around PeerTalk SDK. All network I/O is callback-driven via `PT_Pol
 - **Connection**: TCP mesh — any player can initiate, tiebreaker handles simultaneous connects
 - **Player IDs**: Deterministic IP-sort (lowest IP = player 0). No host concept.
 - **Messages**: 7 types registered at init. `PT_FAST` (UDP) for positions, `PT_RELIABLE` (TCP) for game events.
+- **Protocol Version**: `BT_PROTOCOL_VERSION 2` sent in MSG_GAME_START. Receivers reject mismatches and show warning in lobby. Old v1.0-alpha clients send version 0 (the old `pad` byte).
+- **Winner ID Validation**: MSG_GAME_OVER `winnerID` is bounds-checked against MAX_PLAYERS. Values >= MAX_PLAYERS (including 0xFF for draw) treated as no winner.
 - **Logging**: clog messages are UDP-broadcast to port 7355 for remote monitoring. Receive with `socat UDP-RECV:7355 -`
 
 ### Global State (`game.h`)
@@ -121,8 +132,17 @@ Thin wrapper around PeerTalk SDK. All network I/O is callback-driven via `PT_Pol
 Single `GameState gGame` struct holds all game state. Key fields:
 - `isMacSE` / `tileSize` — detected at startup, drives renderer path selection
 - `deltaTicks` — elapsed ticks this frame (for tick-based timers)
-- `players[MAX_PLAYERS]` — all player state including `peer` pointer for network mapping
+- `playWidth` / `playHeight` — computed from `TileMap_GetCols() * tileSize` after tilemap load
+- `players[MAX_PLAYERS]` — all player state including `peer` pointer, `PlayerStats stats` (bombsMax, bombRange, speedTicks)
 - `bombs[MAX_BOMBS]` — active bomb state with tick-based fuse timers
+
+### TileMap & TMAP Resource (`tilemap.c`)
+
+- `TileMap_Init()` loads from `'TMAP'` resource 128, falls back to `level1.h` static data
+- Format: 2-byte cols + 2-byte rows + (cols*rows) tile bytes (big-endian, row-major)
+- Dimensions clamped to [7-31] cols, [7-25] rows. Unknown tile values sanitized to TILE_FLOOR.
+- `TileMap_ScanSpawns()` finds TILE_SPAWN tiles top-left to bottom-right, fills remaining with default corners
+- All gameplay code uses `TileMap_GetCols()`/`TileMap_GetRows()` instead of compile-time GRID_COLS/GRID_ROWS
 
 ## Code Style
 
@@ -151,7 +171,8 @@ Single `GameState gGame` struct holds all game state. Key fields:
 
 ## Spec Artifacts
 
-Design docs in `specs/001-v1-alpha/`. Key references: `data-model.md` (network message formats), `contracts/network-protocol.md` (IP-sort player IDs, message flow), `contracts/asset-pipeline.md` (PICT resource layout).
+- `specs/001-v1-alpha/` — v1.0-alpha design: `data-model.md` (network message formats), `contracts/network-protocol.md` (IP-sort player IDs, message flow), `contracts/asset-pipeline.md` (PICT resource layout).
+- `specs/002-perf-extensibility/` — Performance & extensibility upgrade: dirty rectangles, protocol versioning, TMAP resource loading, PlayerStats struct. Key refs: `data-model.md`, `contracts/network-protocol.md`, `research.md`.
 
 ## Reference Books
 
@@ -162,3 +183,10 @@ Six classic Mac game programming books in `books/` — consult before implementi
 - **Macintosh Game Programming Techniques (1996)** — menus, GWorlds
 - **Sex, Lies, and Video Games (1996)** — buffered animation, CopyBits benchmarks
 - **Macintosh Game Animation (1985)** — historical reference
+
+## Active Technologies
+- C89/C90 (Retro68 cross-compiler) + PeerTalk SDK (latest, commit 7e89304), clog (latest, commit e8d5da9), Retro68/RetroPPC toolchains (002-perf-extensibility)
+- Classic Mac resource fork ('TMAP' resource type for map data) (002-perf-extensibility)
+
+## Recent Changes
+- 002-perf-extensibility: Dirty rectangle renderer optimization, LockPixels hoisting, static color constants, 32-bit CopyBits alignment. Protocol versioning (BT_PROTOCOL_VERSION 2) with lobby mismatch indicator. TMAP resource-based map loading with dynamic grid dimensions. PlayerStats struct replacing standalone bombRange. -std=c89 enforced in CMake.

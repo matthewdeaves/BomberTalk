@@ -18,6 +18,7 @@
 
 static PT_Context *gPTCtx = NULL;
 static short gExpectedPlayers = 0;
+static int gVersionMismatch = FALSE;
 
 /* ---- Callbacks ---- */
 
@@ -93,9 +94,12 @@ static void on_position(PT_Peer *peer, const void *data, size_t len,
             CLOG_INFO("Player %d reactivated via position msg", msg->playerID);
         }
 
+        /* Mark old and new positions dirty */
+        Renderer_MarkDirty(p->gridCol, p->gridRow);
         Player_SetPosition(msg->playerID,
                           (short)msg->gridCol, (short)msg->gridRow,
                           (short)msg->facing);
+        Renderer_MarkDirty(p->gridCol, p->gridRow);
     }
 }
 
@@ -109,6 +113,7 @@ static void on_bomb_placed(PT_Peer *peer, const void *data, size_t len,
     if (len < sizeof(MsgBombPlaced)) return;
     msg = (const MsgBombPlaced *)data;
 
+    Renderer_MarkDirty((short)msg->gridCol, (short)msg->gridRow);
     Bomb_PlaceAt((short)msg->gridCol, (short)msg->gridRow,
                  (short)msg->range, msg->playerID);
 }
@@ -139,6 +144,7 @@ static void on_block_destroyed(PT_Peer *peer, const void *data, size_t len,
     msg = (const MsgBlockDestroyed *)data;
 
     TileMap_SetTile((short)msg->gridCol, (short)msg->gridRow, TILE_FLOOR);
+    Renderer_MarkDirty((short)msg->gridCol, (short)msg->gridRow);
     Renderer_RebuildBackground();
 }
 
@@ -171,6 +177,14 @@ static void on_game_start(PT_Peer *peer, const void *data, size_t len,
     if (len < sizeof(MsgGameStart)) return;
     msg = (const MsgGameStart *)data;
 
+    /* Version check (T023) */
+    if (msg->version != BT_PROTOCOL_VERSION) {
+        CLOG_WARN("Version mismatch: got %d, expected %d",
+                   msg->version, BT_PROTOCOL_VERSION);
+        gVersionMismatch = TRUE;
+        return;
+    }
+
     gGame.gameStartReceived = TRUE;
     gExpectedPlayers = (short)msg->numPlayers;
 
@@ -191,6 +205,14 @@ static void on_game_over(PT_Peer *peer, const void *data, size_t len,
     msg = (const MsgGameOver *)data;
 
     CLOG_INFO("Game over! Winner: %d", msg->winnerID);
+
+    /* Bounds check winnerID (T024) */
+    if (msg->winnerID < MAX_PLAYERS) {
+        CLOG_INFO("Winner is player %d", msg->winnerID);
+    } else {
+        CLOG_INFO("No winner (draw or invalid ID: 0x%02X)", msg->winnerID);
+    }
+
     gGame.gameRunning = FALSE;
 
     /* Transition back to lobby, preserving connections */
@@ -394,7 +416,7 @@ void Net_SendGameStart(unsigned char numPlayers)
     if (!gPTCtx) return;
 
     msg.numPlayers = numPlayers;
-    msg.pad = 0;
+    msg.version = BT_PROTOCOL_VERSION;
 
     gExpectedPlayers = (short)numPlayers;
     PT_Broadcast(gPTCtx, MSG_GAME_START, &msg, sizeof(msg));
@@ -484,6 +506,16 @@ int Net_GetConnectedPeerCount(void)
 short Net_GetExpectedPlayers(void)
 {
     return gExpectedPlayers;
+}
+
+int Net_HasVersionMismatch(void)
+{
+    return gVersionMismatch;
+}
+
+void Net_ResetVersionMismatch(void)
+{
+    gVersionMismatch = FALSE;
 }
 
 /*
