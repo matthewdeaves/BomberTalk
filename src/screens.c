@@ -14,9 +14,12 @@ void Screens_Init(void)
     Loading_Init();
 }
 
+static const char *gScreenNames[] = {"LOADING", "MENU", "LOBBY", "GAME"};
+
 void Screens_TransitionTo(ScreenState newScreen)
 {
-    CLOG_INFO("Screen transition: %d -> %d", gGame.currentScreen, newScreen);
+    CLOG_INFO("Screen transition: %s -> %s",
+              gScreenNames[gGame.currentScreen], gScreenNames[newScreen]);
     gGame.currentScreen = newScreen;
 
     switch (newScreen) {

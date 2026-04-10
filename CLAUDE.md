@@ -62,11 +62,12 @@ Deploy builds to real Classic Mac hardware using the [classic-mac-hardware-mcp](
 while (!gQuitting) {
     WaitNextEvent(sleep=0)  →  HandleEvent (menus, Cmd-Q only)
     Net_Poll()              →  PeerTalk callbacks fire (messages, connect/disconnect)
+    Input_Poll()            →  GetKeys() every iteration, OR new edges into accumulator
     if (deltaTicks >= FRAME_TICKS) {
         gGame.deltaTicks = actual elapsed ticks (capped at 10)
-        Input_Poll()        →  GetKeys() once, compute pressed/released edges
         Screens_Update()    →  dispatches to current screen's Update()
         Screens_Draw()      →  dispatches to current screen's Draw()
+        Input_ConsumeFrame() → clears accumulated edges for next frame
     }
 }
 ```
@@ -78,6 +79,7 @@ while (!gQuitting) {
 - `gGame.deltaTicks` — actual elapsed ticks since last frame (set in main loop, capped at 10)
 - Decrement timers by `gGame.deltaTicks`, never by 1
 - Constants: `BOMB_FUSE_TICKS=180` (~3s), `EXPLOSION_DURATION_TICKS=20` (~0.33s), `DEATH_FLASH_TICKS=60` (~1s), `MOVE_COOLDOWN_TICKS=12` (~0.2s)
+- Movement cooldown: when cooldown expires within a frame, fall through to check input immediately (don't waste the frame). Critical on Mac SE where `deltaTicks` often exceeds the full cooldown.
 - Network sync: `MSG_BOMB_EXPLODE` forces remote machines to explode immediately if their local fuse hasn't expired yet
 
 ### Screen State Machine (`screens.c`)
@@ -129,9 +131,10 @@ Thin wrapper around PeerTalk SDK. All network I/O is callback-driven via `PT_Pol
 - **Connection**: TCP mesh — any player can initiate, tiebreaker handles simultaneous connects
 - **Player IDs**: Deterministic IP-sort (lowest IP = player 0). No host concept.
 - **Messages**: 7 types registered at init. `PT_FAST` (UDP) for positions, `PT_RELIABLE` (TCP) for game events.
+- **TCP Keepalive**: PeerTalk sends automatic keepalive frames (type 254) every 20s to prevent TCP timeout during gameplay. Positions go via UDP, so without keepalive the TCP connection starves if no game events (bombs, kills) happen for 60s.
 - **Protocol Version**: `BT_PROTOCOL_VERSION 2` sent in MSG_GAME_START. Receivers reject mismatches and show warning in lobby. Old v1.0-alpha clients send version 0 (the old `pad` byte).
 - **Winner ID Validation**: MSG_GAME_OVER `winnerID` is bounds-checked against MAX_PLAYERS. Values >= MAX_PLAYERS (including 0xFF for draw) treated as no winner.
-- **Logging**: clog messages are UDP-broadcast to port 7355 for remote monitoring. Receive with `socat UDP-RECV:7355 -`
+- **Logging**: `CLOG_LVL_DBG` level. All game events (movement, bombs, kills, screen transitions, network TX/RX) are instrumented. UDP-broadcast to port 7355. Receive with `socat UDP-RECV:7355 -`
 
 ### Global State (`game.h`)
 
@@ -156,7 +159,7 @@ Single `GameState gGame` struct holds all game state. Key fields:
 
 - C89/C90: no `//` comments, no mixed declarations, no VLAs, no stdint.h
 - All memory allocated at init time — no malloc during gameplay
-- GetKeys() for input polling — never use keyDown events for movement
+- GetKeys() for input polling — never use keyDown events for movement. Movement checks both `Input_IsKeyDown()` (held) and `Input_WasKeyPressed()` (accumulated edges) to catch quick taps between frames on slow machines.
 - WaitNextEvent(sleep=0) — never yield CPU in game loop
 - GWorld double-buffering — draw to offscreen, CopyBits to window
 - PeerTalk poll-based — call PT_Poll() every frame
@@ -175,7 +178,7 @@ Single `GameState gGame` struct holds all game state. Key fields:
 
 **Big-endian**: Both 68k and PPC are big-endian. Network message structs need no byte swapping on Classic Mac. Will need conversion if POSIX build is added later.
 
-**Mac SE performance**: ~6fps. Minimize Toolbox trap calls in hot paths. Cache `StringWidth()`, avoid per-tile `SavePort`/`LockPixels`. Books recommend dirty rectangle tracking for further optimization.
+**Mac SE performance**: Lobby ~3fps, gameplay 10-19fps (measured 2026-04-10). Minimize Toolbox trap calls in hot paths. Cache `StringWidth()`, avoid per-tile `SavePort`/`LockPixels`. Movement cooldown must fall through on expiry (not waste a frame), and direction input must use accumulated edges — at 3-10fps a quick tap can complete entirely between frames.
 
 ## Spec Artifacts
 
@@ -197,7 +200,9 @@ Six classic Mac game programming books in `books/` — consult before implementi
 - Classic Mac resource fork ('TMAP' resource type for map data) (002-perf-extensibility)
 - C89/C90 (Retro68 cross-compiler) + PeerTalk SDK, clog, Retro68/RetroPPC toolchains, Classic Mac Toolbox (QuickDraw, Resource Manager) (003-optimize-correctness)
 - Mac resource fork ('TMAP' resource type 128), static level data fallback (003-optimize-correctness)
+- C89/C90 (Retro68 cross-compiler) + PeerTalk SDK (commit 7e89304), clog (commit e8d5da9), Retro68/RetroPPC toolchains, Classic Mac Toolbox (QuickDraw) (004-smooth-movement)
 
 ## Recent Changes
+- Input responsiveness + TCP keepalive: Movement cooldown falls through on expiry instead of wasting a frame (critical at Mac SE 3-10fps). Direction input checks both held keys and accumulated edges to catch quick taps between frames. PeerTalk TCP keepalive (type 254, 20s interval) prevents connection timeout during gameplay — positions go via UDP, so TCP starved if no game events for 60s.
 - 003-optimize-correctness: ForeColor/BackColor normalization on all platforms (not just Mac SE) for faster CopyBits. Deferred background rebuild via Renderer_RequestRebuildBackground() batching multiple block-destroys to one rebuild per frame. TileMap_Reset() for round restarts without Resource Manager calls. Spatial bomb grid (gBombGrid) for O(1) Bomb_ExistsAt(). Peer pointer NULLed on disconnect.
 - 002-perf-extensibility: Dirty rectangle renderer optimization, LockPixels hoisting, static color constants, 32-bit CopyBits alignment. Protocol versioning (BT_PROTOCOL_VERSION 2) with lobby mismatch indicator. TMAP resource-based map loading with dynamic grid dimensions. PlayerStats struct replacing standalone bombRange. -std=c89 enforced in CMake.

@@ -114,6 +114,8 @@ static void on_bomb_placed(PT_Peer *peer, const void *data, size_t len,
     if (len < sizeof(MsgBombPlaced)) return;
     msg = (const MsgBombPlaced *)data;
 
+    CLOG_INFO("RX bomb placed P%d (%d,%d) range=%d",
+              msg->playerID, msg->gridCol, msg->gridRow, msg->range);
     Renderer_MarkDirty((short)msg->gridCol, (short)msg->gridRow);
     Bomb_PlaceAt((short)msg->gridCol, (short)msg->gridRow,
                  (short)msg->range, msg->playerID);
@@ -131,6 +133,7 @@ static void on_bomb_explode(PT_Peer *peer, const void *data, size_t len,
 
     /* Force-explode the bomb if it hasn't exploded locally yet.
      * This keeps slow machines in sync with fast ones. */
+    CLOG_INFO("RX bomb explode (%d,%d)", msg->gridCol, msg->gridRow);
     Bomb_ForceExplodeAt((short)msg->gridCol, (short)msg->gridRow);
 }
 
@@ -144,6 +147,7 @@ static void on_block_destroyed(PT_Peer *peer, const void *data, size_t len,
     if (len < sizeof(MsgBlockDestroyed)) return;
     msg = (const MsgBlockDestroyed *)data;
 
+    CLOG_DEBUG("RX block destroyed (%d,%d)", msg->gridCol, msg->gridRow);
     TileMap_SetTile((short)msg->gridCol, (short)msg->gridRow, TILE_FLOOR);
     Renderer_MarkDirty((short)msg->gridCol, (short)msg->gridRow);
     Renderer_RequestRebuildBackground();
@@ -360,6 +364,7 @@ void Net_SendPosition(short col, short row, short facing)
     msg.facing = (unsigned char)facing;
     msg.animFrame = 0;
 
+    CLOG_DEBUG("TX pos P%d (%d,%d) f=%d", msg.playerID, col, row, facing);
     PT_Broadcast(gPTCtx, MSG_POSITION, &msg, sizeof(msg));
 }
 
@@ -374,6 +379,7 @@ void Net_SendBombPlaced(short col, short row, short range)
     msg.range = (unsigned char)range;
     msg.fuseTicks = (unsigned char)BOMB_FUSE_TICKS;
 
+    CLOG_INFO("TX bomb placed (%d,%d) range=%d", col, row, range);
     PT_Broadcast(gPTCtx, MSG_BOMB_PLACED, &msg, sizeof(msg));
 }
 
@@ -386,6 +392,7 @@ void Net_SendBombExplode(short col, short row, short range)
     msg.gridRow = (unsigned char)row;
     msg.range = (unsigned char)range;
 
+    CLOG_INFO("TX bomb explode (%d,%d) range=%d", col, row, range);
     PT_Broadcast(gPTCtx, MSG_BOMB_EXPLODE, &msg, sizeof(msg));
 }
 
@@ -397,6 +404,7 @@ void Net_SendBlockDestroyed(short col, short row)
     msg.gridCol = (unsigned char)col;
     msg.gridRow = (unsigned char)row;
 
+    CLOG_DEBUG("TX block destroyed (%d,%d)", col, row);
     PT_Broadcast(gPTCtx, MSG_BLOCK_DESTROYED, &msg, sizeof(msg));
 }
 
@@ -408,6 +416,7 @@ void Net_SendPlayerKilled(unsigned char playerID, unsigned char killerID)
     msg.playerID = playerID;
     msg.killerID = killerID;
 
+    CLOG_INFO("TX player killed: P%d by P%d", playerID, killerID);
     PT_Broadcast(gPTCtx, MSG_PLAYER_KILLED, &msg, sizeof(msg));
 }
 
@@ -420,6 +429,7 @@ void Net_SendGameStart(unsigned char numPlayers)
     msg.version = BT_PROTOCOL_VERSION;
 
     gExpectedPlayers = (short)numPlayers;
+    CLOG_INFO("TX game start: %d players, proto v%d", numPlayers, BT_PROTOCOL_VERSION);
     PT_Broadcast(gPTCtx, MSG_GAME_START, &msg, sizeof(msg));
 }
 
@@ -431,6 +441,7 @@ void Net_SendGameOver(unsigned char winnerID)
     msg.winnerID = winnerID;
     msg.pad = 0;
 
+    CLOG_INFO("TX game over: winner=%d", winnerID);
     PT_Broadcast(gPTCtx, MSG_GAME_OVER, &msg, sizeof(msg));
 }
 

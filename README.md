@@ -68,7 +68,7 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE=$RETRO68_TOOLCHAIN/powerpc-apple-macos/cmake/ret
 
 ## Remote Log Monitoring
 
-All three Macs broadcast clog messages via UDP. Receive on any machine on the LAN:
+All three Macs broadcast clog messages via UDP at DEBUG level — player movement, bomb events, network TX/RX, and screen transitions are all instrumented. Receive on any machine on the LAN:
 
 ```bash
 socat UDP-RECV:7355 -

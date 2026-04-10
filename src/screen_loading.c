@@ -9,6 +9,7 @@
 
 #include "screens.h"
 #include "renderer.h"
+#include <clog.h>
 
 static long gLoadingStartTick;
 
@@ -23,6 +24,7 @@ static int gLoadWidthsCached = FALSE;
 void Loading_Init(void)
 {
     gLoadingStartTick = TickCount();
+    CLOG_INFO("Loading screen started");
 }
 
 void Loading_Update(void)

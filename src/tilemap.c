@@ -156,6 +156,7 @@ void TileMap_Init(void)
 
 void TileMap_Reset(void)
 {
+    CLOG_INFO("TileMap reset to initial state");
     memcpy(&gMap, &gInitialMap, sizeof(TileMap));
 }
 

@@ -59,6 +59,7 @@ void Lobby_Update(void)
     short expected;
 
     if (Input_WasKeyPressed(KEY_ESCAPE)) {
+        CLOG_INFO("Lobby: ESC pressed, returning to menu");
         Net_StopDiscovery();
         gConnecting = FALSE;
         gWaitingForMesh = FALSE;

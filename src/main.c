@@ -125,6 +125,7 @@ static void CreateGameWindow(void)
     }
 
     if (gGame.window == NULL) {
+        CLOG_ERR("Failed to create game window");
         SysBeep(30);
         ExitToShell();
     }
@@ -294,7 +295,7 @@ int main(void)
 {
     InitToolbox();
     clog_set_file("BomberTalk Log");
-    clog_init("BomberTalk", CLOG_LVL_INFO);
+    clog_init("BomberTalk", CLOG_LVL_DBG);
 
     CLOG_INFO("BomberTalk starting");
 
