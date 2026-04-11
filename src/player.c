@@ -99,7 +99,7 @@ void Player_Init(short playerID, short spawnCol, short spawnRow)
     p->playerID = (unsigned char)playerID;
     p->peer = NULL;
 
-    CLOG_INFO("Player %d init at (%d,%d) px=(%d,%d)",
+    CLOG_INFO("P%d init at grid=(%d,%d) px=(%d,%d)",
               playerID, spawnCol, spawnRow, p->pixelX, p->pixelY);
 }
 
@@ -123,7 +123,7 @@ void Player_SetPosition(short playerID, short pixelX, short pixelY, short facing
     p->targetPixelY = pixelY;
     p->facing = facing;
     /* Grid derived when interpolation reaches target */
-    CLOG_DEBUG("Player %d target pos px=(%d,%d) f=%d",
+    CLOG_DEBUG("P%d target pos px=(%d,%d) f=%d",
                playerID, pixelX, pixelY, facing);
 }
 

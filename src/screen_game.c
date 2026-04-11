@@ -144,7 +144,7 @@ void Game_Update(void)
             gGame.players[i].deathTimer -= gGame.deltaTicks;
             if (gGame.players[i].deathTimer <= 0) {
                 gGame.players[i].alive = FALSE;
-                CLOG_INFO("Player %d death animation complete", i);
+                CLOG_INFO("P%d death animation complete", i);
             }
         }
     }

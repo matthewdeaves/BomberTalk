@@ -648,12 +648,9 @@ void Renderer_DrawPlayer(short playerID, short pixelX, short pixelY, short facin
 
         if (gGame.isMacSE) {
             short w = dstRect.right - dstRect.left;
-            short h = dstRect.bottom - dstRect.top;
             short cx = dstRect.left + w / 2;
-            short cy = dstRect.top + h / 2;
+            short cy = dstRect.top + (dstRect.bottom - dstRect.top) / 2;
             Rect mark;
-
-            (void)h;
 
             ForeColor(blackColor);
             BackColor(whiteColor);

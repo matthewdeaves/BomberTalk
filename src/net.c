@@ -62,7 +62,7 @@ static void on_disconnected(PT_Peer *peer, PT_DisconnectReason reason,
             Player_MarkDirtyTiles(i);
             gGame.players[i].active = FALSE;
             gGame.players[i].peer = NULL;
-            CLOG_INFO("Player %d marked inactive (disconnect)", i);
+            CLOG_INFO("P%d marked inactive (disconnect)", i);
             break;
         }
     }
@@ -104,7 +104,7 @@ static void on_position(PT_Peer *peer, const void *data, size_t len,
             p->active = TRUE;
             p->alive = TRUE;
             p->deathTimer = 0;
-            CLOG_INFO("Player %d reactivated via position msg", msg.playerID);
+            CLOG_INFO("P%d reactivated via position msg", msg.playerID);
         }
 
         /* Convert tile-independent network coords back to local pixel coords.
@@ -166,7 +166,7 @@ static void on_block_destroyed(PT_Peer *peer, const void *data, size_t len,
     if (len < sizeof(MsgBlockDestroyed)) return;
     msg = (const MsgBlockDestroyed *)data;
 
-    CLOG_DEBUG("RX block destroyed (%d,%d)", msg->gridCol, msg->gridRow);
+    CLOG_INFO("RX block destroyed (%d,%d)", msg->gridCol, msg->gridRow);
     TileMap_SetTile((short)msg->gridCol, (short)msg->gridRow, TILE_FLOOR);
     Renderer_MarkDirty((short)msg->gridCol, (short)msg->gridRow);
     Renderer_RequestRebuildBackground();
@@ -184,7 +184,7 @@ static void on_player_killed(PT_Peer *peer, const void *data, size_t len,
 
     if (msg->playerID < MAX_PLAYERS) {
         gGame.players[msg->playerID].deathTimer = DEATH_FLASH_TICKS;
-        CLOG_INFO("Player %d killed by %d (remote)", msg->playerID, msg->killerID);
+        CLOG_INFO("RX player killed P%d by P%d", msg->playerID, msg->killerID);
     }
 }
 
@@ -232,7 +232,7 @@ static void on_game_over(PT_Peer *peer, const void *data, size_t len,
 
     /* Bounds check winnerID (T024) */
     if (msg->winnerID < MAX_PLAYERS) {
-        CLOG_INFO("Winner is player %d", msg->winnerID);
+        CLOG_INFO("Winner is P%d", msg->winnerID);
     } else {
         CLOG_INFO("No winner (draw or invalid ID: 0x%02X)", msg->winnerID);
     }
@@ -438,7 +438,7 @@ void Net_SendBlockDestroyed(short col, short row)
     msg.gridCol = (unsigned char)col;
     msg.gridRow = (unsigned char)row;
 
-    CLOG_DEBUG("TX block destroyed (%d,%d)", col, row);
+    CLOG_INFO("TX block destroyed (%d,%d)", col, row);
     PT_Broadcast(gPTCtx, MSG_BLOCK_DESTROYED, &msg, sizeof(msg));
 }
 

@@ -33,6 +33,10 @@ int Bomb_PlaceAt(short col, short row, short range, unsigned char ownerID)
     short i;
     Bomb *b;
 
+    /* Bounds check before spatial grid access */
+    if (col < 0 || col >= TileMap_GetCols() ||
+        row < 0 || row >= TileMap_GetRows()) return FALSE;
+
     /* O(1) duplicate check via spatial grid */
     if (gBombGrid[row][col]) return FALSE;
 
@@ -49,7 +53,7 @@ int Bomb_PlaceAt(short col, short row, short range, unsigned char ownerID)
             gBombGrid[row][col] = 1;
             gGame.numActiveBombs++;
             Renderer_MarkDirty(col, row);
-            CLOG_DEBUG("Bomb placed at (%d,%d) by player %d", col, row, ownerID);
+            CLOG_DEBUG("Bomb placed at (%d,%d) by P%d", col, row, ownerID);
             return TRUE;
         }
     }
@@ -58,6 +62,8 @@ int Bomb_PlaceAt(short col, short row, short range, unsigned char ownerID)
 
 int Bomb_ExistsAt(short col, short row)
 {
+    if (col < 0 || col >= TileMap_GetCols() ||
+        row < 0 || row >= TileMap_GetRows()) return FALSE;
     return gBombGrid[row][col];
 }
 
@@ -155,7 +161,7 @@ static void ExplodeBomb(Bomb *b, int broadcast)
                       hitbox.top >= expRect.bottom)) {
                     pl->deathTimer = DEATH_FLASH_TICKS;
                     Net_SendPlayerKilled(pl->playerID, b->ownerID);
-                    CLOG_INFO("Player %d killed by player %d (AABB overlap)",
+                    CLOG_INFO("P%d killed by P%d (AABB overlap)",
                               pl->playerID, b->ownerID);
                     break;
                 }
@@ -224,7 +230,7 @@ void Bomb_Update(void)
                       hitbox.bottom <= expRect.top ||
                       hitbox.top >= expRect.bottom)) {
                     pl->deathTimer = DEATH_FLASH_TICKS;
-                    CLOG_INFO("Player %d walked into explosion at (%d,%d)",
+                    CLOG_INFO("P%d walked into explosion at (%d,%d)",
                               pl->playerID, gExplosions[i].col,
                               gExplosions[i].row);
                     Net_SendPlayerKilled(pl->playerID, pl->playerID);
