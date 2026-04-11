@@ -85,6 +85,7 @@ while (!gQuitting) {
 - **Explosions**: AABB overlap between player hitbox and explosion tile rects. Partial tile overlap = death. Per-frame kill check for players walking into active explosions.
 - **Bomb walk-off**: `passThroughBombIdx` per player — set on bomb placement, cleared when hitbox fully leaves bomb tile.
 - **Remote players**: Interpolation toward `targetPixelX`/`targetPixelY` via tick-based lerp (INTERP_TICKS=4).
+- **Network coordinate normalization**: MsgPosition carries tile-independent fixed-point coords (256 units = 1 tile). Send: `netX = (pixelX << 8) / tileSize`. Receive: `pixelX = (netX * tileSize) >> 8`. This allows 16px-tile Mac SE and 32px-tile PPC to agree on positions. Without this, raw pixel coords cause false explosion kills (wrong grid mapping) and crashes (out-of-bounds grid indices on smaller-tiled machines).
 - Network sync: `MSG_BOMB_EXPLODE` forces remote machines to explode immediately if their local fuse hasn't expired yet
 
 ### Screen State Machine (`screens.c`)
@@ -138,10 +139,10 @@ Thin wrapper around PeerTalk SDK. All network I/O is callback-driven via `PT_Pol
 - **Player IDs**: Deterministic IP-sort (lowest IP = player 0). No host concept.
 - **Messages**: 7 types registered at init. `PT_FAST` (UDP) for positions, `PT_RELIABLE` (TCP) for game events.
 - **TCP Keepalive**: PeerTalk sends automatic keepalive frames (type 254) every 20s to prevent TCP timeout during gameplay. Positions go via UDP, so without keepalive the TCP connection starves if no game events (bombs, kills) happen for 60s.
-- **MsgPosition v3**: 8 bytes — `{playerID: u8, facing: u8, pixelX: short, pixelY: short, pad: u8[2]}`. Pixel coords sent via PT_FAST every frame the player moves. Remote machines set interpolation targets, not direct positions.
-- **Protocol Version**: `BT_PROTOCOL_VERSION 3` sent in MSG_GAME_START. Receivers reject mismatches and show warning in lobby. Old v1.0-alpha clients send version 0 (the old `pad` byte).
+- **MsgPosition v4**: 8 bytes — `{playerID: u8, facing: u8, pixelX: short, pixelY: short, pad: u8[2]}`. Coords are tile-independent fixed-point (256 units = 1 tile), not raw pixels. Sent via PT_FAST every frame the player moves. Remote machines convert to local pixel space and set interpolation targets.
+- **Protocol Version**: `BT_PROTOCOL_VERSION 4` sent in MSG_GAME_START. Receivers reject mismatches and show warning in lobby. v3 sent raw pixel coords (broken across different tile sizes). Old v1.0-alpha clients send version 0 (the old `pad` byte).
 - **Winner ID Validation**: MSG_GAME_OVER `winnerID` is bounds-checked against MAX_PLAYERS. Values >= MAX_PLAYERS (including 0xFF for draw) treated as no winner.
-- **Logging**: `CLOG_LVL_DBG` level. All game events (movement, bombs, kills, screen transitions, network TX/RX) are instrumented. UDP-broadcast to port 7355. Receive with `socat UDP-RECV:7355 -`
+- **Logging**: `CLOG_LVL_DBG` level (Mac SE: `CLOG_LVL_INFO` to reduce File Manager overhead). All game events instrumented. UDP-broadcast to port 7356 (NOT 7355 — sharing PeerTalk's message UDP port floods MacTCP's 2KB receive buffer). Receive with `socat UDP-RECV:7356 -`. Mac SE has UDP log sink disabled (MacTCP send too slow).
 
 ### Global State (`game.h`)
 
@@ -215,7 +216,7 @@ Six classic Mac game programming books in `books/` — consult before implementi
 - C89/C90 (Retro68 cross-compiler) + PeerTalk SDK (commit 7e89304), clog (commit e8d5da9), Retro68/RetroPPC toolchains, Classic Mac Toolbox (QuickDraw) (004-smooth-movement)
 
 ## Recent Changes
-- 004-smooth-movement: Pixel-authoritative positions replace grid-locked movement. Fractional accumulator for resolution-independent speed. AABB collision with tilemap (axis-separated) and explosions (overlap = death). Bomb walk-off via passThroughBombIdx. Corner sliding. MsgPosition v3 (8 bytes, pixel coords). Remote interpolation. Disconnect dirty rect fix. BOMBERTALK_DEBUG CMake toggle. All CLOG_STRIP-safe.
+- 004-smooth-movement: Pixel-authoritative positions replace grid-locked movement. Fractional accumulator for resolution-independent speed. AABB collision with tilemap (axis-separated) and explosions (overlap = death). Bomb walk-off via passThroughBombIdx. Corner sliding. MsgPosition v4 with tile-independent network coords (256 units/tile) — fixes false kills and crashes when SE (16px) and PPC (32px) play together. Remote interpolation. Disconnect dirty rect fix. BOMBERTALK_DEBUG CMake toggle. Mac SE clog UDP sink disabled (MacTCP send too slow). All CLOG_STRIP-safe.
 - Input responsiveness + TCP keepalive: Movement cooldown falls through on expiry instead of wasting a frame (critical at Mac SE 3-10fps). Direction input checks both held keys and accumulated edges to catch quick taps between frames. PeerTalk TCP keepalive (type 254, 20s interval) prevents connection timeout during gameplay — positions go via UDP, so TCP starved if no game events for 60s.
 - 003-optimize-correctness: ForeColor/BackColor normalization on all platforms (not just Mac SE) for faster CopyBits. Deferred background rebuild via Renderer_RequestRebuildBackground() batching multiple block-destroys to one rebuild per frame. TileMap_Reset() for round restarts without Resource Manager calls. Spatial bomb grid (gBombGrid) for O(1) Bomb_ExistsAt(). Peer pointer NULLed on disconnect.
 - 002-perf-extensibility: Dirty rectangle renderer optimization, LockPixels hoisting, static color constants, 32-bit CopyBits alignment. Protocol versioning (BT_PROTOCOL_VERSION 2) with lobby mismatch indicator. TMAP resource-based map loading with dynamic grid dimensions. PlayerStats struct replacing standalone bombRange. -std=c89 enforced in CMake.

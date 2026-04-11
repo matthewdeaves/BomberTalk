@@ -130,15 +130,17 @@ static void ExplodeBomb(Bomb *b, int broadcast)
         Net_SendBombExplode(b->gridCol, b->gridRow, b->range);
     }
 
-    /* Check player kills (AABB overlap with explosion tiles) */
-    {
-        short p, e;
+    /* Check if LOCAL player killed by this explosion (AABB overlap).
+     * Each machine is authoritative for its own player's death only —
+     * prevents race condition when multiple machines fuse-expire the
+     * same bomb independently and have stale remote positions. */
+    if (gGame.localPlayerID >= 0) {
+        short e;
         short ts = gGame.tileSize;
-        for (p = 0; p < MAX_PLAYERS; p++) {
+        Player *pl = &gGame.players[gGame.localPlayerID];
+        if (pl->active && pl->alive && pl->deathTimer <= 0) {
             Rect hitbox;
-            Player *pl = &gGame.players[p];
-            if (!pl->active || !pl->alive || pl->deathTimer > 0) continue;
-            Player_GetHitbox(p, &hitbox);
+            Player_GetHitbox(gGame.localPlayerID, &hitbox);
             for (e = 0; e < gExplosionCount; e++) {
                 Rect expRect;
                 if (gExplosions[e].timer != EXPLOSION_DURATION_TICKS) continue;
@@ -152,9 +154,7 @@ static void ExplodeBomb(Bomb *b, int broadcast)
                       hitbox.bottom <= expRect.top ||
                       hitbox.top >= expRect.bottom)) {
                     pl->deathTimer = DEATH_FLASH_TICKS;
-                    if (broadcast) {
-                        Net_SendPlayerKilled(pl->playerID, b->ownerID);
-                    }
+                    Net_SendPlayerKilled(pl->playerID, b->ownerID);
                     CLOG_INFO("Player %d killed by player %d (AABB overlap)",
                               pl->playerID, b->ownerID);
                     break;

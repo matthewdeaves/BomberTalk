@@ -24,7 +24,7 @@
 #include <Sound.h>
 
 /* ---- Protocol Version ---- */
-#define BT_PROTOCOL_VERSION 3
+#define BT_PROTOCOL_VERSION 4
 
 /* ---- Grid Constants ---- */
 #define GRID_COLS       15

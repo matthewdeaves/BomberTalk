@@ -82,17 +82,21 @@ static void on_error(PT_Peer *peer, PT_Status error,
 static void on_position(PT_Peer *peer, const void *data, size_t len,
                         void *user_data)
 {
-    const MsgPosition *msg;
+    MsgPosition msg;
     Player *p;
+    short localPX, localPY;
+    short ts = gGame.tileSize;
     (void)peer;
     (void)user_data;
 
     if (len < sizeof(MsgPosition)) return;
-    msg = (const MsgPosition *)data;
+    /* Copy to aligned local — PeerTalk may deliver data at odd addresses,
+     * causing 68000 address errors when accessing short fields directly */
+    memcpy(&msg, data, sizeof(MsgPosition));
 
-    if (msg->playerID < MAX_PLAYERS &&
-        msg->playerID != (unsigned char)gGame.localPlayerID) {
-        p = &gGame.players[msg->playerID];
+    if (msg.playerID < MAX_PLAYERS &&
+        msg.playerID != (unsigned char)gGame.localPlayerID) {
+        p = &gGame.players[msg.playerID];
 
         /* Reactivate player if we receive position data from them.
          * Handles transient disconnect/reconnect during gameplay. */
@@ -100,15 +104,21 @@ static void on_position(PT_Peer *peer, const void *data, size_t len,
             p->active = TRUE;
             p->alive = TRUE;
             p->deathTimer = 0;
-            CLOG_INFO("Player %d reactivated via position msg", msg->playerID);
+            CLOG_INFO("Player %d reactivated via position msg", msg.playerID);
         }
 
+        /* Convert tile-independent network coords back to local pixel coords.
+         * Network coords use 256 units per tile, so multiply by local tileSize
+         * and divide by 256 to get pixel position in our coordinate space. */
+        localPX = (short)(((long)msg.pixelX * ts) >> 8);
+        localPY = (short)(((long)msg.pixelY * ts) >> 8);
+
         /* Mark old position dirty (multi-tile aware) */
-        Player_MarkDirtyTiles(msg->playerID);
+        Player_MarkDirtyTiles(msg.playerID);
         /* Set interpolation target (not direct position) */
-        Player_SetPosition(msg->playerID,
-                          msg->pixelX, msg->pixelY,
-                          (short)msg->facing);
+        Player_SetPosition(msg.playerID,
+                          localPX, localPY,
+                          (short)msg.facing);
         /* New position marked dirty in next frame update */
     }
 }
@@ -237,7 +247,10 @@ static void on_game_over(PT_Peer *peer, const void *data, size_t len,
 /* ---- UDP Log Broadcast ---- */
 
 #ifndef CLOG_STRIP
-#define CLOG_UDP_PORT 7355
+/* Use a separate port from PT_UDP_MSG_PORT (7355) for clog broadcasts.
+ * Sharing port 7355 causes clog flood to starve game position messages
+ * in MacTCP's small (2KB) single-read UDP receive buffer. */
+#define CLOG_UDP_PORT 7356
 
 static char gLogPrefix[20];
 static int  gLogPrefixLen = 0;
@@ -275,8 +288,11 @@ void Net_Init(const char *playerName)
     }
 
 #ifndef CLOG_STRIP
-    /* Enable UDP broadcast logging (survives crashes) */
-    {
+    /* Enable UDP broadcast logging on color Macs only.
+     * On Mac SE, each MacTCP UDP send costs ~5-10ms — at 100+ CLOG calls
+     * per frame this drops FPS from 10 to <1 and eventually crashes.
+     * Mac SE still gets file logging via clog_set_file(). */
+    if (!gGame.isMacSE) {
         const char *lip = PT_LocalAddress(gPTCtx);
         const char *s = lip;
         int i = 0;
@@ -287,8 +303,8 @@ void Net_Init(const char *playerName)
         gLogPrefix[i++] = ']';
         gLogPrefix[i++] = ' ';
         gLogPrefixLen = i;
+        clog_set_network_sink(udp_log_sink, NULL);
     }
-    clog_set_network_sink(udp_log_sink, NULL);
 #endif
 
     /* Register message types */
@@ -369,12 +385,16 @@ void Net_ConnectToAllPeers(void)
 void Net_SendPosition(short pixelX, short pixelY, short facing)
 {
     MsgPosition msg;
+    short ts = gGame.tileSize;
     if (!gPTCtx) return;
 
     msg.playerID = (unsigned char)gGame.localPlayerID;
     msg.facing = (unsigned char)facing;
-    msg.pixelX = pixelX;
-    msg.pixelY = pixelY;
+    /* Convert to tile-independent network coords (256 units = 1 tile).
+     * This allows machines with different tile sizes (16px SE vs 32px PPC)
+     * to agree on player positions. */
+    msg.pixelX = (short)(((long)pixelX << 8) / ts);
+    msg.pixelY = (short)(((long)pixelY << 8) / ts);
     msg.pad[0] = 0;
     msg.pad[1] = 0;
 

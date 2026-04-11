@@ -294,14 +294,16 @@ static void InitGameState(void)
 int main(void)
 {
     InitToolbox();
+    DetectScreenSize();
+
 #ifndef CLOG_STRIP
     clog_set_file("BomberTalk Log");
-    clog_init("BomberTalk", CLOG_LVL_DBG);
+    /* Mac SE: INFO only — DEBUG file writes add ~3ms each via File Manager,
+     * and smooth movement generates many DBG calls per frame */
+    clog_init("BomberTalk", gGame.isMacSE ? CLOG_LVL_INFO : CLOG_LVL_DBG);
 #endif
 
     CLOG_INFO("BomberTalk starting");
-
-    DetectScreenSize();
 
     /* Load tilemap early so dimensions are known for window/buffer sizing */
     TileMap_Init();

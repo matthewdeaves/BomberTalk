@@ -17,6 +17,9 @@
 static short gLastSentPX = -1;
 static short gLastSentPY = -1;
 static short gLastSentFacing = -1;
+static long  gHeartbeatTimer = 0;
+
+#define HEARTBEAT_TICKS 120  /* ~2 seconds: resend position even when idle */
 
 void Game_Init(void)
 {
@@ -41,6 +44,7 @@ void Game_Init(void)
     gLastSentPX = -1;
     gLastSentPY = -1;
     gLastSentFacing = -1;
+    gHeartbeatTimer = 0;
 
     /* Build initial background tilemap rendering */
     Renderer_RebuildBackground();
@@ -73,13 +77,16 @@ void Game_Update(void)
     /* Check if local player moved and send position */
     local = Player_GetLocal();
     if (local && local->active && local->alive && local->deathTimer <= 0) {
+        gHeartbeatTimer += gGame.deltaTicks;
         if (local->pixelX != gLastSentPX ||
             local->pixelY != gLastSentPY ||
-            local->facing != gLastSentFacing) {
+            local->facing != gLastSentFacing ||
+            gHeartbeatTimer >= HEARTBEAT_TICKS) {
             Net_SendPosition(local->pixelX, local->pixelY, local->facing);
             gLastSentPX = local->pixelX;
             gLastSentPY = local->pixelY;
             gLastSentFacing = local->facing;
+            gHeartbeatTimer = 0;
         }
 
         /* Bomb placement (T012: use center-derived gridCol/gridRow) */
