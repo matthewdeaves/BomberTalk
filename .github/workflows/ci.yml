@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-68k:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/matthewdeaves/retro68@sha256:11bc3005f2cd602ad311ab98d91e3999239648d89b1f6413810eafe93a2a145c
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Build for 68k (MacTCP)
+        run: |
+          cmake -B build-68k \
+            -DCMAKE_TOOLCHAIN_FILE=/Retro68-build/toolchain/m68k-apple-macos/cmake/retro68.toolchain.cmake
+          cmake --build build-68k
+
+  build-ppc-ot:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/matthewdeaves/retro68@sha256:11bc3005f2cd602ad311ab98d91e3999239648d89b1f6413810eafe93a2a145c
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Build for PPC (Open Transport)
+        run: |
+          cmake -B build-ppc-ot \
+            -DCMAKE_TOOLCHAIN_FILE=/Retro68-build/toolchain/powerpc-apple-macos/cmake/retroppc.toolchain.cmake \
+            -DPT_PLATFORM=OT
+          cmake --build build-ppc-ot
+
+  build-ppc-mactcp:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/matthewdeaves/retro68@sha256:11bc3005f2cd602ad311ab98d91e3999239648d89b1f6413810eafe93a2a145c
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Build for PPC (MacTCP)
+        run: |
+          cmake -B build-ppc-mactcp \
+            -DCMAKE_TOOLCHAIN_FILE=/Retro68-build/toolchain/powerpc-apple-macos/cmake/retroppc.toolchain.cmake \
+            -DPT_PLATFORM=MACTCP
+          cmake --build build-ppc-mactcp
+
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install cppcheck
+        run: sudo apt-get update && sudo apt-get install -y cppcheck
+
+      - name: Run cppcheck
+        run: |
+          cppcheck --error-exitcode=1 \
+            --enable=warning,performance \
+            --suppress=missingIncludeSystem \
+            --inline-suppr \
+            -I include \
+            src/

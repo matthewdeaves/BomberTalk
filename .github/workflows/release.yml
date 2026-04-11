@@ -1,0 +1,75 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    container:
+      image: ghcr.io/matthewdeaves/retro68@sha256:11bc3005f2cd602ad311ab98d91e3999239648d89b1f6413810eafe93a2a145c
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Build all targets
+        run: |
+          cmake -B build-68k \
+            -DCMAKE_TOOLCHAIN_FILE=/Retro68-build/toolchain/m68k-apple-macos/cmake/retro68.toolchain.cmake
+          cmake --build build-68k
+
+          cmake -B build-ppc-ot \
+            -DCMAKE_TOOLCHAIN_FILE=/Retro68-build/toolchain/powerpc-apple-macos/cmake/retroppc.toolchain.cmake \
+            -DPT_PLATFORM=OT
+          cmake --build build-ppc-ot
+
+          cmake -B build-ppc-mactcp \
+            -DCMAKE_TOOLCHAIN_FILE=/Retro68-build/toolchain/powerpc-apple-macos/cmake/retroppc.toolchain.cmake \
+            -DPT_PLATFORM=MACTCP
+          cmake --build build-ppc-mactcp
+
+      - name: Package binaries
+        run: |
+          mkdir -p release
+          cp build-68k/BomberTalk.bin release/BomberTalk-68k.bin
+          cp build-ppc-ot/BomberTalk.bin release/BomberTalk-ppc-ot.bin
+          cp build-ppc-mactcp/BomberTalk.bin release/BomberTalk-ppc-mactcp.bin
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            NOTES=$(git log --oneline "$PREV_TAG"..HEAD^ | head -50)
+          else
+            NOTES=$(git log --oneline -20 HEAD^)
+          fi
+          {
+            echo "notes<<ENDOFNOTES"
+            echo "## Binaries"
+            echo ""
+            echo "| File | Target | Hardware |"
+            echo "|------|--------|----------|"
+            echo "| \`BomberTalk-68k.bin\` | 68k MacTCP | Mac SE |"
+            echo "| \`BomberTalk-ppc-ot.bin\` | PPC Open Transport | Performa 6400 |"
+            echo "| \`BomberTalk-ppc-mactcp.bin\` | PPC MacTCP | Performa 6200 |"
+            echo ""
+            echo "Transfer any \`.bin\` file to your Classic Mac via FTP or disk image."
+            echo ""
+            echo "## Changes since last release"
+            echo ""
+            echo "$NOTES"
+            echo "ENDOFNOTES"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2
+        with:
+          body: ${{ steps.notes.outputs.notes }}
+          files: |
+            release/BomberTalk-68k.bin
+            release/BomberTalk-ppc-ot.bin
+            release/BomberTalk-ppc-mactcp.bin
