@@ -23,7 +23,7 @@ void Renderer_RequestRebuildBackground(void);
 /* Per-frame rendering: copy bg to work, draw sprites, blit to window */
 void Renderer_BeginFrame(void);
 void Renderer_DrawTile(short tileIndex, short col, short row);
-void Renderer_DrawPlayer(short playerID, short col, short row, short facing);
+void Renderer_DrawPlayer(short playerID, short pixelX, short pixelY, short facing);
 void Renderer_DrawBomb(short col, short row);
 void Renderer_DrawExplosion(short col, short row);
 void Renderer_DrawText(const char *text, short x, short y);

@@ -3,6 +3,7 @@
  */
 
 #include "bomb.h"
+#include "player.h"
 #include "tilemap.h"
 #include "net.h"
 #include "renderer.h"
@@ -129,21 +130,32 @@ static void ExplodeBomb(Bomb *b, int broadcast)
         Net_SendBombExplode(b->gridCol, b->gridRow, b->range);
     }
 
-    /* Check player kills */
+    /* Check player kills (AABB overlap with explosion tiles) */
     {
         short p, e;
+        short ts = gGame.tileSize;
         for (p = 0; p < MAX_PLAYERS; p++) {
+            Rect hitbox;
             Player *pl = &gGame.players[p];
             if (!pl->active || !pl->alive || pl->deathTimer > 0) continue;
+            Player_GetHitbox(p, &hitbox);
             for (e = 0; e < gExplosionCount; e++) {
-                if (gExplosions[e].timer == EXPLOSION_DURATION_TICKS &&
-                    pl->gridCol == gExplosions[e].col &&
-                    pl->gridRow == gExplosions[e].row) {
+                Rect expRect;
+                if (gExplosions[e].timer != EXPLOSION_DURATION_TICKS) continue;
+                SetRect(&expRect,
+                        gExplosions[e].col * ts, gExplosions[e].row * ts,
+                        (gExplosions[e].col + 1) * ts,
+                        (gExplosions[e].row + 1) * ts);
+                /* AABB overlap test */
+                if (!(hitbox.right <= expRect.left ||
+                      hitbox.left >= expRect.right ||
+                      hitbox.bottom <= expRect.top ||
+                      hitbox.top >= expRect.bottom)) {
                     pl->deathTimer = DEATH_FLASH_TICKS;
                     if (broadcast) {
                         Net_SendPlayerKilled(pl->playerID, b->ownerID);
                     }
-                    CLOG_INFO("Player %d killed by player %d",
+                    CLOG_INFO("Player %d killed by player %d (AABB overlap)",
                               pl->playerID, b->ownerID);
                     break;
                 }
@@ -188,6 +200,40 @@ void Bomb_Update(void)
             /* Remove by swapping with last */
             gExplosions[i] = gExplosions[gExplosionCount - 1];
             gExplosionCount--;
+        }
+    }
+
+    /* Per-frame AABB kill check: players walking into active explosions.
+     * Only the local player's machine broadcasts the kill to avoid
+     * duplicate messages from every machine detecting the same overlap. */
+    {
+        short p;
+        short ts = gGame.tileSize;
+        for (p = 0; p < MAX_PLAYERS; p++) {
+            Rect hitbox;
+            Player *pl = &gGame.players[p];
+            if (!pl->active || !pl->alive || pl->deathTimer > 0) continue;
+            Player_GetHitbox(p, &hitbox);
+            for (i = 0; i < gExplosionCount; i++) {
+                Rect expRect;
+                SetRect(&expRect,
+                        gExplosions[i].col * ts, gExplosions[i].row * ts,
+                        (gExplosions[i].col + 1) * ts,
+                        (gExplosions[i].row + 1) * ts);
+                if (!(hitbox.right <= expRect.left ||
+                      hitbox.left >= expRect.right ||
+                      hitbox.bottom <= expRect.top ||
+                      hitbox.top >= expRect.bottom)) {
+                    pl->deathTimer = DEATH_FLASH_TICKS;
+                    CLOG_INFO("Player %d walked into explosion at (%d,%d)",
+                              pl->playerID, gExplosions[i].col,
+                              gExplosions[i].row);
+                    if (p == gGame.localPlayerID) {
+                        Net_SendPlayerKilled(pl->playerID, pl->playerID);
+                    }
+                    break;
+                }
+            }
         }
     }
 }

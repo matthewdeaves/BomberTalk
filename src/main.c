@@ -294,8 +294,10 @@ static void InitGameState(void)
 int main(void)
 {
     InitToolbox();
+#ifndef CLOG_STRIP
     clog_set_file("BomberTalk Log");
     clog_init("BomberTalk", CLOG_LVL_DBG);
+#endif
 
     CLOG_INFO("BomberTalk starting");
 
@@ -334,7 +336,9 @@ int main(void)
     }
     CLOG_INFO("Shutdown: net");
     Net_Shutdown();
+#ifndef CLOG_STRIP
     clog_shutdown();
+#endif
 
     ExitToShell();
     return 0; /* not reached */

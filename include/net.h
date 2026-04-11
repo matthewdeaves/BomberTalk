@@ -17,7 +17,7 @@ void Net_StopDiscovery(void);
 void Net_ConnectToAllPeers(void);
 
 /* Send game messages */
-void Net_SendPosition(short col, short row, short facing);
+void Net_SendPosition(short pixelX, short pixelY, short facing);
 void Net_SendBombPlaced(short col, short row, short range);
 void Net_SendBombExplode(short col, short row, short range);
 void Net_SendBlockDestroyed(short col, short row);

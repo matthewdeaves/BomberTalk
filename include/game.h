@@ -24,7 +24,7 @@
 #include <Sound.h>
 
 /* ---- Protocol Version ---- */
-#define BT_PROTOCOL_VERSION 2
+#define BT_PROTOCOL_VERSION 3
 
 /* ---- Grid Constants ---- */
 #define GRID_COLS       15
@@ -124,13 +124,20 @@ typedef enum {
     SCREEN_GAME
 } ScreenState;
 
+/* ---- Smooth Movement Constants ---- */
+#define HITBOX_INSET_LARGE  4   /* pixels inset on 32px tiles (color Macs) */
+#define HITBOX_INSET_SMALL  2   /* pixels inset on 16px tiles (Mac SE) */
+#define NUDGE_THRESHOLD_LARGE 10 /* corner sliding threshold on 32px tiles */
+#define NUDGE_THRESHOLD_SMALL  5 /* corner sliding threshold on 16px tiles */
+#define INTERP_TICKS        4   /* interpolation half-life in ticks (~67ms) */
+
 /* ---- Network Message Structs ---- */
 typedef struct {
     unsigned char playerID;
-    unsigned char gridCol;
-    unsigned char gridRow;
     unsigned char facing;
-    unsigned char animFrame;
+    short         pixelX;
+    short         pixelY;
+    unsigned char pad[2];
 } MsgPosition;
 
 typedef struct {
@@ -176,10 +183,15 @@ typedef struct {
 
 /* ---- Game Entity Structs ---- */
 typedef struct {
-    short       gridCol;
-    short       gridRow;
-    short       pixelX;
-    short       pixelY;
+    short       gridCol;           /* derived: (pixelX + tileSize/2) / tileSize */
+    short       gridRow;           /* derived: (pixelY + tileSize/2) / tileSize */
+    short       pixelX;            /* authoritative X position (pixels) */
+    short       pixelY;            /* authoritative Y position (pixels) */
+    short       targetPixelX;      /* network interpolation target X */
+    short       targetPixelY;      /* network interpolation target Y */
+    short       accumX;            /* fractional pixel accumulator X */
+    short       accumY;            /* fractional pixel accumulator Y */
+    short       passThroughBombIdx; /* bomb index player can walk through (-1=none) */
     short       facing;
     short       animFrame;
     int         alive;

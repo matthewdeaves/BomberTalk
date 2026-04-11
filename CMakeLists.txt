@@ -33,6 +33,9 @@ else()
     message(FATAL_ERROR "BomberTalk targets Classic Mac only (Retro68 or RetroPPC)")
 endif()
 
+# Debug logging toggle (default ON; set -DBOMBERTALK_DEBUG=OFF for release)
+option(BOMBERTALK_DEBUG "Enable clog debug logging" ON)
+
 # Compiler flags: C89 with warnings (no -pedantic due to clog variadic macros)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c89 -Wall -Wextra")
 
@@ -67,7 +70,14 @@ target_include_directories(BomberTalk PRIVATE
     ${CLOG_DIR}/include
 )
 
+# When debug logging is OFF, strip all CLOG_* macros to ((void)0)
+if(NOT BOMBERTALK_DEBUG)
+    target_compile_definitions(BomberTalk PRIVATE CLOG_STRIP)
+endif()
+
 # Link PeerTalk and clog static libraries
+# (clog always linked — PeerTalk depends on it. CLOG_STRIP only strips
+#  BomberTalk's own CLOG_* macro calls, not PeerTalk's internal logging.)
 target_link_libraries(BomberTalk
     ${PT_LIB_DIR}/libpeertalk.a
     ${CLOG_LIB_DIR}/libclog.a

@@ -14,7 +14,9 @@ void Screens_Init(void)
     Loading_Init();
 }
 
+#ifndef CLOG_STRIP
 static const char *gScreenNames[] = {"LOADING", "MENU", "LOBBY", "GAME"};
+#endif
 
 void Screens_TransitionTo(ScreenState newScreen)
 {

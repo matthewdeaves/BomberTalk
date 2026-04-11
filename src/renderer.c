@@ -622,14 +622,14 @@ void Renderer_BeginFrame(void)
     LockAllSprites();
 }
 
-void Renderer_DrawPlayer(short playerID, short col, short row, short facing)
+void Renderer_DrawPlayer(short playerID, short pixelX, short pixelY, short facing)
 {
     Rect dstRect;
     short ts = gGame.tileSize;
 
     (void)facing;
 
-    SetRect(&dstRect, col * ts, row * ts, (col + 1) * ts, (row + 1) * ts);
+    SetRect(&dstRect, pixelX, pixelY, pixelX + ts, pixelY + ts);
 
     if (!gGame.isMacSE && gPICTsLoaded &&
         gCachedPlayerPM[playerID] != NULL) {

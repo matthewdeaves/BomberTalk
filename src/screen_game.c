@@ -14,8 +14,8 @@
 #include "net.h"
 #include <clog.h>
 
-static short gLastSentCol = -1;
-static short gLastSentRow = -1;
+static short gLastSentPX = -1;
+static short gLastSentPY = -1;
 static short gLastSentFacing = -1;
 
 void Game_Init(void)
@@ -38,8 +38,8 @@ void Game_Init(void)
     gGame.gameRunning = TRUE;
     gGame.roundStartTick = TickCount();
 
-    gLastSentCol = -1;
-    gLastSentRow = -1;
+    gLastSentPX = -1;
+    gLastSentPY = -1;
     gLastSentFacing = -1;
 
     /* Build initial background tilemap rendering */
@@ -53,35 +53,51 @@ void Game_Update(void)
 {
     short i;
     Player *local;
-    short oldCols[MAX_PLAYERS], oldRows[MAX_PLAYERS];
-
     if (!gGame.gameRunning) return;
 
-    /* Record positions before update for dirty tracking (T019) */
+    /* Mark old positions dirty before update (multi-tile aware) */
     for (i = 0; i < MAX_PLAYERS; i++) {
-        oldCols[i] = gGame.players[i].gridCol;
-        oldRows[i] = gGame.players[i].gridRow;
+        if (gGame.players[i].active &&
+            (gGame.players[i].alive || gGame.players[i].deathTimer > 0)) {
+            Player_MarkDirtyTiles(i);
+        }
     }
 
-    /* Update local player movement */
-    Player_Update(gGame.localPlayerID);
+    /* Update all players (local moves, remotes interpolate) */
+    for (i = 0; i < MAX_PLAYERS; i++) {
+        if (gGame.players[i].active) {
+            Player_Update(i);
+        }
+    }
 
     /* Check if local player moved and send position */
     local = Player_GetLocal();
     if (local && local->active && local->alive && local->deathTimer <= 0) {
-        if (local->gridCol != gLastSentCol ||
-            local->gridRow != gLastSentRow ||
+        if (local->pixelX != gLastSentPX ||
+            local->pixelY != gLastSentPY ||
             local->facing != gLastSentFacing) {
-            Net_SendPosition(local->gridCol, local->gridRow, local->facing);
-            gLastSentCol = local->gridCol;
-            gLastSentRow = local->gridRow;
+            Net_SendPosition(local->pixelX, local->pixelY, local->facing);
+            gLastSentPX = local->pixelX;
+            gLastSentPY = local->pixelY;
             gLastSentFacing = local->facing;
         }
 
-        /* Bomb placement */
+        /* Bomb placement (T012: use center-derived gridCol/gridRow) */
         if (Input_WasKeyPressed(KEY_SPACE) && local->bombsAvailable > 0) {
             if (Bomb_PlaceAt(local->gridCol, local->gridRow,
                              local->stats.bombRange, local->playerID)) {
+                /* Set pass-through for the just-placed bomb (T016) */
+                {
+                    short bi;
+                    for (bi = 0; bi < MAX_BOMBS; bi++) {
+                        if (gGame.bombs[bi].active &&
+                            gGame.bombs[bi].gridCol == local->gridCol &&
+                            gGame.bombs[bi].gridRow == local->gridRow) {
+                            local->passThroughBombIdx = bi;
+                            break;
+                        }
+                    }
+                }
                 local->bombsAvailable--;
                 Net_SendBombPlaced(local->gridCol, local->gridRow,
                                    local->stats.bombRange);
@@ -89,19 +105,11 @@ void Game_Update(void)
         }
     }
 
-    /* Mark dirty tiles for players that moved or are active (T019) */
+    /* Mark new positions dirty after update (multi-tile aware) */
     for (i = 0; i < MAX_PLAYERS; i++) {
         if (!gGame.players[i].active) continue;
-        if (gGame.players[i].gridCol != oldCols[i] ||
-            gGame.players[i].gridRow != oldRows[i]) {
-            Renderer_MarkDirty(oldCols[i], oldRows[i]);
-            Renderer_MarkDirty(gGame.players[i].gridCol,
-                               gGame.players[i].gridRow);
-        }
-        /* Always mark active player positions dirty (sprites drawn into work) */
         if (gGame.players[i].alive || gGame.players[i].deathTimer > 0) {
-            Renderer_MarkDirty(gGame.players[i].gridCol,
-                               gGame.players[i].gridRow);
+            Player_MarkDirtyTiles(i);
         }
     }
 
@@ -215,12 +223,12 @@ void Game_Draw(WindowPtr window)
             /* Flash: visible every other DEATH_FLASH_RATE ticks */
             if ((gGame.players[i].deathTimer / DEATH_FLASH_RATE) & 1) {
                 Renderer_DrawPlayer(i,
-                    gGame.players[i].gridCol, gGame.players[i].gridRow,
+                    gGame.players[i].pixelX, gGame.players[i].pixelY,
                     gGame.players[i].facing);
             }
         } else if (gGame.players[i].alive) {
             Renderer_DrawPlayer(i,
-                gGame.players[i].gridCol, gGame.players[i].gridRow,
+                gGame.players[i].pixelX, gGame.players[i].pixelY,
                 gGame.players[i].facing);
         }
     }

@@ -27,18 +27,21 @@ static void on_peer_discovered(PT_Peer *peer, void *user_data)
     (void)user_data;
     CLOG_INFO("Peer discovered: %s (%s)",
               PT_PeerName(peer), PT_PeerAddress(peer));
+    (void)peer;
 }
 
 static void on_peer_lost(PT_Peer *peer, void *user_data)
 {
     (void)user_data;
     CLOG_INFO("Peer lost: %s", PT_PeerName(peer));
+    (void)peer;
 }
 
 static void on_connected(PT_Peer *peer, void *user_data)
 {
     (void)user_data;
     CLOG_INFO("Connected to: %s", PT_PeerName(peer));
+    (void)peer;
 }
 
 static void on_disconnected(PT_Peer *peer, PT_DisconnectReason reason,
@@ -46,6 +49,7 @@ static void on_disconnected(PT_Peer *peer, PT_DisconnectReason reason,
 {
     short i;
     (void)user_data;
+    (void)reason;
     CLOG_INFO("Disconnected from: %s (reason=%d)", PT_PeerName(peer), reason);
 
     /* Only mark players inactive if we're in-game.
@@ -54,6 +58,8 @@ static void on_disconnected(PT_Peer *peer, PT_DisconnectReason reason,
 
     for (i = 0; i < MAX_PLAYERS; i++) {
         if (gGame.players[i].active && gGame.players[i].peer == peer) {
+            /* Mark tiles dirty BEFORE deactivation (T028) */
+            Player_MarkDirtyTiles(i);
             gGame.players[i].active = FALSE;
             gGame.players[i].peer = NULL;
             CLOG_INFO("Player %d marked inactive (disconnect)", i);
@@ -67,6 +73,8 @@ static void on_error(PT_Peer *peer, PT_Status error,
 {
     (void)peer;
     (void)user_data;
+    (void)error;
+    (void)description;
     CLOG_ERR("PeerTalk error %d: %s", error,
              description ? description : "(null)");
 }
@@ -95,12 +103,13 @@ static void on_position(PT_Peer *peer, const void *data, size_t len,
             CLOG_INFO("Player %d reactivated via position msg", msg->playerID);
         }
 
-        /* Mark old and new positions dirty */
-        Renderer_MarkDirty(p->gridCol, p->gridRow);
+        /* Mark old position dirty (multi-tile aware) */
+        Player_MarkDirtyTiles(msg->playerID);
+        /* Set interpolation target (not direct position) */
         Player_SetPosition(msg->playerID,
-                          (short)msg->gridCol, (short)msg->gridRow,
+                          msg->pixelX, msg->pixelY,
                           (short)msg->facing);
-        Renderer_MarkDirty(p->gridCol, p->gridRow);
+        /* New position marked dirty in next frame update */
     }
 }
 
@@ -227,6 +236,7 @@ static void on_game_over(PT_Peer *peer, const void *data, size_t len,
 
 /* ---- UDP Log Broadcast ---- */
 
+#ifndef CLOG_STRIP
 #define CLOG_UDP_PORT 7355
 
 static char gLogPrefix[20];
@@ -250,6 +260,7 @@ static void udp_log_sink(const char *msg, int len, void *user_data)
 
     PT_SendUDPBroadcast(gPTCtx, CLOG_UDP_PORT, udp_buf, (size_t)total);
 }
+#endif
 
 /* ---- Public API ---- */
 
@@ -263,6 +274,7 @@ void Net_Init(const char *playerName)
         return;
     }
 
+#ifndef CLOG_STRIP
     /* Enable UDP broadcast logging (survives crashes) */
     {
         const char *lip = PT_LocalAddress(gPTCtx);
@@ -277,6 +289,7 @@ void Net_Init(const char *playerName)
         gLogPrefixLen = i;
     }
     clog_set_network_sink(udp_log_sink, NULL);
+#endif
 
     /* Register message types */
     PT_RegisterMessage(gPTCtx, MSG_POSITION,        PT_FAST);
@@ -353,18 +366,19 @@ void Net_ConnectToAllPeers(void)
     }
 }
 
-void Net_SendPosition(short col, short row, short facing)
+void Net_SendPosition(short pixelX, short pixelY, short facing)
 {
     MsgPosition msg;
     if (!gPTCtx) return;
 
     msg.playerID = (unsigned char)gGame.localPlayerID;
-    msg.gridCol = (unsigned char)col;
-    msg.gridRow = (unsigned char)row;
     msg.facing = (unsigned char)facing;
-    msg.animFrame = 0;
+    msg.pixelX = pixelX;
+    msg.pixelY = pixelY;
+    msg.pad[0] = 0;
+    msg.pad[1] = 0;
 
-    CLOG_DEBUG("TX pos P%d (%d,%d) f=%d", msg.playerID, col, row, facing);
+    CLOG_DEBUG("TX pos P%d px=(%d,%d) f=%d", msg.playerID, pixelX, pixelY, facing);
     PT_Broadcast(gPTCtx, MSG_POSITION, &msg, sizeof(msg));
 }
 
