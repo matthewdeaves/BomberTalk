@@ -76,7 +76,3 @@ void Screens_Draw(WindowPtr window)
     }
 }
 
-ScreenState Screens_GetCurrent(void)
-{
-    return gGame.currentScreen;
-}

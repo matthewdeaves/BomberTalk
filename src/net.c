@@ -515,23 +515,6 @@ const char *Net_GetDiscoveredPeerAddress(int index)
     return "";
 }
 
-int Net_IsConnected(void)
-{
-    int count, i;
-    PT_Peer *peer;
-
-    if (!gPTCtx) return FALSE;
-
-    count = PT_GetPeerCount(gPTCtx);
-    for (i = 0; i < count; i++) {
-        peer = PT_GetPeer(gPTCtx, i);
-        if (peer && PT_GetPeerState(peer) == PT_PEER_CONNECTED) {
-            return TRUE;
-        }
-    }
-    return FALSE;
-}
-
 int Net_GetConnectedPeerCount(void)
 {
     int count, i, connected;

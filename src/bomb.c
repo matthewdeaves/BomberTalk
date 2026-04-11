@@ -249,24 +249,6 @@ void Bomb_ForceExplodeAt(short col, short row)
     }
 }
 
-Bomb *Bomb_GetActive(short index)
-{
-    short count = 0;
-    short i;
-    for (i = 0; i < MAX_BOMBS; i++) {
-        if (gGame.bombs[i].active) {
-            if (count == index) return &gGame.bombs[i];
-            count++;
-        }
-    }
-    return NULL;
-}
-
-short Bomb_GetActiveCount(void)
-{
-    return gGame.numActiveBombs;
-}
-
 Explosion *Bomb_GetExplosions(short *count)
 {
     *count = gExplosionCount;

@@ -12,7 +12,6 @@
 
 void Player_Init(short playerID, short spawnCol, short spawnRow);
 void Player_Update(short playerID);
-Player *Player_Get(short playerID);
 Player *Player_GetLocal(void);
 void Player_SetPosition(short playerID, short pixelX, short pixelY, short facing);
 void Player_GetHitbox(short playerID, Rect *outRect);

@@ -93,13 +93,13 @@ void Renderer_MarkDirty(short col, short row)
     gDirtyCount++;
 }
 
-void Renderer_MarkAllDirty(void)
+static void Renderer_MarkAllDirty(void)
 {
     memset(gDirtyGrid, 1, sizeof(gDirtyGrid));
     gDirtyCount = gDirtyTotal;
 }
 
-void Renderer_ClearDirty(void)
+static void Renderer_ClearDirty(void)
 {
     memset(gDirtyGrid, 0, sizeof(gDirtyGrid));
     gDirtyCount = 0;
@@ -740,37 +740,8 @@ void Renderer_DrawExplosion(short col, short row)
     }
 }
 
-void Renderer_DrawTile(short tileIndex, short col, short row)
-{
-    (void)tileIndex;
-    (void)col;
-    (void)row;
-}
 
-void Renderer_DrawText(const char *text, short x, short y)
-{
-    Str255 pstr;
-    short len = 0;
-
-    while (text[len] && len < 255) {
-        pstr[len + 1] = text[len];
-        len++;
-    }
-    pstr[0] = (unsigned char)len;
-
-    SavePort();
-    SetPortWork();
-    LockWork();
-
-    ForeColor(whiteColor);
-    MoveTo(x, y);
-    DrawString(pstr);
-
-    UnlockWork();
-    RestorePort();
-}
-
-void Renderer_ClearWork(void)
+static void Renderer_ClearWork(void)
 {
     Rect bounds;
 

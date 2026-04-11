@@ -22,7 +22,7 @@ static const short kDefaultSpawnRows[MAX_PLAYERS] = {1, 1, 11, 11};
  * Format: 2-byte cols + 2-byte rows + (cols*rows) bytes of tile data.
  * Falls back to static level1.h if resource not found or invalid.
  */
-void TileMap_LoadFromResource(void)
+static void TileMap_LoadFromResource(void)
 {
     Handle h;
     short cols, rows;
@@ -92,7 +92,7 @@ void TileMap_LoadFromResource(void)
  * Scans top-left to bottom-right. If fewer than MAX_PLAYERS spawns found,
  * fills remaining with default corners (skipping duplicates).
  */
-void TileMap_ScanSpawns(void)
+static void TileMap_ScanSpawns(void)
 {
     short r, c, i, j;
     short count = 0;
@@ -190,26 +190,6 @@ int TileMap_IsSolid(short col, short row)
     return (tile == TILE_WALL || tile == TILE_BLOCK);
 }
 
-short TileMap_PixelToCol(short pixelX)
-{
-    return pixelX / gGame.tileSize;
-}
-
-short TileMap_PixelToRow(short pixelY)
-{
-    return pixelY / gGame.tileSize;
-}
-
-short TileMap_ColToPixel(short col)
-{
-    return col * gGame.tileSize;
-}
-
-short TileMap_RowToPixel(short row)
-{
-    return row * gGame.tileSize;
-}
-
 short TileMap_GetCols(void)
 {
     return gMap.cols;
@@ -232,7 +212,3 @@ short TileMap_GetSpawnRow(short index)
     return gMap.spawnRows[index];
 }
 
-short TileMap_GetSpawnCount(void)
-{
-    return gMap.spawnCount;
-}

@@ -22,7 +22,6 @@ static int      gQuitting = FALSE;
 static long     gLastFrameTick = 0;
 static short    gFPSFrameCount = 0;
 static long     gFPSLastTick = 0;
-static short    gBcRef = 0; /* Shutdown breadcrumb file handle (opened at init) */
 
 /*
  * InitToolbox -- Initialize all Mac Toolbox managers
@@ -304,20 +303,6 @@ int main(void)
     clog_init("BomberTalk", gGame.isMacSE ? CLOG_LVL_INFO : CLOG_LVL_DBG);
 #endif
 
-    /* Open shutdown breadcrumb file NOW (File Manager works at init time).
-     * Kept open until shutdown so writes survive even if clog breaks.
-     * On the 6200, creating the file during shutdown failed — the same
-     * MacTCP interference that kills clog also prevented file creation. */
-    {
-        static unsigned char bcN[12] = {11,'B','T',' ','S','h','u','t','d','o','w','n'};
-        Create(bcN, 0, 'CLog', 'TEXT');
-        if (FSOpen(bcN, 0, &gBcRef) == noErr) {
-            SetEOF(gBcRef, 0);
-        } else {
-            gBcRef = 0;
-        }
-    }
-
     CLOG_INFO("BomberTalk starting");
 
     /* Load tilemap early so dimensions are known for window/buffer sizing */
@@ -343,36 +328,19 @@ int main(void)
     CLOG_INFO("Entering main loop");
     MainLoop();
 
-    /* Shutdown with breadcrumb tracking via pre-opened file handle.
-     * Markers: 0=start, 1=renderer, 2=window, 3=net, 4=clog, 5=done */
-    {
-        long bcW = 1;
-        if (gBcRef) {
-            SetFPos(gBcRef, fsFromStart, 0);
-            SetEOF(gBcRef, 0);
-            FSWrite(gBcRef, &bcW, "0");
-        }
+    CLOG_INFO("Shutting down");
+    Renderer_Shutdown();
 
-        CLOG_INFO("Shutting down");
-        Renderer_Shutdown();
-        if (gBcRef) { SetFPos(gBcRef, fsFromLEOF, 0); FSWrite(gBcRef, &bcW, "1"); }
+    if (gGame.window) {
+        DisposeWindow(gGame.window);
+        gGame.window = NULL;
+    }
 
-        if (gGame.window) {
-            DisposeWindow(gGame.window);
-            gGame.window = NULL;
-        }
-        if (gBcRef) { SetFPos(gBcRef, fsFromLEOF, 0); FSWrite(gBcRef, &bcW, "2"); }
-
-        Net_Shutdown();
-        if (gBcRef) { SetFPos(gBcRef, fsFromLEOF, 0); FSWrite(gBcRef, &bcW, "3"); }
+    Net_Shutdown();
 
 #ifndef CLOG_STRIP
-        clog_shutdown();
+    clog_shutdown();
 #endif
-        if (gBcRef) { SetFPos(gBcRef, fsFromLEOF, 0); FSWrite(gBcRef, &bcW, "4"); }
-
-        if (gBcRef) FSClose(gBcRef);
-    }
 
     ExitToShell();
     return 0; /* not reached */

@@ -31,7 +31,6 @@ void Net_ResetVersionMismatch(void);
 int Net_GetDiscoveredPeerCount(void);
 const char *Net_GetDiscoveredPeerName(int index);
 const char *Net_GetDiscoveredPeerAddress(int index);
-int Net_IsConnected(void);
 int Net_GetConnectedPeerCount(void);
 short Net_GetExpectedPlayers(void);
 short Net_ComputeLocalPlayerID(void);

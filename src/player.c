@@ -103,12 +103,6 @@ void Player_Init(short playerID, short spawnCol, short spawnRow)
               playerID, spawnCol, spawnRow, p->pixelX, p->pixelY);
 }
 
-Player *Player_Get(short playerID)
-{
-    if (playerID < 0 || playerID >= MAX_PLAYERS) return NULL;
-    return &gGame.players[playerID];
-}
-
 Player *Player_GetLocal(void)
 {
     if (gGame.localPlayerID < 0 || gGame.localPlayerID >= MAX_PLAYERS)
