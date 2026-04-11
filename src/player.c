@@ -158,12 +158,15 @@ static int CheckTileSolid(Player *p, short col, short row)
 /*
  * CollideAxis -- Move player along one axis, check AABB against tilemap.
  * dx/dy: pixel delta for this axis (one must be 0).
- * Sweeps all intermediate tiles to prevent tunneling (FR-008).
+ *
+ * Uses the FULL sprite rect (no inset) for wall/block/bomb collision.
+ * The hitbox inset (Player_GetHitbox) is only for explosion near-miss
+ * checks — walls must stop the sprite flush with no visual overlap.
+ * Corner sliding handles corridor entry alignment.
  */
 static void CollideAxis(Player *p, short dx, short dy)
 {
     short ts = gGame.tileSize;
-    short inset = gGame.isMacSE ? HITBOX_INSET_SMALL : HITBOX_INSET_LARGE;
     short newPX, newPY;
     short hLeft, hTop, hRight, hBottom;
     short minCol, maxCol, minRow, maxRow;
@@ -172,27 +175,27 @@ static void CollideAxis(Player *p, short dx, short dy)
     newPX = (short)(p->pixelX + dx);
     newPY = (short)(p->pixelY + dy);
 
-    /* Compute hitbox at proposed position */
-    hLeft   = (short)(newPX + inset);
-    hTop    = (short)(newPY + inset);
-    hRight  = (short)(newPX + ts - inset);
-    hBottom = (short)(newPY + ts - inset);
+    /* Compute full sprite rect at proposed position (no inset) */
+    hLeft   = newPX;
+    hTop    = newPY;
+    hRight  = (short)(newPX + ts);
+    hBottom = (short)(newPY + ts);
 
     /* Clamp to play area bounds */
-    if (hLeft < 0) { newPX = (short)(-inset); hLeft = 0; hRight = (short)(newPX + ts - inset); }
-    if (hTop < 0) { newPY = (short)(-inset); hTop = 0; hBottom = (short)(newPY + ts - inset); }
+    if (hLeft < 0) { newPX = 0; hLeft = 0; hRight = ts; }
+    if (hTop < 0) { newPY = 0; hTop = 0; hBottom = ts; }
     if (hRight > gGame.playWidth) {
-        newPX = (short)(gGame.playWidth - ts + inset);
-        hLeft = (short)(newPX + inset);
+        newPX = (short)(gGame.playWidth - ts);
+        hLeft = newPX;
         hRight = gGame.playWidth;
     }
     if (hBottom > gGame.playHeight) {
-        newPY = (short)(gGame.playHeight - ts + inset);
-        hTop = (short)(newPY + inset);
+        newPY = (short)(gGame.playHeight - ts);
+        hTop = newPY;
         hBottom = gGame.playHeight;
     }
 
-    /* Find tiles overlapped by hitbox */
+    /* Find tiles overlapped by sprite rect */
     minCol = (short)(hLeft / ts);
     maxCol = (short)((hRight - 1) / ts);
     minRow = (short)(hTop / ts);
@@ -208,20 +211,16 @@ static void CollideAxis(Player *p, short dx, short dy)
     for (r = minRow; r <= maxRow; r++) {
         for (c = minCol; c <= maxCol; c++) {
             if (CheckTileSolid(p, c, r)) {
-                /* Clamp to tile boundary */
+                /* Clamp sprite flush against tile boundary */
                 if (dx > 0) {
-                    /* Moving right: clamp right edge of hitbox to left edge of tile */
-                    newPX = (short)(c * ts - ts + inset);
+                    newPX = (short)(c * ts - ts);
                 } else if (dx < 0) {
-                    /* Moving left: clamp left edge of hitbox to right edge of tile */
-                    newPX = (short)((c + 1) * ts - inset);
+                    newPX = (short)((c + 1) * ts);
                 }
                 if (dy > 0) {
-                    /* Moving down: clamp bottom edge of hitbox to top edge of tile */
-                    newPY = (short)(r * ts - ts + inset);
+                    newPY = (short)(r * ts - ts);
                 } else if (dy < 0) {
-                    /* Moving up: clamp top edge of hitbox to bottom edge of tile */
-                    newPY = (short)((r + 1) * ts - inset);
+                    newPY = (short)((r + 1) * ts);
                 }
                 goto done;
             }
@@ -344,7 +343,6 @@ static void UpdatePassThrough(Player *p)
     short ts = gGame.tileSize;
     Bomb *b;
     short bLeft, bTop, bRight, bBottom;
-    short inset = gGame.isMacSE ? HITBOX_INSET_SMALL : HITBOX_INSET_LARGE;
     short hLeft, hTop, hRight, hBottom;
 
     if (p->passThroughBombIdx < 0) return;
@@ -361,11 +359,12 @@ static void UpdatePassThrough(Player *p)
         return;
     }
 
-    /* Check if player hitbox still overlaps the bomb tile */
-    hLeft   = (short)(p->pixelX + inset);
-    hTop    = (short)(p->pixelY + inset);
-    hRight  = (short)(p->pixelX + ts - inset);
-    hBottom = (short)(p->pixelY + ts - inset);
+    /* Check if full sprite rect still overlaps the bomb tile
+     * (matches CollideAxis which uses full sprite, not hitbox inset) */
+    hLeft   = p->pixelX;
+    hTop    = p->pixelY;
+    hRight  = (short)(p->pixelX + ts);
+    hBottom = (short)(p->pixelY + ts);
 
     bLeft   = (short)(b->gridCol * ts);
     bTop    = (short)(b->gridRow * ts);
