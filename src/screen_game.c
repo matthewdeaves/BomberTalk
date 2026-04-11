@@ -18,8 +18,10 @@ static short gLastSentPX = -1;
 static short gLastSentPY = -1;
 static short gLastSentFacing = -1;
 static long  gHeartbeatTimer = 0;
+static long  gPosSendTimer = 0;
 
-#define HEARTBEAT_TICKS 120  /* ~2 seconds: resend position even when idle */
+#define HEARTBEAT_TICKS   120  /* ~2 seconds: resend position even when idle */
+#define POS_SEND_INTERVAL   4  /* ticks between position sends (~15/sec max) */
 
 void Game_Init(void)
 {
@@ -45,6 +47,7 @@ void Game_Init(void)
     gLastSentPY = -1;
     gLastSentFacing = -1;
     gHeartbeatTimer = 0;
+    gPosSendTimer = 0;
 
     /* Build initial background tilemap rendering */
     Renderer_RebuildBackground();
@@ -57,14 +60,13 @@ void Game_Update(void)
 {
     short i;
     Player *local;
+    short oldPX[MAX_PLAYERS], oldPY[MAX_PLAYERS];
     if (!gGame.gameRunning) return;
 
-    /* Mark old positions dirty before update (multi-tile aware) */
+    /* Save positions before update for moved-player dirty optimization */
     for (i = 0; i < MAX_PLAYERS; i++) {
-        if (gGame.players[i].active &&
-            (gGame.players[i].alive || gGame.players[i].deathTimer > 0)) {
-            Player_MarkDirtyTiles(i);
-        }
+        oldPX[i] = gGame.players[i].pixelX;
+        oldPY[i] = gGame.players[i].pixelY;
     }
 
     /* Update all players (local moves, remotes interpolate) */
@@ -78,15 +80,24 @@ void Game_Update(void)
     local = Player_GetLocal();
     if (local && local->active && local->alive && local->deathTimer <= 0) {
         gHeartbeatTimer += gGame.deltaTicks;
-        if (local->pixelX != gLastSentPX ||
-            local->pixelY != gLastSentPY ||
-            local->facing != gLastSentFacing ||
-            gHeartbeatTimer >= HEARTBEAT_TICKS) {
+        gPosSendTimer += gGame.deltaTicks;
+        if ((local->pixelX != gLastSentPX ||
+             local->pixelY != gLastSentPY ||
+             local->facing != gLastSentFacing) &&
+            gPosSendTimer >= POS_SEND_INTERVAL) {
             Net_SendPosition(local->pixelX, local->pixelY, local->facing);
             gLastSentPX = local->pixelX;
             gLastSentPY = local->pixelY;
             gLastSentFacing = local->facing;
             gHeartbeatTimer = 0;
+            gPosSendTimer = 0;
+        } else if (gHeartbeatTimer >= HEARTBEAT_TICKS) {
+            Net_SendPosition(local->pixelX, local->pixelY, local->facing);
+            gLastSentPX = local->pixelX;
+            gLastSentPY = local->pixelY;
+            gLastSentFacing = local->facing;
+            gHeartbeatTimer = 0;
+            gPosSendTimer = 0;
         }
 
         /* Bomb placement (T012: use center-derived gridCol/gridRow) */
@@ -112,10 +123,25 @@ void Game_Update(void)
         }
     }
 
-    /* Mark new positions dirty after update (multi-tile aware) */
+    /* Mark dirty only for players that moved or are dying (flash) */
     for (i = 0; i < MAX_PLAYERS; i++) {
         if (!gGame.players[i].active) continue;
-        if (gGame.players[i].alive || gGame.players[i].deathTimer > 0) {
+        if (gGame.players[i].deathTimer > 0) {
+            Player_MarkDirtyTiles(i);
+            continue;
+        }
+        if (!gGame.players[i].alive) continue;
+        if (gGame.players[i].pixelX == oldPX[i] &&
+            gGame.players[i].pixelY == oldPY[i]) continue;
+        /* Player moved: mark both old and new positions dirty */
+        {
+            short newPX = gGame.players[i].pixelX;
+            short newPY = gGame.players[i].pixelY;
+            gGame.players[i].pixelX = oldPX[i];
+            gGame.players[i].pixelY = oldPY[i];
+            Player_MarkDirtyTiles(i);
+            gGame.players[i].pixelX = newPX;
+            gGame.players[i].pixelY = newPY;
             Player_MarkDirtyTiles(i);
         }
     }

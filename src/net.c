@@ -386,6 +386,10 @@ void Net_SendPosition(short pixelX, short pixelY, short facing)
 {
     MsgPosition msg;
     short ts = gGame.tileSize;
+    /* tileSize is always power of 2 (16 or 32): use shift instead of
+     * 32-bit division. 16: <<8/16 = <<4.  32: <<8/32 = <<3.
+     * Saves ~200 cycles per send on 68k (avoids __divsi3). */
+    short shift = (ts == 16) ? 4 : 3;
     if (!gPTCtx) return;
 
     msg.playerID = (unsigned char)gGame.localPlayerID;
@@ -393,8 +397,8 @@ void Net_SendPosition(short pixelX, short pixelY, short facing)
     /* Convert to tile-independent network coords (256 units = 1 tile).
      * This allows machines with different tile sizes (16px SE vs 32px PPC)
      * to agree on player positions. */
-    msg.pixelX = (short)(((long)pixelX << 8) / ts);
-    msg.pixelY = (short)(((long)pixelY << 8) / ts);
+    msg.pixelX = (short)((long)pixelX << shift);
+    msg.pixelY = (short)((long)pixelY << shift);
     msg.pad[0] = 0;
     msg.pad[1] = 0;
 

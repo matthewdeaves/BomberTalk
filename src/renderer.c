@@ -77,10 +77,16 @@ static BitMap *gCachedExplosionPM = NULL;
 /* ---- Deferred background rebuild flag ---- */
 static int gNeedRebuildBg = FALSE;
 
-/* ---- Dirty rectangle grid (T015) ---- */
+/* ---- Dirty rectangle grid + list (T015) ---- */
 static unsigned char gDirtyGrid[MAX_GRID_ROWS][MAX_GRID_COLS];
 static short gDirtyCount = 0;
 static short gDirtyTotal = 0;
+static int   gAllDirty = FALSE;
+
+/* Dirty list: parallel arrays for O(dirty) iteration.
+ * Grid retained for O(1) duplicate detection in MarkDirty. */
+static short gDirtyListCol[MAX_GRID_ROWS * MAX_GRID_COLS];
+static short gDirtyListRow[MAX_GRID_ROWS * MAX_GRID_COLS];
 
 /* ==== Dirty Rectangle API ==== */
 
@@ -90,6 +96,8 @@ void Renderer_MarkDirty(short col, short row)
         row < 0 || row >= TileMap_GetRows()) return;
     if (gDirtyGrid[row][col]) return;
     gDirtyGrid[row][col] = 1;
+    gDirtyListCol[gDirtyCount] = col;
+    gDirtyListRow[gDirtyCount] = row;
     gDirtyCount++;
 }
 
@@ -97,11 +105,21 @@ static void Renderer_MarkAllDirty(void)
 {
     memset(gDirtyGrid, 1, sizeof(gDirtyGrid));
     gDirtyCount = gDirtyTotal;
+    gAllDirty = TRUE;
+    /* List not populated -- full-screen CopyBits path doesn't use it */
 }
 
 static void Renderer_ClearDirty(void)
 {
-    memset(gDirtyGrid, 0, sizeof(gDirtyGrid));
+    if (gAllDirty) {
+        memset(gDirtyGrid, 0, sizeof(gDirtyGrid));
+        gAllDirty = FALSE;
+    } else {
+        short i;
+        for (i = 0; i < gDirtyCount; i++) {
+            gDirtyGrid[gDirtyListRow[i]][gDirtyListCol[i]] = 0;
+        }
+    }
     gDirtyCount = 0;
 }
 
@@ -596,22 +614,18 @@ void Renderer_BeginFrame(void)
         CopyBits(GetBgBits(), GetWorkBits(),
                  &bounds, &bounds, srcCopy, NULL);
     } else {
-        short r, c;
+        short di;
         short ts = gGame.tileSize;
-        short mapCols = TileMap_GetCols();
-        short mapRows = TileMap_GetRows();
 
-        for (r = 0; r < mapRows; r++) {
-            for (c = 0; c < mapCols; c++) {
-                if (gDirtyGrid[r][c]) {
-                    Rect tileRect;
-                    SetRect(&tileRect, c * ts, r * ts,
-                            (c + 1) * ts, (r + 1) * ts);
-                    AlignRect32(&tileRect);
-                    CopyBits(GetBgBits(), GetWorkBits(),
-                             &tileRect, &tileRect, srcCopy, NULL);
-                }
-            }
+        for (di = 0; di < gDirtyCount; di++) {
+            Rect tileRect;
+            short c = gDirtyListCol[di];
+            short r = gDirtyListRow[di];
+            SetRect(&tileRect, c * ts, r * ts,
+                    (c + 1) * ts, (r + 1) * ts);
+            AlignRect32(&tileRect);
+            CopyBits(GetBgBits(), GetWorkBits(),
+                     &tileRect, &tileRect, srcCopy, NULL);
         }
     }
 
@@ -788,22 +802,18 @@ void Renderer_BlitToWindow(WindowPtr window)
         CopyBits(GetWorkBits(), &window->portBits,
                  &bounds, &bounds, srcCopy, NULL);
     } else {
-        short r, c;
+        short di;
         short ts = gGame.tileSize;
-        short mapCols = TileMap_GetCols();
-        short mapRows = TileMap_GetRows();
 
-        for (r = 0; r < mapRows; r++) {
-            for (c = 0; c < mapCols; c++) {
-                if (gDirtyGrid[r][c]) {
-                    Rect tileRect;
-                    SetRect(&tileRect, c * ts, r * ts,
-                            (c + 1) * ts, (r + 1) * ts);
-                    AlignRect32(&tileRect);
-                    CopyBits(GetWorkBits(), &window->portBits,
-                             &tileRect, &tileRect, srcCopy, NULL);
-                }
-            }
+        for (di = 0; di < gDirtyCount; di++) {
+            Rect tileRect;
+            short c = gDirtyListCol[di];
+            short r = gDirtyListRow[di];
+            SetRect(&tileRect, c * ts, r * ts,
+                    (c + 1) * ts, (r + 1) * ts);
+            AlignRect32(&tileRect);
+            CopyBits(GetWorkBits(), &window->portBits,
+                     &tileRect, &tileRect, srcCopy, NULL);
         }
     }
 

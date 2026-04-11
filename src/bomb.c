@@ -16,6 +16,10 @@ static short gExplosionCount = 0;
 /* Spatial grid for O(1) bomb-position lookups */
 static unsigned char gBombGrid[MAX_GRID_ROWS][MAX_GRID_COLS];
 
+/* Explosion raycast directions (static const avoids stack init per call) */
+static const short kExplodeDCol[4] = {0, 0, -1, 1};
+static const short kExplodeDRow[4] = {-1, 1, 0, 0};
+
 #define EXPLOSION_DURATION_TICKS 20  /* ~0.33 sec at 60 ticks/sec */
 
 void Bomb_Init(void)
@@ -88,8 +92,6 @@ static void ExplodeBomb(Bomb *b, int broadcast)
 {
     short dir, dist;
     short col, row;
-    short dCol[4] = {0, 0, -1, 1};
-    short dRow[4] = {-1, 1, 0, 0};
     int blocksDestroyed = FALSE;
 
     CLOG_INFO("Bomb exploding at (%d,%d) range=%d owner=P%d %s",
@@ -103,8 +105,8 @@ static void ExplodeBomb(Bomb *b, int broadcast)
     /* Four directions */
     for (dir = 0; dir < 4; dir++) {
         for (dist = 1; dist <= b->range; dist++) {
-            col = b->gridCol + dCol[dir] * dist;
-            row = b->gridRow + dRow[dir] * dist;
+            col = b->gridCol + kExplodeDCol[dir] * dist;
+            row = b->gridRow + kExplodeDRow[dir] * dist;
 
             /* Stop at walls */
             if (col < 0 || col >= TileMap_GetCols() ||
