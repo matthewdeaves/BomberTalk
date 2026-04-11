@@ -328,19 +328,59 @@ int main(void)
     CLOG_INFO("Entering main loop");
     MainLoop();
 
-    CLOG_INFO("Shutting down");
-    CLOG_INFO("Shutdown: renderer");
-    Renderer_Shutdown();
-    CLOG_INFO("Shutdown: window");
-    if (gGame.window) {
-        DisposeWindow(gGame.window);
-        gGame.window = NULL;
-    }
-    CLOG_INFO("Shutdown: net");
-    Net_Shutdown();
+    /* Shutdown breadcrumb file — tracks progress even if clog is broken.
+     * Each step writes a marker character so we know where a crash occurred.
+     * Separate from main log to survive crashes that corrupt open files. */
+    {
+        short bcRef = 0;
+        static unsigned char bcName[12] = {11,'B','T',' ','S','h','u','t','d','o','w','n'};
+        long bcCount;
+        Create(bcName, 0, 'CLog', 'TEXT');
+        if (FSOpen(bcName, 0, &bcRef) == noErr) {
+            SetEOF(bcRef, 0);
+            bcCount = 1;
+            FSWrite(bcRef, &bcCount, "0"); /* 0 = shutdown started */
+
+            CLOG_INFO("Shutting down");
+            CLOG_INFO("Shutdown: renderer");
+            Renderer_Shutdown();
+            SetFPos(bcRef, fsFromLEOF, 0);
+            FSWrite(bcRef, &bcCount, "1"); /* 1 = renderer done */
+
+            CLOG_INFO("Shutdown: window");
+            if (gGame.window) {
+                DisposeWindow(gGame.window);
+                gGame.window = NULL;
+            }
+            SetFPos(bcRef, fsFromLEOF, 0);
+            FSWrite(bcRef, &bcCount, "2"); /* 2 = window done */
+
+            CLOG_INFO("Shutdown: net");
+            Net_Shutdown();
+            SetFPos(bcRef, fsFromLEOF, 0);
+            FSWrite(bcRef, &bcCount, "3"); /* 3 = net done */
+
 #ifndef CLOG_STRIP
-    clog_shutdown();
+            clog_shutdown();
 #endif
+            SetFPos(bcRef, fsFromLEOF, 0);
+            FSWrite(bcRef, &bcCount, "4"); /* 4 = clog done */
+
+            FSClose(bcRef);
+        } else {
+            /* Fallback if breadcrumb file fails */
+            CLOG_INFO("Shutting down");
+            Renderer_Shutdown();
+            if (gGame.window) {
+                DisposeWindow(gGame.window);
+                gGame.window = NULL;
+            }
+            Net_Shutdown();
+#ifndef CLOG_STRIP
+            clog_shutdown();
+#endif
+        }
+    }
 
     ExitToShell();
     return 0; /* not reached */

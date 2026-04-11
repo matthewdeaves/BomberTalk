@@ -203,17 +203,16 @@ void Bomb_Update(void)
         }
     }
 
-    /* Per-frame AABB kill check: players walking into active explosions.
-     * Only the local player's machine broadcasts the kill to avoid
-     * duplicate messages from every machine detecting the same overlap. */
-    {
-        short p;
+    /* Per-frame AABB kill check: local player walking into active explosions.
+     * Each machine is authoritative for its own player's death only —
+     * checking remote players here would use stale interpolated positions,
+     * causing false kills and premature game over. */
+    if (gGame.localPlayerID >= 0) {
         short ts = gGame.tileSize;
-        for (p = 0; p < MAX_PLAYERS; p++) {
+        Player *pl = &gGame.players[gGame.localPlayerID];
+        if (pl->active && pl->alive && pl->deathTimer <= 0) {
             Rect hitbox;
-            Player *pl = &gGame.players[p];
-            if (!pl->active || !pl->alive || pl->deathTimer > 0) continue;
-            Player_GetHitbox(p, &hitbox);
+            Player_GetHitbox(gGame.localPlayerID, &hitbox);
             for (i = 0; i < gExplosionCount; i++) {
                 Rect expRect;
                 SetRect(&expRect,
@@ -228,9 +227,7 @@ void Bomb_Update(void)
                     CLOG_INFO("Player %d walked into explosion at (%d,%d)",
                               pl->playerID, gExplosions[i].col,
                               gExplosions[i].row);
-                    if (p == gGame.localPlayerID) {
-                        Net_SendPlayerKilled(pl->playerID, pl->playerID);
-                    }
+                    Net_SendPlayerKilled(pl->playerID, pl->playerID);
                     break;
                 }
             }
