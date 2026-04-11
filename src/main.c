@@ -22,6 +22,7 @@ static int      gQuitting = FALSE;
 static long     gLastFrameTick = 0;
 static short    gFPSFrameCount = 0;
 static long     gFPSLastTick = 0;
+static short    gBcRef = 0; /* Shutdown breadcrumb file handle (opened at init) */
 
 /*
  * InitToolbox -- Initialize all Mac Toolbox managers
@@ -303,6 +304,20 @@ int main(void)
     clog_init("BomberTalk", gGame.isMacSE ? CLOG_LVL_INFO : CLOG_LVL_DBG);
 #endif
 
+    /* Open shutdown breadcrumb file NOW (File Manager works at init time).
+     * Kept open until shutdown so writes survive even if clog breaks.
+     * On the 6200, creating the file during shutdown failed — the same
+     * MacTCP interference that kills clog also prevented file creation. */
+    {
+        static unsigned char bcN[12] = {11,'B','T',' ','S','h','u','t','d','o','w','n'};
+        Create(bcN, 0, 'CLog', 'TEXT');
+        if (FSOpen(bcN, 0, &gBcRef) == noErr) {
+            SetEOF(gBcRef, 0);
+        } else {
+            gBcRef = 0;
+        }
+    }
+
     CLOG_INFO("BomberTalk starting");
 
     /* Load tilemap early so dimensions are known for window/buffer sizing */
@@ -328,58 +343,35 @@ int main(void)
     CLOG_INFO("Entering main loop");
     MainLoop();
 
-    /* Shutdown breadcrumb file — tracks progress even if clog is broken.
-     * Each step writes a marker character so we know where a crash occurred.
-     * Separate from main log to survive crashes that corrupt open files. */
+    /* Shutdown with breadcrumb tracking via pre-opened file handle.
+     * Markers: 0=start, 1=renderer, 2=window, 3=net, 4=clog, 5=done */
     {
-        short bcRef = 0;
-        static unsigned char bcName[12] = {11,'B','T',' ','S','h','u','t','d','o','w','n'};
-        long bcCount;
-        Create(bcName, 0, 'CLog', 'TEXT');
-        if (FSOpen(bcName, 0, &bcRef) == noErr) {
-            SetEOF(bcRef, 0);
-            bcCount = 1;
-            FSWrite(bcRef, &bcCount, "0"); /* 0 = shutdown started */
-
-            CLOG_INFO("Shutting down");
-            CLOG_INFO("Shutdown: renderer");
-            Renderer_Shutdown();
-            SetFPos(bcRef, fsFromLEOF, 0);
-            FSWrite(bcRef, &bcCount, "1"); /* 1 = renderer done */
-
-            CLOG_INFO("Shutdown: window");
-            if (gGame.window) {
-                DisposeWindow(gGame.window);
-                gGame.window = NULL;
-            }
-            SetFPos(bcRef, fsFromLEOF, 0);
-            FSWrite(bcRef, &bcCount, "2"); /* 2 = window done */
-
-            CLOG_INFO("Shutdown: net");
-            Net_Shutdown();
-            SetFPos(bcRef, fsFromLEOF, 0);
-            FSWrite(bcRef, &bcCount, "3"); /* 3 = net done */
-
-#ifndef CLOG_STRIP
-            clog_shutdown();
-#endif
-            SetFPos(bcRef, fsFromLEOF, 0);
-            FSWrite(bcRef, &bcCount, "4"); /* 4 = clog done */
-
-            FSClose(bcRef);
-        } else {
-            /* Fallback if breadcrumb file fails */
-            CLOG_INFO("Shutting down");
-            Renderer_Shutdown();
-            if (gGame.window) {
-                DisposeWindow(gGame.window);
-                gGame.window = NULL;
-            }
-            Net_Shutdown();
-#ifndef CLOG_STRIP
-            clog_shutdown();
-#endif
+        long bcW = 1;
+        if (gBcRef) {
+            SetFPos(gBcRef, fsFromStart, 0);
+            SetEOF(gBcRef, 0);
+            FSWrite(gBcRef, &bcW, "0");
         }
+
+        CLOG_INFO("Shutting down");
+        Renderer_Shutdown();
+        if (gBcRef) { SetFPos(gBcRef, fsFromLEOF, 0); FSWrite(gBcRef, &bcW, "1"); }
+
+        if (gGame.window) {
+            DisposeWindow(gGame.window);
+            gGame.window = NULL;
+        }
+        if (gBcRef) { SetFPos(gBcRef, fsFromLEOF, 0); FSWrite(gBcRef, &bcW, "2"); }
+
+        Net_Shutdown();
+        if (gBcRef) { SetFPos(gBcRef, fsFromLEOF, 0); FSWrite(gBcRef, &bcW, "3"); }
+
+#ifndef CLOG_STRIP
+        clog_shutdown();
+#endif
+        if (gBcRef) { SetFPos(gBcRef, fsFromLEOF, 0); FSWrite(gBcRef, &bcW, "4"); }
+
+        if (gBcRef) FSClose(gBcRef);
     }
 
     ExitToShell();
