@@ -1,36 +1,67 @@
 cmake_minimum_required(VERSION 3.15)
 project(BomberTalk C)
 
-# PeerTalk SDK location
-if(NOT DEFINED PEERTALK_DIR)
-    set(PEERTALK_DIR "$ENV{HOME}/peertalk" CACHE PATH "PeerTalk SDK")
-endif()
+include(FetchContent)
 
-# clog location
-if(NOT DEFINED CLOG_DIR)
-    set(CLOG_DIR "$ENV{HOME}/clog" CACHE PATH "clog library")
-endif()
-
-# Detect platform and select library paths
+# Detect platform
 if(CMAKE_SYSTEM_NAME MATCHES "Retro68")
     set(BT_PLATFORM "68K")
     set(PT_PLATFORM "MACTCP")
-    set(CLOG_LIB_DIR "${CLOG_DIR}/build-m68k")
-    set(PT_LIB_DIR "${PEERTALK_DIR}/build-68k")
 elseif(CMAKE_SYSTEM_NAME MATCHES "RetroPPC")
     set(BT_PLATFORM "PPC")
     # PT_PLATFORM is set via -DPT_PLATFORM=OT or -DPT_PLATFORM=MACTCP
     if(NOT DEFINED PT_PLATFORM)
         set(PT_PLATFORM "OT")
     endif()
-    set(CLOG_LIB_DIR "${CLOG_DIR}/build-ppc")
-    if(PT_PLATFORM STREQUAL "OT")
-        set(PT_LIB_DIR "${PEERTALK_DIR}/build-ppc-ot")
-    else()
-        set(PT_LIB_DIR "${PEERTALK_DIR}/build-ppc-mactcp")
-    endif()
 else()
     message(FATAL_ERROR "BomberTalk targets Classic Mac only (Retro68 or RetroPPC)")
+endif()
+
+message(STATUS "BomberTalk platform: ${BT_PLATFORM}, PT_PLATFORM: ${PT_PLATFORM}")
+
+# --- clog dependency ---
+# Use local dir if provided, otherwise fetch from GitHub
+if(NOT DEFINED CLOG_DIR AND DEFINED ENV{CLOG_DIR})
+    set(CLOG_DIR "$ENV{CLOG_DIR}")
+endif()
+
+if(DEFINED CLOG_DIR)
+    message(STATUS "Using local clog: ${CLOG_DIR}")
+    set(CLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    add_subdirectory(${CLOG_DIR} ${CMAKE_BINARY_DIR}/clog)
+else()
+    message(STATUS "Fetching clog from GitHub")
+    FetchContent_Declare(clog
+        GIT_REPOSITORY https://github.com/matthewdeaves/clog.git
+        GIT_TAG        main
+        GIT_SHALLOW    TRUE
+    )
+    set(CLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(clog)
+endif()
+
+# Pre-set CLOG_LIB so peertalk's find_library() uses the clog target directly
+set(CLOG_LIB clog CACHE FILEPATH "clog library (target)" FORCE)
+
+# --- peertalk dependency ---
+# Use local dir if provided, otherwise fetch from GitHub
+if(NOT DEFINED PEERTALK_DIR AND DEFINED ENV{PEERTALK_DIR})
+    set(PEERTALK_DIR "$ENV{PEERTALK_DIR}")
+endif()
+
+set(PEERTALK_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+
+if(DEFINED PEERTALK_DIR)
+    message(STATUS "Using local peertalk: ${PEERTALK_DIR}")
+    add_subdirectory(${PEERTALK_DIR} ${CMAKE_BINARY_DIR}/peertalk)
+else()
+    message(STATUS "Fetching peertalk from GitHub")
+    FetchContent_Declare(peertalk
+        GIT_REPOSITORY https://github.com/matthewdeaves/peertalk.git
+        GIT_TAG        main
+        GIT_SHALLOW    TRUE
+    )
+    FetchContent_MakeAvailable(peertalk)
 endif()
 
 # Debug logging toggle (default ON; set -DBOMBERTALK_DEBUG=OFF for release)
@@ -66,8 +97,6 @@ add_application(BomberTalk ${GAME_SOURCES} ${GAME_RESOURCES})
 
 target_include_directories(BomberTalk PRIVATE
     include
-    ${PEERTALK_DIR}/include
-    ${CLOG_DIR}/include
 )
 
 # When debug logging is OFF, strip all CLOG_* macros to ((void)0)
@@ -75,19 +104,22 @@ if(NOT BOMBERTALK_DEBUG)
     target_compile_definitions(BomberTalk PRIVATE CLOG_STRIP)
 endif()
 
-# Link PeerTalk and clog static libraries
-# (clog always linked — PeerTalk depends on it. CLOG_STRIP only strips
-#  BomberTalk's own CLOG_* macro calls, not PeerTalk's internal logging.)
-target_link_libraries(BomberTalk
-    ${PT_LIB_DIR}/libpeertalk.a
-    ${CLOG_LIB_DIR}/libclog.a
-)
+# Link PeerTalk and clog targets (built from source as subdirectories)
+# clog always linked — PeerTalk depends on it. CLOG_STRIP only strips
+# BomberTalk's own CLOG_* macro calls, not PeerTalk's internal logging.
+# peertalk PUBLIC include dir propagates automatically; clog PUBLIC include
+# dir propagates automatically.
+target_link_libraries(BomberTalk peertalk clog)
 
-# PPC needs Open Transport libraries (handled by PeerTalk's static lib linkage)
+# PPC OT needs Open Transport libraries (peertalk links them PRIVATE,
+# which doesn't propagate through static libs to consumers)
 if(BT_PLATFORM STREQUAL "PPC" AND PT_PLATFORM STREQUAL "OT")
-    target_link_libraries(BomberTalk
-        -lOpenTransportAppPPC
-        -lOpenTransportLib
-        -lOpenTptInternetLib
-    )
+    find_library(OT_APP_LIB OpenTransportAppPPC)
+    find_library(OT_LIB OpenTransportLib)
+    find_library(OT_INET_LIB OpenTptInternetLib)
+    foreach(LIB OT_APP_LIB OT_LIB OT_INET_LIB)
+        if(${LIB})
+            target_link_libraries(BomberTalk ${${LIB}})
+        endif()
+    endforeach()
 endif()

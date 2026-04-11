@@ -26,26 +26,28 @@ These 10 principles govern ALL implementation decisions. Full text: `.specify/me
 
 ## Build Commands
 
-Environment variables (defaults shown):
-- `RETRO68_TOOLCHAIN` — `~/Retro68-build/toolchain`
-- `PEERTALK_DIR` — `~/peertalk` (must be built first per target)
-- `CLOG_DIR` — `~/clog` (must be built first per target)
+Environment variables:
+- `RETRO68_TOOLCHAIN` — `~/Retro68-build/toolchain` (required)
+- `PEERTALK_DIR` — local peertalk checkout (optional; fetched from GitHub if omitted)
+- `CLOG_DIR` — local clog checkout (optional; fetched from GitHub if omitted)
 
 ```bash
 # 68k MacTCP (build-68k/) — Mac SE, System 6
 mkdir -p build-68k && cd build-68k && \
-cmake .. -DCMAKE_TOOLCHAIN_FILE=$RETRO68_TOOLCHAIN/m68k-apple-macos/cmake/retro68.toolchain.cmake \
-  -DPEERTALK_DIR=$PEERTALK_DIR -DCLOG_DIR=$CLOG_DIR && make
+cmake .. -DCMAKE_TOOLCHAIN_FILE=$RETRO68_TOOLCHAIN/m68k-apple-macos/cmake/retro68.toolchain.cmake && make
 
 # PPC Open Transport (build-ppc-ot/) — Performa 6400, System 7.6.1
 mkdir -p build-ppc-ot && cd build-ppc-ot && \
 cmake .. -DCMAKE_TOOLCHAIN_FILE=$RETRO68_TOOLCHAIN/powerpc-apple-macos/cmake/retroppc.toolchain.cmake \
-  -DPT_PLATFORM=OT -DPEERTALK_DIR=$PEERTALK_DIR -DCLOG_DIR=$CLOG_DIR && make
+  -DPT_PLATFORM=OT && make
 
 # PPC MacTCP (build-ppc-mactcp/) — Performa 6200, System 7.5.3
 mkdir -p build-ppc-mactcp && cd build-ppc-mactcp && \
 cmake .. -DCMAKE_TOOLCHAIN_FILE=$RETRO68_TOOLCHAIN/powerpc-apple-macos/cmake/retroppc.toolchain.cmake \
-  -DPT_PLATFORM=MACTCP -DPEERTALK_DIR=$PEERTALK_DIR -DCLOG_DIR=$CLOG_DIR && make
+  -DPT_PLATFORM=MACTCP && make
+
+# Using local checkouts (optional, overrides FetchContent):
+#   -DPEERTALK_DIR=~/peertalk -DCLOG_DIR=~/clog
 ```
 
 After changes, always build and verify all three targets compile clean before committing.
@@ -182,7 +184,7 @@ Single `GameState gGame` struct holds all game state. Key fields:
 
 **C89 + clog**: clog uses variadic macros (C99). Do NOT use `-pedantic`. Use `-Wall -Wextra` only.
 
-**OT linker**: PPC OT builds link `OpenTransportAppPPC` + `OpenTransportLib` + `OpenTptInternetLib`. Handled by PeerTalk's static library — BomberTalk just links `libpeertalk.a`.
+**OT linker**: PPC OT builds link `OpenTransportAppPPC` + `OpenTransportLib` + `OpenTptInternetLib`. PeerTalk links them PRIVATE, so BomberTalk must link them too (static lib deps don't propagate).
 
 **Big-endian**: Both 68k and PPC are big-endian. Network message structs need no byte swapping on Classic Mac. Will need conversion if POSIX build is added later.
 

@@ -40,10 +40,8 @@ Read the full write-up: [BomberTalk Alpha](https://matthewdeaves.com/blog/2026-0
 ## Prerequisites
 
 - [Retro68](https://github.com/matthewdeaves/Retro68) cross-compiler (`$RETRO68_TOOLCHAIN`)
-- [clog](https://github.com/matthewdeaves/clog) (`$CLOG_DIR`, defaults to `~/clog`)
-- [PeerTalk](https://github.com/matthewdeaves/peertalk) SDK (`$PEERTALK_DIR`, defaults to `~/peertalk`)
 
-Both clog and PeerTalk must be built for each target architecture before building BomberTalk.
+[clog](https://github.com/matthewdeaves/clog) and [PeerTalk](https://github.com/matthewdeaves/peertalk) are fetched and built automatically via CMake FetchContent. To use local checkouts instead, pass `-DCLOG_DIR=path` and/or `-DPEERTALK_DIR=path`.
 
 For deploying to real Classic Mac hardware via Claude Code, set up the [classic-mac-hardware-mcp](https://github.com/matthewdeaves/classic-mac-hardware-mcp) server (see its README for configuration).
 
@@ -52,18 +50,17 @@ For deploying to real Classic Mac hardware via Claude Code, set up the [classic-
 ```bash
 # 68k MacTCP — Mac SE
 mkdir -p build-68k && cd build-68k
-cmake .. -DCMAKE_TOOLCHAIN_FILE=$RETRO68_TOOLCHAIN/m68k-apple-macos/cmake/retro68.toolchain.cmake \
-  -DPEERTALK_DIR=$PEERTALK_DIR -DCLOG_DIR=$CLOG_DIR && make
+cmake .. -DCMAKE_TOOLCHAIN_FILE=$RETRO68_TOOLCHAIN/m68k-apple-macos/cmake/retro68.toolchain.cmake && make
 
 # PPC Open Transport — Performa 6400
 mkdir -p build-ppc-ot && cd build-ppc-ot
 cmake .. -DCMAKE_TOOLCHAIN_FILE=$RETRO68_TOOLCHAIN/powerpc-apple-macos/cmake/retroppc.toolchain.cmake \
-  -DPT_PLATFORM=OT -DPEERTALK_DIR=$PEERTALK_DIR -DCLOG_DIR=$CLOG_DIR && make
+  -DPT_PLATFORM=OT && make
 
 # PPC MacTCP — Performa 6200
 mkdir -p build-ppc-mactcp && cd build-ppc-mactcp
 cmake .. -DCMAKE_TOOLCHAIN_FILE=$RETRO68_TOOLCHAIN/powerpc-apple-macos/cmake/retroppc.toolchain.cmake \
-  -DPT_PLATFORM=MACTCP -DPEERTALK_DIR=$PEERTALK_DIR -DCLOG_DIR=$CLOG_DIR && make
+  -DPT_PLATFORM=MACTCP && make
 ```
 
 ## Remote Log Monitoring
@@ -94,6 +91,6 @@ specs/              # Design artifacts (spec, plan, tasks, data model, contracts
 5. Poll-based I/O on all platforms (no threads)
 6. The [books](books/) are gospel — consult before implementing any subsystem
 
-## Dependency Chain
+## Dependencies
 
-[Retro68](https://github.com/matthewdeaves/Retro68) (setup.sh) -> [clog](https://github.com/matthewdeaves/clog) -> [PeerTalk](https://github.com/matthewdeaves/peertalk) -> BomberTalk
+[Retro68](https://github.com/matthewdeaves/Retro68) (setup.sh) -> [clog](https://github.com/matthewdeaves/clog) + [PeerTalk](https://github.com/matthewdeaves/peertalk) (auto-fetched) -> BomberTalk
