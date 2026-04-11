@@ -6,7 +6,10 @@ include(FetchContent)
 # Detect platform
 if(CMAKE_SYSTEM_NAME MATCHES "Retro68")
     set(BT_PLATFORM "68K")
-    set(PT_PLATFORM "MACTCP")
+    # PT_PLATFORM is set via -DPT_PLATFORM=OT or -DPT_PLATFORM=MACTCP
+    if(NOT DEFINED PT_PLATFORM)
+        set(PT_PLATFORM "MACTCP")
+    endif()
 elseif(CMAKE_SYSTEM_NAME MATCHES "RetroPPC")
     set(BT_PLATFORM "PPC")
     # PT_PLATFORM is set via -DPT_PLATFORM=OT or -DPT_PLATFORM=MACTCP
@@ -111,12 +114,19 @@ endif()
 # dir propagates automatically.
 target_link_libraries(BomberTalk peertalk clog)
 
-# PPC OT needs Open Transport libraries (peertalk links them PRIVATE,
-# which doesn't propagate through static libs to consumers)
-if(BT_PLATFORM STREQUAL "PPC" AND PT_PLATFORM STREQUAL "OT")
-    find_library(OT_APP_LIB OpenTransportAppPPC)
-    find_library(OT_LIB OpenTransportLib)
-    find_library(OT_INET_LIB OpenTptInternetLib)
+# OT needs Open Transport libraries (peertalk links them PRIVATE,
+# which doesn't propagate through static libs to consumers).
+# Library names differ by architecture.
+if(PT_PLATFORM STREQUAL "OT")
+    if(BT_PLATFORM STREQUAL "68K")
+        find_library(OT_APP_LIB OpenTransportApp)
+        find_library(OT_LIB OpenTransport)
+        find_library(OT_INET_LIB OpenTptInet)
+    else()
+        find_library(OT_APP_LIB OpenTransportAppPPC)
+        find_library(OT_LIB OpenTransportLib)
+        find_library(OT_INET_LIB OpenTptInternetLib)
+    endif()
     foreach(LIB OT_APP_LIB OT_LIB OT_INET_LIB)
         if(${LIB})
             target_link_libraries(BomberTalk ${${LIB}})
