@@ -3,6 +3,7 @@
  */
 
 #include "bomb.h"
+#include "player.h"
 #include "tilemap.h"
 #include "net.h"
 #include "renderer.h"
@@ -32,6 +33,10 @@ int Bomb_PlaceAt(short col, short row, short range, unsigned char ownerID)
     short i;
     Bomb *b;
 
+    /* Bounds check before spatial grid access */
+    if (col < 0 || col >= TileMap_GetCols() ||
+        row < 0 || row >= TileMap_GetRows()) return FALSE;
+
     /* O(1) duplicate check via spatial grid */
     if (gBombGrid[row][col]) return FALSE;
 
@@ -48,7 +53,7 @@ int Bomb_PlaceAt(short col, short row, short range, unsigned char ownerID)
             gBombGrid[row][col] = 1;
             gGame.numActiveBombs++;
             Renderer_MarkDirty(col, row);
-            CLOG_DEBUG("Bomb placed at (%d,%d) by player %d", col, row, ownerID);
+            CLOG_DEBUG("Bomb placed at (%d,%d) by P%d", col, row, ownerID);
             return TRUE;
         }
     }
@@ -57,6 +62,8 @@ int Bomb_PlaceAt(short col, short row, short range, unsigned char ownerID)
 
 int Bomb_ExistsAt(short col, short row)
 {
+    if (col < 0 || col >= TileMap_GetCols() ||
+        row < 0 || row >= TileMap_GetRows()) return FALSE;
     return gBombGrid[row][col];
 }
 
@@ -85,8 +92,9 @@ static void ExplodeBomb(Bomb *b, int broadcast)
     short dRow[4] = {-1, 1, 0, 0};
     int blocksDestroyed = FALSE;
 
-    CLOG_DEBUG("Bomb exploding at (%d,%d) range=%d",
-               b->gridCol, b->gridRow, b->range);
+    CLOG_INFO("Bomb exploding at (%d,%d) range=%d owner=P%d %s",
+              b->gridCol, b->gridRow, b->range, b->ownerID,
+              broadcast ? "local" : "remote");
 
     /* Center tile */
     AddExplosion(b->gridCol, b->gridRow);
@@ -109,6 +117,7 @@ static void ExplodeBomb(Bomb *b, int broadcast)
 
             /* Destroy blocks and stop */
             if (TileMap_GetTile(col, row) == TILE_BLOCK) {
+                CLOG_DEBUG("Block destroyed at (%d,%d)", col, row);
                 TileMap_SetTile(col, row, TILE_FLOOR);
                 if (broadcast) Net_SendBlockDestroyed(col, row);
                 blocksDestroyed = TRUE;
@@ -127,21 +136,32 @@ static void ExplodeBomb(Bomb *b, int broadcast)
         Net_SendBombExplode(b->gridCol, b->gridRow, b->range);
     }
 
-    /* Check player kills */
-    {
-        short p, e;
-        for (p = 0; p < MAX_PLAYERS; p++) {
-            Player *pl = &gGame.players[p];
-            if (!pl->active || !pl->alive || pl->deathTimer > 0) continue;
+    /* Check if LOCAL player killed by this explosion (AABB overlap).
+     * Each machine is authoritative for its own player's death only —
+     * prevents race condition when multiple machines fuse-expire the
+     * same bomb independently and have stale remote positions. */
+    if (gGame.localPlayerID >= 0) {
+        short e;
+        short ts = gGame.tileSize;
+        Player *pl = &gGame.players[gGame.localPlayerID];
+        if (pl->active && pl->alive && pl->deathTimer <= 0) {
+            Rect hitbox;
+            Player_GetHitbox(gGame.localPlayerID, &hitbox);
             for (e = 0; e < gExplosionCount; e++) {
-                if (gExplosions[e].timer == EXPLOSION_DURATION_TICKS &&
-                    pl->gridCol == gExplosions[e].col &&
-                    pl->gridRow == gExplosions[e].row) {
+                Rect expRect;
+                if (gExplosions[e].timer != EXPLOSION_DURATION_TICKS) continue;
+                SetRect(&expRect,
+                        gExplosions[e].col * ts, gExplosions[e].row * ts,
+                        (gExplosions[e].col + 1) * ts,
+                        (gExplosions[e].row + 1) * ts);
+                /* AABB overlap test */
+                if (!(hitbox.right <= expRect.left ||
+                      hitbox.left >= expRect.right ||
+                      hitbox.bottom <= expRect.top ||
+                      hitbox.top >= expRect.bottom)) {
                     pl->deathTimer = DEATH_FLASH_TICKS;
-                    if (broadcast) {
-                        Net_SendPlayerKilled(pl->playerID, b->ownerID);
-                    }
-                    CLOG_INFO("Player %d killed by player %d",
+                    Net_SendPlayerKilled(pl->playerID, b->ownerID);
+                    CLOG_INFO("P%d killed by P%d (AABB overlap)",
                               pl->playerID, b->ownerID);
                     break;
                 }
@@ -188,6 +208,37 @@ void Bomb_Update(void)
             gExplosionCount--;
         }
     }
+
+    /* Per-frame AABB kill check: local player walking into active explosions.
+     * Each machine is authoritative for its own player's death only —
+     * checking remote players here would use stale interpolated positions,
+     * causing false kills and premature game over. */
+    if (gGame.localPlayerID >= 0) {
+        short ts = gGame.tileSize;
+        Player *pl = &gGame.players[gGame.localPlayerID];
+        if (pl->active && pl->alive && pl->deathTimer <= 0) {
+            Rect hitbox;
+            Player_GetHitbox(gGame.localPlayerID, &hitbox);
+            for (i = 0; i < gExplosionCount; i++) {
+                Rect expRect;
+                SetRect(&expRect,
+                        gExplosions[i].col * ts, gExplosions[i].row * ts,
+                        (gExplosions[i].col + 1) * ts,
+                        (gExplosions[i].row + 1) * ts);
+                if (!(hitbox.right <= expRect.left ||
+                      hitbox.left >= expRect.right ||
+                      hitbox.bottom <= expRect.top ||
+                      hitbox.top >= expRect.bottom)) {
+                    pl->deathTimer = DEATH_FLASH_TICKS;
+                    CLOG_INFO("P%d walked into explosion at (%d,%d)",
+                              pl->playerID, gExplosions[i].col,
+                              gExplosions[i].row);
+                    Net_SendPlayerKilled(pl->playerID, pl->playerID);
+                    break;
+                }
+            }
+        }
+    }
 }
 
 void Bomb_ForceExplodeAt(short col, short row)
@@ -202,24 +253,6 @@ void Bomb_ForceExplodeAt(short col, short row)
             return;
         }
     }
-}
-
-Bomb *Bomb_GetActive(short index)
-{
-    short count = 0;
-    short i;
-    for (i = 0; i < MAX_BOMBS; i++) {
-        if (gGame.bombs[i].active) {
-            if (count == index) return &gGame.bombs[i];
-            count++;
-        }
-    }
-    return NULL;
-}
-
-short Bomb_GetActiveCount(void)
-{
-    return gGame.numActiveBombs;
 }
 
 Explosion *Bomb_GetExplosions(short *count)

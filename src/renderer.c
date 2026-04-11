@@ -93,13 +93,13 @@ void Renderer_MarkDirty(short col, short row)
     gDirtyCount++;
 }
 
-void Renderer_MarkAllDirty(void)
+static void Renderer_MarkAllDirty(void)
 {
     memset(gDirtyGrid, 1, sizeof(gDirtyGrid));
     gDirtyCount = gDirtyTotal;
 }
 
-void Renderer_ClearDirty(void)
+static void Renderer_ClearDirty(void)
 {
     memset(gDirtyGrid, 0, sizeof(gDirtyGrid));
     gDirtyCount = 0;
@@ -622,14 +622,14 @@ void Renderer_BeginFrame(void)
     LockAllSprites();
 }
 
-void Renderer_DrawPlayer(short playerID, short col, short row, short facing)
+void Renderer_DrawPlayer(short playerID, short pixelX, short pixelY, short facing)
 {
     Rect dstRect;
     short ts = gGame.tileSize;
 
     (void)facing;
 
-    SetRect(&dstRect, col * ts, row * ts, (col + 1) * ts, (row + 1) * ts);
+    SetRect(&dstRect, pixelX, pixelY, pixelX + ts, pixelY + ts);
 
     if (!gGame.isMacSE && gPICTsLoaded &&
         gCachedPlayerPM[playerID] != NULL) {
@@ -648,12 +648,9 @@ void Renderer_DrawPlayer(short playerID, short col, short row, short facing)
 
         if (gGame.isMacSE) {
             short w = dstRect.right - dstRect.left;
-            short h = dstRect.bottom - dstRect.top;
             short cx = dstRect.left + w / 2;
-            short cy = dstRect.top + h / 2;
+            short cy = dstRect.top + (dstRect.bottom - dstRect.top) / 2;
             Rect mark;
-
-            (void)h;
 
             ForeColor(blackColor);
             BackColor(whiteColor);
@@ -740,37 +737,8 @@ void Renderer_DrawExplosion(short col, short row)
     }
 }
 
-void Renderer_DrawTile(short tileIndex, short col, short row)
-{
-    (void)tileIndex;
-    (void)col;
-    (void)row;
-}
 
-void Renderer_DrawText(const char *text, short x, short y)
-{
-    Str255 pstr;
-    short len = 0;
-
-    while (text[len] && len < 255) {
-        pstr[len + 1] = text[len];
-        len++;
-    }
-    pstr[0] = (unsigned char)len;
-
-    SavePort();
-    SetPortWork();
-    LockWork();
-
-    ForeColor(whiteColor);
-    MoveTo(x, y);
-    DrawString(pstr);
-
-    UnlockWork();
-    RestorePort();
-}
-
-void Renderer_ClearWork(void)
+static void Renderer_ClearWork(void)
 {
     Rect bounds;
 

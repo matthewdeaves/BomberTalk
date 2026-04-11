@@ -11,8 +11,6 @@ void Bomb_Init(void);
 int  Bomb_PlaceAt(short col, short row, short range, unsigned char ownerID);
 void Bomb_Update(void);
 void Bomb_ForceExplodeAt(short col, short row);
-Bomb *Bomb_GetActive(short index);
-short Bomb_GetActiveCount(void);
 int  Bomb_ExistsAt(short col, short row);
 
 /* Explosion state (for rendering) */

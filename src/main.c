@@ -125,6 +125,7 @@ static void CreateGameWindow(void)
     }
 
     if (gGame.window == NULL) {
+        CLOG_ERR("Failed to create game window");
         SysBeep(30);
         ExitToShell();
     }
@@ -293,12 +294,16 @@ static void InitGameState(void)
 int main(void)
 {
     InitToolbox();
+    DetectScreenSize();
+
+#ifndef CLOG_STRIP
     clog_set_file("BomberTalk Log");
-    clog_init("BomberTalk", CLOG_LVL_INFO);
+    /* Mac SE: INFO only — DEBUG file writes add ~3ms each via File Manager,
+     * and smooth movement generates many DBG calls per frame */
+    clog_init("BomberTalk", gGame.isMacSE ? CLOG_LVL_INFO : CLOG_LVL_DBG);
+#endif
 
     CLOG_INFO("BomberTalk starting");
-
-    DetectScreenSize();
 
     /* Load tilemap early so dimensions are known for window/buffer sizing */
     TileMap_Init();
@@ -324,16 +329,18 @@ int main(void)
     MainLoop();
 
     CLOG_INFO("Shutting down");
-    CLOG_INFO("Shutdown: renderer");
     Renderer_Shutdown();
-    CLOG_INFO("Shutdown: window");
+
     if (gGame.window) {
         DisposeWindow(gGame.window);
         gGame.window = NULL;
     }
-    CLOG_INFO("Shutdown: net");
+
     Net_Shutdown();
+
+#ifndef CLOG_STRIP
     clog_shutdown();
+#endif
 
     ExitToShell();
     return 0; /* not reached */

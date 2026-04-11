@@ -14,8 +14,6 @@ void Screens_Init(void);
 void Screens_TransitionTo(ScreenState newScreen);
 void Screens_Update(void);
 void Screens_Draw(WindowPtr window);
-ScreenState Screens_GetCurrent(void);
-
 /* Per-screen interfaces (called by screens.c dispatcher) */
 void Loading_Init(void);
 void Loading_Update(void);

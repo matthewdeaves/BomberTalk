@@ -62,11 +62,12 @@ Deploy builds to real Classic Mac hardware using the [classic-mac-hardware-mcp](
 while (!gQuitting) {
     WaitNextEvent(sleep=0)  →  HandleEvent (menus, Cmd-Q only)
     Net_Poll()              →  PeerTalk callbacks fire (messages, connect/disconnect)
+    Input_Poll()            →  GetKeys() every iteration, OR new edges into accumulator
     if (deltaTicks >= FRAME_TICKS) {
         gGame.deltaTicks = actual elapsed ticks (capped at 10)
-        Input_Poll()        →  GetKeys() once, compute pressed/released edges
         Screens_Update()    →  dispatches to current screen's Update()
         Screens_Draw()      →  dispatches to current screen's Draw()
+        Input_ConsumeFrame() → clears accumulated edges for next frame
     }
 }
 ```
@@ -77,7 +78,14 @@ while (!gQuitting) {
 
 - `gGame.deltaTicks` — actual elapsed ticks since last frame (set in main loop, capped at 10)
 - Decrement timers by `gGame.deltaTicks`, never by 1
-- Constants: `BOMB_FUSE_TICKS=180` (~3s), `EXPLOSION_DURATION_TICKS=20` (~0.33s), `DEATH_FLASH_TICKS=60` (~1s), `MOVE_COOLDOWN_TICKS=12` (~0.2s)
+- Constants: `BOMB_FUSE_TICKS=180` (~3s), `EXPLOSION_DURATION_TICKS=20` (~0.33s), `DEATH_FLASH_TICKS=60` (~1s)
+- **Movement**: Smooth pixel-by-pixel via fractional accumulator. Speed = `stats.speedTicks` (ticks to cross one tile, default 12). `accumX += tileSize * deltaTicks; movePixels = accumX / ticksPerTile; accumX %= ticksPerTile`. Resolution-independent: same crossing time on 16px and 32px tiles.
+- **Positions**: `pixelX`/`pixelY` are authoritative. `gridCol`/`gridRow` derived via center point: `gridCol = (pixelX + tileSize/2) / tileSize`. Bomb placement uses derived grid position.
+- **Collision**: Axis-separated AABB against tilemap. Hitbox inset: 2px (16px tiles) / 4px (32px tiles). Move X, clamp, then Y, clamp. Corner sliding nudges toward corridor alignment within threshold (5px/10px).
+- **Explosions**: AABB overlap between player hitbox and explosion tile rects. Partial tile overlap = death. Per-frame kill check for players walking into active explosions.
+- **Bomb walk-off**: `passThroughBombIdx` per player — set on bomb placement, cleared when hitbox fully leaves bomb tile.
+- **Remote players**: Interpolation toward `targetPixelX`/`targetPixelY` via tick-based lerp (INTERP_TICKS=4).
+- **Network coordinate normalization**: MsgPosition carries tile-independent fixed-point coords (256 units = 1 tile). Send: `netX = (pixelX << 8) / tileSize`. Receive: `pixelX = (netX * tileSize) >> 8`. This allows 16px-tile Mac SE and 32px-tile PPC to agree on positions. Without this, raw pixel coords cause false explosion kills (wrong grid mapping) and crashes (out-of-bounds grid indices on smaller-tiled machines).
 - Network sync: `MSG_BOMB_EXPLODE` forces remote machines to explode immediately if their local fuse hasn't expired yet
 
 ### Screen State Machine (`screens.c`)
@@ -119,7 +127,8 @@ Two offscreen buffers: **background** (static tilemap) and **work** (per-frame c
 - Port save/lock is hoisted to `RebuildBackground`, not per-tile
 - Pascal strings and `StringWidth()` results are cached as statics in screen draw functions
 - `RGBColor` constants are `static const` at file scope, not stack-allocated per tile
-- Mark tiles dirty in every code path that changes visible state: player move, bomb place/explode, block destroy, explosion expire, network position update
+- Mark tiles dirty in every code path that changes visible state: player move, bomb place/explode, block destroy, explosion expire, network position update, player disconnect
+- `Player_MarkDirtyTiles(playerID)` marks 1-4 tiles for sub-tile positions (player straddling tile boundaries). Called before and after movement updates, and before disconnect deactivation.
 
 ### Network Layer (`net.c`)
 
@@ -129,9 +138,11 @@ Thin wrapper around PeerTalk SDK. All network I/O is callback-driven via `PT_Pol
 - **Connection**: TCP mesh — any player can initiate, tiebreaker handles simultaneous connects
 - **Player IDs**: Deterministic IP-sort (lowest IP = player 0). No host concept.
 - **Messages**: 7 types registered at init. `PT_FAST` (UDP) for positions, `PT_RELIABLE` (TCP) for game events.
-- **Protocol Version**: `BT_PROTOCOL_VERSION 2` sent in MSG_GAME_START. Receivers reject mismatches and show warning in lobby. Old v1.0-alpha clients send version 0 (the old `pad` byte).
+- **TCP Keepalive**: PeerTalk sends automatic keepalive frames (type 254) every 20s to prevent TCP timeout during gameplay. Positions go via UDP, so without keepalive the TCP connection starves if no game events (bombs, kills) happen for 60s.
+- **MsgPosition v4**: 8 bytes — `{playerID: u8, facing: u8, pixelX: short, pixelY: short, pad: u8[2]}`. Coords are tile-independent fixed-point (256 units = 1 tile), not raw pixels. Sent via PT_FAST every frame the player moves. Remote machines convert to local pixel space and set interpolation targets.
+- **Protocol Version**: `BT_PROTOCOL_VERSION 4` sent in MSG_GAME_START. Receivers reject mismatches and show warning in lobby. v3 sent raw pixel coords (broken across different tile sizes). Old v1.0-alpha clients send version 0 (the old `pad` byte).
 - **Winner ID Validation**: MSG_GAME_OVER `winnerID` is bounds-checked against MAX_PLAYERS. Values >= MAX_PLAYERS (including 0xFF for draw) treated as no winner.
-- **Logging**: clog messages are UDP-broadcast to port 7355 for remote monitoring. Receive with `socat UDP-RECV:7355 -`
+- **Logging**: `CLOG_LVL_DBG` level (Mac SE: `CLOG_LVL_INFO` to reduce File Manager overhead). All game events instrumented. UDP-broadcast to port 7356 (NOT 7355 — sharing PeerTalk's message UDP port floods MacTCP's 2KB receive buffer). Receive with `socat UDP-RECV:7356 -`. Mac SE has UDP log sink disabled (MacTCP send too slow).
 
 ### Global State (`game.h`)
 
@@ -139,7 +150,7 @@ Single `GameState gGame` struct holds all game state. Key fields:
 - `isMacSE` / `tileSize` — detected at startup, drives renderer path selection
 - `deltaTicks` — elapsed ticks this frame (for tick-based timers)
 - `playWidth` / `playHeight` — computed from `TileMap_GetCols() * tileSize` after tilemap load
-- `players[MAX_PLAYERS]` — all player state including `peer` pointer, `PlayerStats stats` (bombsMax, bombRange, speedTicks)
+- `players[MAX_PLAYERS]` — all player state including `peer` pointer, `PlayerStats stats` (bombsMax, bombRange, speedTicks), pixel positions (pixelX/pixelY authoritative, gridCol/gridRow derived), interpolation targets (targetPixelX/Y), fractional accumulators (accumX/Y), bomb pass-through (passThroughBombIdx)
 - `bombs[MAX_BOMBS]` — active bomb state with tick-based fuse timers
 - Bomb module maintains `gBombGrid[MAX_GRID_ROWS][MAX_GRID_COLS]` for O(1) `Bomb_ExistsAt()` lookups. Grid set on placement, cleared on explosion.
 
@@ -156,7 +167,7 @@ Single `GameState gGame` struct holds all game state. Key fields:
 
 - C89/C90: no `//` comments, no mixed declarations, no VLAs, no stdint.h
 - All memory allocated at init time — no malloc during gameplay
-- GetKeys() for input polling — never use keyDown events for movement
+- GetKeys() for input polling — never use keyDown events for movement. Movement checks both `Input_IsKeyDown()` (held) and `Input_WasKeyPressed()` (accumulated edges) to catch quick taps between frames on slow machines.
 - WaitNextEvent(sleep=0) — never yield CPU in game loop
 - GWorld double-buffering — draw to offscreen, CopyBits to window
 - PeerTalk poll-based — call PT_Poll() every frame
@@ -175,12 +186,17 @@ Single `GameState gGame` struct holds all game state. Key fields:
 
 **Big-endian**: Both 68k and PPC are big-endian. Network message structs need no byte swapping on Classic Mac. Will need conversion if POSIX build is added later.
 
-**Mac SE performance**: ~6fps. Minimize Toolbox trap calls in hot paths. Cache `StringWidth()`, avoid per-tile `SavePort`/`LockPixels`. Books recommend dirty rectangle tracking for further optimization.
+**Mac SE performance**: Lobby ~3fps, gameplay 10-19fps (measured 2026-04-10). Minimize Toolbox trap calls in hot paths. Cache `StringWidth()`, avoid per-tile `SavePort`/`LockPixels`. Movement cooldown must fall through on expiry (not waste a frame), and direction input must use accumulated edges — at 3-10fps a quick tap can complete entirely between frames.
+
+**CopyBits alignment for sub-tile sprites**: Sub-tile sprite positions will be misaligned for CopyBits (up to ~2x penalty per Sex Lies p.148). Accepted: Mac SE uses PaintRect (no penalty), PPC uses transparent mode (already slower). If PPC FPS drops measurably, consider pre-shifted sprite GWorlds (4 copies per sprite) as mitigation.
+
+**BOMBERTALK_DEBUG**: CMake option (default ON). When OFF, adds `-DCLOG_STRIP` causing all `CLOG_*` macros to expand to `((void)0)`. clog library still linked (PeerTalk depends on it). Guard `clog_init`/`clog_set_file`/`clog_set_network_sink`/`clog_shutdown` with `#ifndef CLOG_STRIP`.
 
 ## Spec Artifacts
 
 - `specs/001-v1-alpha/` — v1.0-alpha design: `data-model.md` (network message formats), `contracts/network-protocol.md` (IP-sort player IDs, message flow), `contracts/asset-pipeline.md` (PICT resource layout).
 - `specs/002-perf-extensibility/` — Performance & extensibility upgrade: dirty rectangles, protocol versioning, TMAP resource loading, PlayerStats struct. Key refs: `data-model.md`, `contracts/network-protocol.md`, `research.md`.
+- `specs/004-smooth-movement/` — Smooth sub-tile pixel movement: pixel-authoritative positions, AABB collision, bomb walk-off, corner sliding, MsgPosition v3, remote interpolation, disconnect cleanup, BOMBERTALK_DEBUG toggle. Key refs: `research.md` (10 decisions), `data-model.md`, `contracts/`, `tasks.md` (37 tasks).
 
 ## Reference Books
 
@@ -197,7 +213,10 @@ Six classic Mac game programming books in `books/` — consult before implementi
 - Classic Mac resource fork ('TMAP' resource type for map data) (002-perf-extensibility)
 - C89/C90 (Retro68 cross-compiler) + PeerTalk SDK, clog, Retro68/RetroPPC toolchains, Classic Mac Toolbox (QuickDraw, Resource Manager) (003-optimize-correctness)
 - Mac resource fork ('TMAP' resource type 128), static level data fallback (003-optimize-correctness)
+- C89/C90 (Retro68 cross-compiler) + PeerTalk SDK (commit 7e89304), clog (commit e8d5da9), Retro68/RetroPPC toolchains, Classic Mac Toolbox (QuickDraw) (004-smooth-movement)
 
 ## Recent Changes
+- 004-smooth-movement: Pixel-authoritative positions replace grid-locked movement. Fractional accumulator for resolution-independent speed. AABB collision with tilemap (axis-separated) and explosions (overlap = death). Bomb walk-off via passThroughBombIdx. Corner sliding. MsgPosition v4 with tile-independent network coords (256 units/tile) — fixes false kills and crashes when SE (16px) and PPC (32px) play together. Remote interpolation. Disconnect dirty rect fix. BOMBERTALK_DEBUG CMake toggle. Mac SE clog UDP sink disabled (MacTCP send too slow). All CLOG_STRIP-safe.
+- Input responsiveness + TCP keepalive: Movement cooldown falls through on expiry instead of wasting a frame (critical at Mac SE 3-10fps). Direction input checks both held keys and accumulated edges to catch quick taps between frames. PeerTalk TCP keepalive (type 254, 20s interval) prevents connection timeout during gameplay — positions go via UDP, so TCP starved if no game events for 60s.
 - 003-optimize-correctness: ForeColor/BackColor normalization on all platforms (not just Mac SE) for faster CopyBits. Deferred background rebuild via Renderer_RequestRebuildBackground() batching multiple block-destroys to one rebuild per frame. TileMap_Reset() for round restarts without Resource Manager calls. Spatial bomb grid (gBombGrid) for O(1) Bomb_ExistsAt(). Peer pointer NULLed on disconnect.
 - 002-perf-extensibility: Dirty rectangle renderer optimization, LockPixels hoisting, static color constants, 32-bit CopyBits alignment. Protocol versioning (BT_PROTOCOL_VERSION 2) with lobby mismatch indicator. TMAP resource-based map loading with dynamic grid dimensions. PlayerStats struct replacing standalone bombRange. -std=c89 enforced in CMake.

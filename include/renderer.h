@@ -22,21 +22,14 @@ void Renderer_RequestRebuildBackground(void);
 
 /* Per-frame rendering: copy bg to work, draw sprites, blit to window */
 void Renderer_BeginFrame(void);
-void Renderer_DrawTile(short tileIndex, short col, short row);
-void Renderer_DrawPlayer(short playerID, short col, short row, short facing);
+void Renderer_DrawPlayer(short playerID, short pixelX, short pixelY, short facing);
 void Renderer_DrawBomb(short col, short row);
 void Renderer_DrawExplosion(short col, short row);
-void Renderer_DrawText(const char *text, short x, short y);
 void Renderer_EndFrame(WindowPtr window);
 void Renderer_BlitToWindow(WindowPtr window);
 
 /* Dirty rectangle tracking */
 void Renderer_MarkDirty(short col, short row);
-void Renderer_MarkAllDirty(void);
-void Renderer_ClearDirty(void);
-
-/* Clear the work buffer (for screens that don't use tile rendering) */
-void Renderer_ClearWork(void);
 
 /*
  * Screen drawing helpers -- for non-gameplay screens (menu, lobby, loading).

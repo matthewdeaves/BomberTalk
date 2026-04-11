@@ -27,18 +27,21 @@ static void on_peer_discovered(PT_Peer *peer, void *user_data)
     (void)user_data;
     CLOG_INFO("Peer discovered: %s (%s)",
               PT_PeerName(peer), PT_PeerAddress(peer));
+    (void)peer;
 }
 
 static void on_peer_lost(PT_Peer *peer, void *user_data)
 {
     (void)user_data;
     CLOG_INFO("Peer lost: %s", PT_PeerName(peer));
+    (void)peer;
 }
 
 static void on_connected(PT_Peer *peer, void *user_data)
 {
     (void)user_data;
     CLOG_INFO("Connected to: %s", PT_PeerName(peer));
+    (void)peer;
 }
 
 static void on_disconnected(PT_Peer *peer, PT_DisconnectReason reason,
@@ -46,6 +49,7 @@ static void on_disconnected(PT_Peer *peer, PT_DisconnectReason reason,
 {
     short i;
     (void)user_data;
+    (void)reason;
     CLOG_INFO("Disconnected from: %s (reason=%d)", PT_PeerName(peer), reason);
 
     /* Only mark players inactive if we're in-game.
@@ -54,9 +58,11 @@ static void on_disconnected(PT_Peer *peer, PT_DisconnectReason reason,
 
     for (i = 0; i < MAX_PLAYERS; i++) {
         if (gGame.players[i].active && gGame.players[i].peer == peer) {
+            /* Mark tiles dirty BEFORE deactivation (T028) */
+            Player_MarkDirtyTiles(i);
             gGame.players[i].active = FALSE;
             gGame.players[i].peer = NULL;
-            CLOG_INFO("Player %d marked inactive (disconnect)", i);
+            CLOG_INFO("P%d marked inactive (disconnect)", i);
             break;
         }
     }
@@ -67,6 +73,8 @@ static void on_error(PT_Peer *peer, PT_Status error,
 {
     (void)peer;
     (void)user_data;
+    (void)error;
+    (void)description;
     CLOG_ERR("PeerTalk error %d: %s", error,
              description ? description : "(null)");
 }
@@ -74,17 +82,21 @@ static void on_error(PT_Peer *peer, PT_Status error,
 static void on_position(PT_Peer *peer, const void *data, size_t len,
                         void *user_data)
 {
-    const MsgPosition *msg;
+    MsgPosition msg;
     Player *p;
+    short localPX, localPY;
+    short ts = gGame.tileSize;
     (void)peer;
     (void)user_data;
 
     if (len < sizeof(MsgPosition)) return;
-    msg = (const MsgPosition *)data;
+    /* Copy to aligned local — PeerTalk may deliver data at odd addresses,
+     * causing 68000 address errors when accessing short fields directly */
+    memcpy(&msg, data, sizeof(MsgPosition));
 
-    if (msg->playerID < MAX_PLAYERS &&
-        msg->playerID != (unsigned char)gGame.localPlayerID) {
-        p = &gGame.players[msg->playerID];
+    if (msg.playerID < MAX_PLAYERS &&
+        msg.playerID != (unsigned char)gGame.localPlayerID) {
+        p = &gGame.players[msg.playerID];
 
         /* Reactivate player if we receive position data from them.
          * Handles transient disconnect/reconnect during gameplay. */
@@ -92,15 +104,22 @@ static void on_position(PT_Peer *peer, const void *data, size_t len,
             p->active = TRUE;
             p->alive = TRUE;
             p->deathTimer = 0;
-            CLOG_INFO("Player %d reactivated via position msg", msg->playerID);
+            CLOG_INFO("P%d reactivated via position msg", msg.playerID);
         }
 
-        /* Mark old and new positions dirty */
-        Renderer_MarkDirty(p->gridCol, p->gridRow);
-        Player_SetPosition(msg->playerID,
-                          (short)msg->gridCol, (short)msg->gridRow,
-                          (short)msg->facing);
-        Renderer_MarkDirty(p->gridCol, p->gridRow);
+        /* Convert tile-independent network coords back to local pixel coords.
+         * Network coords use 256 units per tile, so multiply by local tileSize
+         * and divide by 256 to get pixel position in our coordinate space. */
+        localPX = (short)(((long)msg.pixelX * ts) >> 8);
+        localPY = (short)(((long)msg.pixelY * ts) >> 8);
+
+        /* Mark old position dirty (multi-tile aware) */
+        Player_MarkDirtyTiles(msg.playerID);
+        /* Set interpolation target (not direct position) */
+        Player_SetPosition(msg.playerID,
+                          localPX, localPY,
+                          (short)msg.facing);
+        /* New position marked dirty in next frame update */
     }
 }
 
@@ -114,6 +133,8 @@ static void on_bomb_placed(PT_Peer *peer, const void *data, size_t len,
     if (len < sizeof(MsgBombPlaced)) return;
     msg = (const MsgBombPlaced *)data;
 
+    CLOG_INFO("RX bomb placed P%d (%d,%d) range=%d",
+              msg->playerID, msg->gridCol, msg->gridRow, msg->range);
     Renderer_MarkDirty((short)msg->gridCol, (short)msg->gridRow);
     Bomb_PlaceAt((short)msg->gridCol, (short)msg->gridRow,
                  (short)msg->range, msg->playerID);
@@ -131,6 +152,7 @@ static void on_bomb_explode(PT_Peer *peer, const void *data, size_t len,
 
     /* Force-explode the bomb if it hasn't exploded locally yet.
      * This keeps slow machines in sync with fast ones. */
+    CLOG_INFO("RX bomb explode (%d,%d)", msg->gridCol, msg->gridRow);
     Bomb_ForceExplodeAt((short)msg->gridCol, (short)msg->gridRow);
 }
 
@@ -144,6 +166,7 @@ static void on_block_destroyed(PT_Peer *peer, const void *data, size_t len,
     if (len < sizeof(MsgBlockDestroyed)) return;
     msg = (const MsgBlockDestroyed *)data;
 
+    CLOG_INFO("RX block destroyed (%d,%d)", msg->gridCol, msg->gridRow);
     TileMap_SetTile((short)msg->gridCol, (short)msg->gridRow, TILE_FLOOR);
     Renderer_MarkDirty((short)msg->gridCol, (short)msg->gridRow);
     Renderer_RequestRebuildBackground();
@@ -161,7 +184,7 @@ static void on_player_killed(PT_Peer *peer, const void *data, size_t len,
 
     if (msg->playerID < MAX_PLAYERS) {
         gGame.players[msg->playerID].deathTimer = DEATH_FLASH_TICKS;
-        CLOG_INFO("Player %d killed by %d (remote)", msg->playerID, msg->killerID);
+        CLOG_INFO("RX player killed P%d by P%d", msg->playerID, msg->killerID);
     }
 }
 
@@ -209,7 +232,7 @@ static void on_game_over(PT_Peer *peer, const void *data, size_t len,
 
     /* Bounds check winnerID (T024) */
     if (msg->winnerID < MAX_PLAYERS) {
-        CLOG_INFO("Winner is player %d", msg->winnerID);
+        CLOG_INFO("Winner is P%d", msg->winnerID);
     } else {
         CLOG_INFO("No winner (draw or invalid ID: 0x%02X)", msg->winnerID);
     }
@@ -223,7 +246,11 @@ static void on_game_over(PT_Peer *peer, const void *data, size_t len,
 
 /* ---- UDP Log Broadcast ---- */
 
-#define CLOG_UDP_PORT 7355
+#ifndef CLOG_STRIP
+/* Use a separate port from PT_UDP_MSG_PORT (7355) for clog broadcasts.
+ * Sharing port 7355 causes clog flood to starve game position messages
+ * in MacTCP's small (2KB) single-read UDP receive buffer. */
+#define CLOG_UDP_PORT 7356
 
 static char gLogPrefix[20];
 static int  gLogPrefixLen = 0;
@@ -246,6 +273,7 @@ static void udp_log_sink(const char *msg, int len, void *user_data)
 
     PT_SendUDPBroadcast(gPTCtx, CLOG_UDP_PORT, udp_buf, (size_t)total);
 }
+#endif
 
 /* ---- Public API ---- */
 
@@ -259,8 +287,12 @@ void Net_Init(const char *playerName)
         return;
     }
 
-    /* Enable UDP broadcast logging (survives crashes) */
-    {
+#ifndef CLOG_STRIP
+    /* Enable UDP broadcast logging on color Macs only.
+     * On Mac SE, each MacTCP UDP send costs ~5-10ms — at 100+ CLOG calls
+     * per frame this drops FPS from 10 to <1 and eventually crashes.
+     * Mac SE still gets file logging via clog_set_file(). */
+    if (!gGame.isMacSE) {
         const char *lip = PT_LocalAddress(gPTCtx);
         const char *s = lip;
         int i = 0;
@@ -271,8 +303,9 @@ void Net_Init(const char *playerName)
         gLogPrefix[i++] = ']';
         gLogPrefix[i++] = ' ';
         gLogPrefixLen = i;
+        clog_set_network_sink(udp_log_sink, NULL);
     }
-    clog_set_network_sink(udp_log_sink, NULL);
+#endif
 
     /* Register message types */
     PT_RegisterMessage(gPTCtx, MSG_POSITION,        PT_FAST);
@@ -349,17 +382,23 @@ void Net_ConnectToAllPeers(void)
     }
 }
 
-void Net_SendPosition(short col, short row, short facing)
+void Net_SendPosition(short pixelX, short pixelY, short facing)
 {
     MsgPosition msg;
+    short ts = gGame.tileSize;
     if (!gPTCtx) return;
 
     msg.playerID = (unsigned char)gGame.localPlayerID;
-    msg.gridCol = (unsigned char)col;
-    msg.gridRow = (unsigned char)row;
     msg.facing = (unsigned char)facing;
-    msg.animFrame = 0;
+    /* Convert to tile-independent network coords (256 units = 1 tile).
+     * This allows machines with different tile sizes (16px SE vs 32px PPC)
+     * to agree on player positions. */
+    msg.pixelX = (short)(((long)pixelX << 8) / ts);
+    msg.pixelY = (short)(((long)pixelY << 8) / ts);
+    msg.pad[0] = 0;
+    msg.pad[1] = 0;
 
+    CLOG_DEBUG("TX pos P%d px=(%d,%d) f=%d", msg.playerID, pixelX, pixelY, facing);
     PT_Broadcast(gPTCtx, MSG_POSITION, &msg, sizeof(msg));
 }
 
@@ -374,6 +413,7 @@ void Net_SendBombPlaced(short col, short row, short range)
     msg.range = (unsigned char)range;
     msg.fuseTicks = (unsigned char)BOMB_FUSE_TICKS;
 
+    CLOG_INFO("TX bomb placed (%d,%d) range=%d", col, row, range);
     PT_Broadcast(gPTCtx, MSG_BOMB_PLACED, &msg, sizeof(msg));
 }
 
@@ -386,6 +426,7 @@ void Net_SendBombExplode(short col, short row, short range)
     msg.gridRow = (unsigned char)row;
     msg.range = (unsigned char)range;
 
+    CLOG_INFO("TX bomb explode (%d,%d) range=%d", col, row, range);
     PT_Broadcast(gPTCtx, MSG_BOMB_EXPLODE, &msg, sizeof(msg));
 }
 
@@ -397,6 +438,7 @@ void Net_SendBlockDestroyed(short col, short row)
     msg.gridCol = (unsigned char)col;
     msg.gridRow = (unsigned char)row;
 
+    CLOG_INFO("TX block destroyed (%d,%d)", col, row);
     PT_Broadcast(gPTCtx, MSG_BLOCK_DESTROYED, &msg, sizeof(msg));
 }
 
@@ -408,6 +450,7 @@ void Net_SendPlayerKilled(unsigned char playerID, unsigned char killerID)
     msg.playerID = playerID;
     msg.killerID = killerID;
 
+    CLOG_INFO("TX player killed: P%d by P%d", playerID, killerID);
     PT_Broadcast(gPTCtx, MSG_PLAYER_KILLED, &msg, sizeof(msg));
 }
 
@@ -420,6 +463,7 @@ void Net_SendGameStart(unsigned char numPlayers)
     msg.version = BT_PROTOCOL_VERSION;
 
     gExpectedPlayers = (short)numPlayers;
+    CLOG_INFO("TX game start: %d players, proto v%d", numPlayers, BT_PROTOCOL_VERSION);
     PT_Broadcast(gPTCtx, MSG_GAME_START, &msg, sizeof(msg));
 }
 
@@ -431,6 +475,7 @@ void Net_SendGameOver(unsigned char winnerID)
     msg.winnerID = winnerID;
     msg.pad = 0;
 
+    CLOG_INFO("TX game over: winner=%d", winnerID);
     PT_Broadcast(gPTCtx, MSG_GAME_OVER, &msg, sizeof(msg));
 }
 
@@ -468,23 +513,6 @@ const char *Net_GetDiscoveredPeerAddress(int index)
     peer = PT_GetPeer(gPTCtx, index);
     if (peer) return PT_PeerAddress(peer);
     return "";
-}
-
-int Net_IsConnected(void)
-{
-    int count, i;
-    PT_Peer *peer;
-
-    if (!gPTCtx) return FALSE;
-
-    count = PT_GetPeerCount(gPTCtx);
-    for (i = 0; i < count; i++) {
-        peer = PT_GetPeer(gPTCtx, i);
-        if (peer && PT_GetPeerState(peer) == PT_PEER_CONNECTED) {
-            return TRUE;
-        }
-    }
-    return FALSE;
 }
 
 int Net_GetConnectedPeerCount(void)
