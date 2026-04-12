@@ -421,6 +421,19 @@ void Renderer_Shutdown(void)
 {
     short i;
 
+    /* Redirect QuickDraw away from our offscreens before disposing them.
+     * Per Sex, Lies and Video Games (1996) p.104: disposing the current
+     * port is "a quick trip to MacsBug" — the Font Manager retains
+     * System heap references to the freed port's font data, crashing
+     * the next app (Finder) that calls StdText. */
+    if (gGame.window) {
+        if (gGame.isMacSE) {
+            SetPort(gGame.window);
+        } else {
+            SetGWorld((CGrafPtr)gGame.window, GetMainDevice());
+        }
+    }
+
     if (gGame.isMacSE) {
         ClosePort(&gBgPortSE);
         ClosePort(&gWorkPortSE);

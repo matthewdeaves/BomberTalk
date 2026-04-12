@@ -50,19 +50,22 @@ static void on_disconnected(PT_Peer *peer, PT_DisconnectReason reason,
     short i;
     (void)user_data;
     (void)reason;
-    CLOG_INFO("Disconnected from: %s (reason=%d)", PT_PeerName(peer), reason);
+    CLOG_INFO("Disconnected from: %s (reason=%d, screen=%d)",
+              PT_PeerName(peer), reason, gGame.currentScreen);
 
-    /* Only mark players inactive if we're in-game.
+    /* Always clear stale peer pointers to avoid dangling references.
+     * Only do gameplay cleanup (dirty tiles, deactivation) in-game.
      * During mesh formation, disconnects are normal (tiebreaker). */
-    if (gGame.currentScreen != SCREEN_GAME) return;
-
     for (i = 0; i < MAX_PLAYERS; i++) {
-        if (gGame.players[i].active && gGame.players[i].peer == peer) {
-            /* Mark tiles dirty BEFORE deactivation (T028) */
-            Player_MarkDirtyTiles(i);
-            gGame.players[i].active = FALSE;
+        if (gGame.players[i].peer == peer) {
+            if (gGame.currentScreen == SCREEN_GAME && gGame.players[i].active) {
+                /* Mark tiles dirty BEFORE deactivation (T028) */
+                Player_MarkDirtyTiles(i);
+                gGame.players[i].active = FALSE;
+                CLOG_INFO("P%d marked inactive (disconnect)", i);
+            }
             gGame.players[i].peer = NULL;
-            CLOG_INFO("P%d marked inactive (disconnect)", i);
+            CLOG_INFO("P%d peer pointer cleared", i);
             break;
         }
     }
@@ -228,7 +231,12 @@ static void on_game_over(PT_Peer *peer, const void *data, size_t len,
     if (len < sizeof(MsgGameOver)) return;
     msg = (const MsgGameOver *)data;
 
-    CLOG_INFO("Game over received: winner=%d", msg->winnerID);
+    CLOG_INFO("Game over received: winner=%d (screen=%d)", msg->winnerID,
+              gGame.currentScreen);
+
+    /* Ignore game-over if we're not in-game (e.g. already transitioned to lobby).
+     * Duplicate MSG_GAME_OVER can arrive after transition due to network latency. */
+    if (gGame.currentScreen != SCREEN_GAME) return;
 
     /* Bounds check winnerID (T024) */
     if (msg->winnerID < MAX_PLAYERS) {
@@ -337,6 +345,14 @@ void Net_Init(const char *playerName)
 void Net_Shutdown(void)
 {
     if (gPTCtx) {
+#ifndef CLOG_STRIP
+        /* Clear UDP log sink BEFORE shutdown: PT_Shutdown logs via CLOG
+         * during MacTCP teardown phases.  If the sink is still active,
+         * those CLOG calls try to PT_SendUDPBroadcast through the very
+         * UDP streams being released, corrupting MacTCP driver state in
+         * the System heap (causes Finder crash after ExitToShell). */
+        clog_set_network_sink(NULL, NULL);
+#endif
         PT_StopDiscovery(gPTCtx);
         PT_Shutdown(gPTCtx);
         gPTCtx = NULL;
@@ -380,6 +396,12 @@ void Net_ConnectToAllPeers(void)
             CLOG_INFO("Connecting to %s", PT_PeerName(peer));
         }
     }
+}
+
+void Net_DisconnectAllPeers(void)
+{
+    if (!gPTCtx) return;
+    PT_DisconnectAll(gPTCtx);
 }
 
 void Net_SendPosition(short pixelX, short pixelY, short facing)

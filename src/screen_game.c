@@ -202,6 +202,11 @@ void Game_Update(void)
                 gGame.gameRunning = FALSE;
                 gGame.pendingGameOver = FALSE;
                 gGame.gameStartReceived = FALSE;
+                /* Cleanly disconnect all TCP peers before lobby re-entry.
+                 * Stale TCP connections cause OT freeze / MacTCP crash
+                 * when lobby calls PT_StartDiscovery. */
+                Net_StopDiscovery();
+                Net_DisconnectAllPeers();
                 Screens_TransitionTo(SCREEN_LOBBY);
             }
             return;
@@ -223,6 +228,11 @@ void Game_Update(void)
 
             /* Transition back to lobby after a brief pause */
             gGame.gameStartReceived = FALSE;
+            /* Cleanly disconnect all TCP peers before lobby re-entry.
+             * Stale TCP connections cause OT freeze / MacTCP crash
+             * when lobby calls PT_StartDiscovery. */
+            Net_StopDiscovery();
+            Net_DisconnectAllPeers();
             Screens_TransitionTo(SCREEN_LOBBY);
         }
     }

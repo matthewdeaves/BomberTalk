@@ -15,6 +15,7 @@ void Net_Poll(void);
 void Net_StartDiscovery(void);
 void Net_StopDiscovery(void);
 void Net_ConnectToAllPeers(void);
+void Net_DisconnectAllPeers(void);
 
 /* Send game messages */
 void Net_SendPosition(short pixelX, short pixelY, short facing);

@@ -298,6 +298,10 @@ int main(void)
 
 #ifndef CLOG_STRIP
     clog_set_file("BomberTalk Log");
+    /* Flush errors/warnings to disk immediately so they survive crashes.
+     * Mac SE: also flush all (INFO) since it only logs INFO level anyway
+     * and we need crash diagnostics on the slowest machine. */
+    clog_set_flush(gGame.isMacSE ? CLOG_FLUSH_ALL : CLOG_FLUSH_ERRORS);
     /* Mac SE: INFO only — DEBUG file writes add ~3ms each via File Manager,
      * and smooth movement generates many DBG calls per frame */
     clog_init("BomberTalk", gGame.isMacSE ? CLOG_LVL_INFO : CLOG_LVL_DBG);
@@ -329,14 +333,23 @@ int main(void)
     MainLoop();
 
     CLOG_INFO("Shutting down");
+
+    /* Shut down networking first: clears the clog UDP sink and tears
+     * down MacTCP/OT streams before we free GWorlds and the window.
+     * Prevents async MacTCP completions from referencing freed buffers
+     * after ExitToShell reclaims the app heap. */
+    Net_Shutdown();
+
+    /* Renderer_Shutdown redirects QuickDraw to the window before
+     * disposing GWorlds — required per Sex, Lies & Video Games (1996)
+     * p.104 to avoid leaving stale Font Manager references in the
+     * System heap (Bus Error in Finder's StdText after exit). */
     Renderer_Shutdown();
 
     if (gGame.window) {
         DisposeWindow(gGame.window);
         gGame.window = NULL;
     }
-
-    Net_Shutdown();
 
 #ifndef CLOG_STRIP
     clog_shutdown();

@@ -33,10 +33,26 @@ static int gLobbyWidthsCached = FALSE;
 
 void Lobby_Init(void)
 {
+    short i;
+
     gConnecting = FALSE;
     gWaitingForMesh = FALSE;
     gConnectStartTick = 0;
     gLastMeshRetryTick = 0;
+
+    /* Clear leftover game state from previous round.
+     * pendingGameOver can be set by duplicate MSG_GAME_OVER arriving
+     * after we already transitioned to lobby. gameStartReceived should
+     * already be FALSE but belt-and-suspenders. */
+    gGame.pendingGameOver = FALSE;
+    gGame.gameStartReceived = FALSE;
+    gGame.gameOverTimeout = 0;
+
+    /* Clear stale peer pointers from previous game */
+    for (i = 0; i < MAX_PLAYERS; i++) {
+        gGame.players[i].peer = NULL;
+    }
+
     Net_ResetVersionMismatch();
     Net_StartDiscovery();
     CLOG_INFO("Lobby entered, discovery started");
