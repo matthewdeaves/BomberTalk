@@ -41,6 +41,7 @@ jobs:
       - name: Generate release notes
         id: notes
         run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           if [ -n "$PREV_TAG" ]; then
             NOTES=$(git log --oneline "$PREV_TAG"..HEAD^ | head -50)
