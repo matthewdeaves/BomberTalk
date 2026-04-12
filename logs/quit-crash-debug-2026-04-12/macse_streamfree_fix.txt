@@ -1,0 +1,91 @@
+[0][INF] BomberTalk starting
+[16][INF] TMAP not found, using default level
+[33][INF] Found 4 spawn points in map
+[266][INF] Mac SE offscreen bitmaps allocated: 6240B each
+[283][INF] RebuildBackground
+[600][INF] Renderer initialized: 240x208, tile=16, SE=yes, PICTs=no
+[666][INF] FreeMem() = 1345220, using 1008915 for PeerTalk
+[683][INF] Mac sizing: 32 peers, tcp_recv=4100, tcp_send=1024, reassembly=4096
+[4916][INF] MacTCP initialized (IP: 10.188.1.55)
+[4933][INF] Platform: machine=5, cpu=1, system=607
+[4950][INF] Backend: MacTCP
+[4950][INF] PeerTalk initialized: name='BomberTalk', max_peers=32
+[4966][INF] Net initialized
+[4983][INF] Free heap after init: 757980 bytes
+[5000][INF] Entering main loop
+[7000][INF] Screen transition: 0 -> 1
+[43783][INF] Keys: [00000000 10000000 00000000 00000000]
+[43800][INF] Menu: RETURN/SPACE pressed, sel=0
+[43816][INF] Screen transition: 1 -> 2
+[43850][INF] Listening on TCP port 7354 (stream 0)
+[43883][INF] Discovery started
+[43900][INF] Discovery started
+[43916][INF] Lobby entered, discovery started
+[49316][INF] Discovered peer: BomberTalk
+[49333][INF] Peer discovered: BomberTalk (10.188.1.213)
+[86550][INF] Discovered peer: BomberTalk
+[86583][INF] Peer discovered: BomberTalk (10.188.1.102)
+[87350][INF] Incoming TCP connection accepted
+[87366][INF] Connected to: BomberTalk
+[87416][INF] Game start received, expecting 3 players
+[87466][INF] Connecting to BomberTalk...
+[87483][INF] Connecting to BomberTalk
+[87516][INF] TCP connected to BomberTalk
+[87533][INF] Connected to: BomberTalk
+[87583][INF] Game start received, waiting for mesh (3 expected)
+[87983][INF] Full mesh: 2 connections for 3 players
+[88016][INF] Local IP: 10.188.1.55 (0x0ABC0137)
+[88033][INF] Peer 0 IP: 10.188.1.213 (0x0ABC01D5)
+[88050][INF] Peer 1 IP: 10.188.1.102 (0x0ABC0166)
+[88066][INF] Player ID assignment: local=0 (of 3 total)
+[88083][INF] Peer 10.188.1.213 -> player 2
+[88100][INF] Peer 10.188.1.102 -> player 1
+[88133][INF] Entering game: 3 players, localID=0
+[88150][INF] Screen transition: 2 -> 3
+[88183][INF] RebuildBackground
+[88633][INF] Game started: 3 players, local=0
+[91950][INF] RebuildBackground
+[94150][INF] RebuildBackground
+[96416][INF] RebuildBackground
+[99016][INF] RebuildBackground
+[101866][INF] RebuildBackground
+[104666][INF] RebuildBackground
+[108450][INF] RebuildBackground
+[112366][INF] RebuildBackground
+[115350][INF] RebuildBackground
+[118350][INF] RebuildBackground
+[121383][INF] RebuildBackground
+[126383][INF] RebuildBackground
+[128466][INF] Keys: [00000000 00000000 00000000 00000010]
+[128966][INF] RebuildBackground
+[130483][INF] Keys: [00000000 00000000 00000000 00000020]
+[141500][INF] RebuildBackground
+[144666][INF] RebuildBackground
+[148733][INF] Player 0 killed by player 2
+[148766][INF] Player 0 killed by 2 (remote)
+[148800][INF] Player 0 killed by 2 (remote)
+[148850][INF] RebuildBackground
+[150300][INF] Player 0 death animation complete
+[152100][INF] RebuildBackground
+[159083][INF] Player 2 killed by player 1
+[159116][INF] Player 2 killed by 1 (remote)
+[159150][INF] Player 2 killed by 1 (remote)
+[160083][INF] Game over received: winner=1
+[160100][INF] Winner is player 1
+[160150][INF] Player 2 death animation complete
+[160166][INF] Game over (remote): winner=1
+[160183][INF] Screen transition: 3 -> 2
+[160216][INF] Listening on TCP port 7354 (stream 3)
+[160250][INF] Discovery started
+[160283][INF] Discovery started
+[160300][INF] Lobby entered, discovery started
+[164200][INF] Peer BomberTalk disconnected (reason: 2)
+[164216][INF] Disconnected from: BomberTalk (reason=2)
+[166050][INF] Peer BomberTalk disconnected (reason: 2)
+[166066][INF] Disconnected from: BomberTalk (reason=2)
+[169466][INF] Shutting down
+[169483][INF] Shutdown: renderer
+[169500][INF] Shutdown: window
+[169700][INF] Shutdown: net
+[169733][INF] Discovery broadcasting stopped (still listening)
+[170083][INF] PeerTalk shutdown complete

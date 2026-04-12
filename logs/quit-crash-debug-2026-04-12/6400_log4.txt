@@ -1,0 +1,284 @@
+[0][INF] BomberTalk starting
+[16][INF] TMAP not found, using default level
+[33][INF] Found 4 spawn points in map
+[166][WRN] PICT resources not found, using rectangle fallback
+[183][INF] RebuildBackground
+[216][INF] Renderer initialized: 480x416, tile=32, SE=no, PICTs=no
+[233][INF] FreeMem() = 1071296, using 803472 for PeerTalk
+[233][INF] Mac sizing: 32 peers, tcp_recv=4100, tcp_send=1024, reassembly=4096
+[450][INF] Open Transport initialized (IP: 10.188.1.102)
+[466][INF] Platform: machine=58, cpu=3, system=761
+[466][INF] Backend: Open Transport
+[466][INF] PeerTalk initialized: name='BomberTalk', max_peers=32
+[483][INF] Net initialized
+[500][INF] Loading screen started
+[500][INF] Free heap after init: 746608 bytes
+[500][INF] Entering main loop
+[1950][INF] Discovered peer: BomberTalk
+[1950][INF] Peer discovered: BomberTalk (10.188.1.55)
+[2500][INF] Screen transition: LOADING -> MENU
+[4616][INF] Keys: [00000000 10000000 00000000 00000000]
+[4616][INF] Menu: RETURN/SPACE pressed, sel=0
+[4616][INF] Screen transition: MENU -> LOBBY
+[4633][INF] TCP listener active on port 7354
+[4633][INF] Discovery started
+[4633][INF] Discovery started
+[4633][INF] Lobby entered, discovery started
+[126600][INF] Discovered peer: BomberTalk
+[126600][INF] Peer discovered: BomberTalk (10.188.1.213)
+[129333][INF] Incoming TCP connection accepted
+[129333][INF] Connected to: BomberTalk
+[129650][INF] Game start received, expecting 3 players
+[129650][INF] Connecting to BomberTalk...
+[129650][INF] Connecting to BomberTalk
+[129650][INF] Game start received, waiting for mesh (3 expected)
+[129683][INF] TCP connected to BomberTalk
+[129700][INF] Connected to: BomberTalk
+[129700][INF] Full mesh: 2 connections for 3 players
+[129700][INF] Local IP: 10.188.1.102 (0x0ABC0166)
+[129700][INF] Peer 0 IP: 10.188.1.55 (0x0ABC0137)
+[129716][INF] Peer 1 IP: 10.188.1.213 (0x0ABC01D5)
+[129716][INF] Player ID assignment: local=1 (of 3 total)
+[129716][INF] Peer 10.188.1.55 -> player 0
+[129716][INF] Peer 10.188.1.213 -> player 2
+[129733][INF] Entering game: 3 players, localID=1
+[129733][INF] Screen transition: LOBBY -> GAME
+[129733][INF] TileMap reset to initial state
+[129750][INF] Player 0 init at (1,1) px=(32,32)
+[129750][INF] Player 1 init at (13,1) px=(416,32)
+[129750][INF] Player 2 init at (1,11) px=(32,352)
+[129750][INF] RebuildBackground
+[129783][INF] Game started: 3 players, local=1
+[129833][DBG] TX pos P1 px=(416,32) f=2
+[129966][INF] Rejecting duplicate incoming from BomberTalk (already connected)
+[130016][DBG] Player 2 target pos px=(32,352) f=2
+[130100][INF] Peer BomberTalk disconnected (reason: 2)
+[130100][INF] Disconnected from: BomberTalk (reason=2)
+[130516][INF] Incoming TCP connection accepted
+[130516][INF] Connected to: BomberTalk
+[131750][DBG] Player 0 target pos px=(32,32) f=2
+[134233][DBG] Player 0 target pos px=(32,58) f=2
+[134383][DBG] Player 0 target pos px=(32,64) f=2
+[136250][INF] RX bomb placed P0 (1,2) range=1
+[136250][DBG] Bomb placed at (1,2) by player 0
+[136483][DBG] Player 0 target pos px=(32,38) f=1
+[136666][DBG] Player 0 target pos px=(32,32) f=1
+[136950][DBG] Player 0 target pos px=(48,32) f=4
+[137116][DBG] Player 0 target pos px=(64,32) f=4
+[139266][INF] Bomb exploding at (1,2) range=1 owner=P0 local
+[139266][DBG] Block destroyed at (1,3)
+[139266][DBG] TX block destroyed (1,3)
+[139266][INF] TX bomb explode (1,2) range=1
+[139283][INF] RebuildBackground
+[139333][DBG] RX block destroyed (1,3)
+[139350][DBG] RX block destroyed (1,3)
+[139350][INF] RebuildBackground
+[139400][INF] RX bomb explode (1,2)
+[139450][INF] RX bomb explode (1,2)
+[142366][DBG] Player 0 target pos px=(48,32) f=3
+[142583][DBG] Player 0 target pos px=(32,32) f=3
+[143966][DBG] Player 0 target pos px=(32,48) f=2
+[144183][DBG] Player 0 target pos px=(32,74) f=2
+[144350][DBG] Player 0 target pos px=(32,96) f=2
+[145100][INF] RX bomb placed P0 (1,3) range=1
+[145100][DBG] Bomb placed at (1,3) by player 0
+[145866][DBG] Player 0 target pos px=(32,80) f=1
+[146016][DBG] Player 0 target pos px=(32,54) f=1
+[146250][DBG] Player 0 target pos px=(32,32) f=1
+[146816][DBG] Player 0 target pos px=(48,32) f=4
+[147000][DBG] Player 0 target pos px=(64,32) f=4
+[148100][INF] Bomb exploding at (1,3) range=1 owner=P0 local
+[148100][DBG] Block destroyed at (1,4)
+[148100][DBG] TX block destroyed (1,4)
+[148100][DBG] Block destroyed at (2,3)
+[148100][DBG] TX block destroyed (2,3)
+[148116][INF] TX bomb explode (1,3) range=1
+[148116][INF] RebuildBackground
+[148250][INF] RX bomb explode (1,3)
+[151550][DBG] Player 2 target pos px=(37,352) f=4
+[151666][DBG] Player 2 target pos px=(45,352) f=4
+[151666][DBG] Player 2 target pos px=(53,352) f=4
+[151733][DBG] Player 2 target pos px=(64,352) f=4
+[152083][INF] RX bomb placed P2 (2,11) range=1
+[152100][DBG] Bomb placed at (2,11) by player 2
+[152333][DBG] Player 2 target pos px=(48,352) f=3
+[152433][DBG] Player 2 target pos px=(38,352) f=3
+[152466][DBG] Player 2 target pos px=(32,352) f=3
+[152616][DBG] Player 2 target pos px=(32,339) f=1
+[152716][DBG] Player 2 target pos px=(32,328) f=1
+[152733][DBG] Player 2 target pos px=(32,320) f=1
+[155100][INF] Bomb exploding at (2,11) range=1 owner=P2 local
+[155100][DBG] Block destroyed at (3,11)
+[155100][DBG] TX block destroyed (3,11)
+[155100][INF] TX bomb explode (2,11) range=1
+[155116][INF] RebuildBackground
+[155250][DBG] RX block destroyed (3,11)
+[155250][INF] RX bomb explode (2,11)
+[155250][INF] RebuildBackground
+[155983][INF] RX bomb placed P2 (1,10) range=1
+[155983][DBG] Bomb placed at (1,10) by player 2
+[156316][DBG] Player 2 target pos px=(32,338) f=2
+[156383][DBG] Player 2 target pos px=(32,349) f=2
+[156483][DBG] Player 2 target pos px=(32,352) f=2
+[156700][DBG] Player 2 target pos px=(37,352) f=4
+[156766][DBG] Player 2 target pos px=(45,352) f=4
+[156866][DBG] Player 2 target pos px=(56,352) f=4
+[156883][DBG] Player 2 target pos px=(64,352) f=4
+[156950][DBG] Player 2 target pos px=(74,352) f=4
+[157150][DBG] Player 2 target pos px=(96,352) f=4
+[158350][INF] Keys: [00000000 00000000 00000000 00000008]
+[158383][DBG] P1 move px=(416,32)->(411,32) grid=(13,1)
+[158383][DBG] TX pos P1 px=(411,32) f=3
+[158416][DBG] P1 move px=(411,32)->(406,32) grid=(13,1)
+[158416][DBG] TX pos P1 px=(406,32) f=3
+[158450][DBG] P1 move px=(406,32)->(400,32) grid=(13,1)
+[158450][DBG] TX pos P1 px=(400,32) f=3
+[158533][DBG] P1 move px=(400,32)->(387,32) grid=(12,1)
+[158533][DBG] TX pos P1 px=(387,32) f=3
+[158566][DBG] P1 move px=(387,32)->(384,32) grid=(12,1)
+[158566][DBG] TX pos P1 px=(384,32) f=3
+[158800][DBG] Bomb placed at (12,1) by player 1
+[158800][INF] TX bomb placed (12,1) range=1
+[158966][DBG] RX block destroyed (1,9)
+[158966][INF] RebuildBackground
+[159016][INF] Bomb exploding at (1,10) range=1 owner=P2 local
+[159016][INF] TX bomb explode (1,10) range=1
+[159050][INF] RX bomb explode (1,10)
+[159083][DBG] P1 move px=(384,32)->(389,32) grid=(12,1)
+[159083][DBG] TX pos P1 px=(389,32) f=4
+[159116][DBG] P1 move px=(389,32)->(394,32) grid=(12,1)
+[159116][DBG] TX pos P1 px=(394,32) f=4
+[159150][DBG] P1 move px=(394,32)->(400,32) grid=(13,1)
+[159150][DBG] TX pos P1 px=(400,32) f=4
+[159183][DBG] P1 move px=(400,32)->(405,32) grid=(13,1)
+[159183][DBG] TX pos P1 px=(405,32) f=4
+[159216][DBG] P1 move px=(405,32)->(410,32) grid=(13,1)
+[159216][DBG] TX pos P1 px=(410,32) f=4
+[159250][DBG] P1 cleared pass-through bomb 1
+[159250][DBG] P1 move px=(410,32)->(416,32) grid=(13,1)
+[159250][DBG] TX pos P1 px=(416,32) f=4
+[159466][DBG] P1 move px=(416,32)->(416,37) grid=(13,1)
+[159466][DBG] TX pos P1 px=(416,37) f=2
+[159500][DBG] P1 move px=(416,37)->(416,42) grid=(13,1)
+[159500][DBG] TX pos P1 px=(416,42) f=2
+[159533][DBG] P1 move px=(416,42)->(416,48) grid=(13,2)
+[159533][DBG] TX pos P1 px=(416,48) f=2
+[159566][DBG] P1 move px=(416,48)->(416,53) grid=(13,2)
+[159566][DBG] TX pos P1 px=(416,53) f=2
+[159650][DBG] P1 move px=(416,53)->(416,64) grid=(13,2)
+[159650][DBG] TX pos P1 px=(416,64) f=2
+[161833][INF] Bomb exploding at (12,1) range=1 owner=P1 local
+[161833][DBG] Block destroyed at (11,1)
+[161833][DBG] TX block destroyed (11,1)
+[161833][INF] TX bomb explode (12,1) range=1
+[161850][INF] RebuildBackground
+[162633][INF] Keys: [00000000 00000000 00000000 00000040]
+[162666][DBG] P1 move px=(416,64)->(416,59) grid=(13,2)
+[162666][DBG] TX pos P1 px=(416,59) f=1
+[162750][DBG] P1 move px=(416,59)->(416,46) grid=(13,1)
+[162750][DBG] TX pos P1 px=(416,46) f=1
+[162783][DBG] P1 move px=(416,46)->(416,40) grid=(13,1)
+[162783][DBG] TX pos P1 px=(416,40) f=1
+[162816][DBG] P1 move px=(416,40)->(416,35) grid=(13,1)
+[162816][DBG] TX pos P1 px=(416,35) f=1
+[162850][DBG] P1 move px=(416,35)->(416,32) grid=(13,1)
+[162850][DBG] TX pos P1 px=(416,32) f=1
+[162933][DBG] P1 move px=(416,32)->(403,32) grid=(13,1)
+[162933][DBG] TX pos P1 px=(403,32) f=3
+[162966][DBG] P1 move px=(403,32)->(398,32) grid=(12,1)
+[162966][DBG] TX pos P1 px=(398,32) f=3
+[163000][DBG] P1 move px=(398,32)->(392,32) grid=(12,1)
+[163000][DBG] TX pos P1 px=(392,32) f=3
+[163033][DBG] P1 move px=(392,32)->(387,32) grid=(12,1)
+[163033][DBG] TX pos P1 px=(387,32) f=3
+[163066][DBG] P1 move px=(387,32)->(382,32) grid=(12,1)
+[163066][DBG] TX pos P1 px=(382,32) f=3
+[163100][DBG] P1 move px=(382,32)->(376,32) grid=(12,1)
+[163100][DBG] TX pos P1 px=(376,32) f=3
+[163133][DBG] P1 move px=(376,32)->(371,32) grid=(12,1)
+[163133][DBG] TX pos P1 px=(371,32) f=3
+[163216][DBG] P1 move px=(371,32)->(358,32) grid=(11,1)
+[163216][DBG] TX pos P1 px=(358,32) f=3
+[163250][DBG] P1 move px=(358,32)->(352,32) grid=(11,1)
+[163250][DBG] TX pos P1 px=(352,32) f=3
+[163450][DBG] Bomb placed at (11,1) by player 1
+[163450][INF] TX bomb placed (11,1) range=1
+[163650][DBG] P1 move px=(352,32)->(357,32) grid=(11,1)
+[163650][DBG] TX pos P1 px=(357,32) f=4
+[163683][DBG] P1 move px=(357,32)->(362,32) grid=(11,1)
+[163683][DBG] TX pos P1 px=(362,32) f=4
+[163716][DBG] P1 move px=(362,32)->(368,32) grid=(12,1)
+[163716][DBG] TX pos P1 px=(368,32) f=4
+[163750][DBG] P1 move px=(368,32)->(373,32) grid=(12,1)
+[163750][DBG] TX pos P1 px=(373,32) f=4
+[163833][DBG] P1 cleared pass-through bomb 0
+[163833][DBG] P1 move px=(373,32)->(386,32) grid=(12,1)
+[163833][DBG] TX pos P1 px=(386,32) f=4
+[163866][DBG] P1 move px=(386,32)->(392,32) grid=(12,1)
+[163866][DBG] TX pos P1 px=(392,32) f=4
+[163900][DBG] P1 move px=(392,32)->(397,32) grid=(12,1)
+[163900][DBG] TX pos P1 px=(397,32) f=4
+[163933][DBG] P1 move px=(397,32)->(402,32) grid=(13,1)
+[163933][DBG] TX pos P1 px=(402,32) f=4
+[163966][DBG] P1 move px=(402,32)->(408,32) grid=(13,1)
+[163966][DBG] TX pos P1 px=(408,32) f=4
+[164000][DBG] P1 move px=(408,32)->(413,32) grid=(13,1)
+[164000][DBG] TX pos P1 px=(413,32) f=4
+[164033][DBG] P1 move px=(413,32)->(416,32) grid=(13,1)
+[164033][DBG] TX pos P1 px=(416,32) f=4
+[164100][DBG] P1 move px=(416,32)->(416,42) grid=(13,1)
+[164100][DBG] TX pos P1 px=(416,42) f=2
+[164133][DBG] P1 move px=(416,42)->(416,48) grid=(13,2)
+[164133][DBG] TX pos P1 px=(416,48) f=2
+[164166][DBG] P1 move px=(416,48)->(416,53) grid=(13,2)
+[164166][DBG] TX pos P1 px=(416,53) f=2
+[164200][DBG] P1 move px=(416,53)->(416,58) grid=(13,2)
+[164200][DBG] TX pos P1 px=(416,58) f=2
+[164233][DBG] P1 move px=(416,58)->(416,64) grid=(13,2)
+[164233][DBG] TX pos P1 px=(416,64) f=2
+[165616][DBG] Player 2 target pos px=(91,352) f=3
+[165666][DBG] Player 2 target pos px=(83,352) f=3
+[165733][DBG] Player 2 target pos px=(72,352) f=3
+[165783][DBG] Player 2 target pos px=(62,352) f=3
+[165933][DBG] Player 2 target pos px=(40,352) f=3
+[166000][DBG] Player 2 target pos px=(32,352) f=3
+[166083][DBG] Player 2 target pos px=(32,347) f=1
+[166166][DBG] Player 2 target pos px=(32,336) f=1
+[166283][DBG] Player 2 target pos px=(32,326) f=1
+[166283][DBG] Player 2 target pos px=(32,315) f=1
+[166416][INF] Bomb exploding at (11,1) range=1 owner=P1 local
+[166416][DBG] Block destroyed at (11,2)
+[166416][DBG] TX block destroyed (11,2)
+[166416][DBG] Block destroyed at (10,1)
+[166416][DBG] TX block destroyed (10,1)
+[166433][INF] TX bomb explode (11,1) range=1
+[166433][INF] RebuildBackground
+[166583][DBG] Player 2 target pos px=(32,288) f=1
+[166733][INF] RX bomb placed P2 (1,9) range=1
+[166733][DBG] Bomb placed at (1,9) by player 2
+[167216][DBG] Player 2 target pos px=(32,293) f=2
+[167283][DBG] Player 2 target pos px=(32,301) f=2
+[167416][DBG] Player 2 target pos px=(32,322) f=2
+[167533][DBG] Player 2 target pos px=(32,333) f=2
+[167550][DBG] Player 2 target pos px=(32,344) f=2
+[167616][DBG] Player 2 target pos px=(32,352) f=2
+[167850][DBG] Player 2 target pos px=(37,352) f=4
+[167900][DBG] Player 2 target pos px=(48,352) f=4
+[167983][DBG] Player 2 target pos px=(58,352) f=4
+[168050][DBG] Player 2 target pos px=(69,352) f=4
+[168233][DBG] Player 2 target pos px=(93,352) f=4
+[168250][DBG] Player 2 target pos px=(96,352) f=4
+[169566][DBG] RX block destroyed (1,8)
+[169566][INF] RebuildBackground
+[169650][DBG] RX block destroyed (2,9)
+[169683][INF] RebuildBackground
+[169733][INF] Bomb exploding at (1,9) range=1 owner=P2 local
+[169733][INF] TX bomb explode (1,9) range=1
+[169750][INF] RX bomb explode (1,9)
+[175983][INF] Keys: [00000000 00008000 00000000 00000000]
+[176133][INF] Shutting down
+[176133][INF] Shutdown: renderer
+[176150][INF] Shutdown: window
+[176216][INF] Shutdown: net
+[176216][INF] Discovery broadcasting stopped (still listening)
+[176283][INF] PeerTalk shutdown complete

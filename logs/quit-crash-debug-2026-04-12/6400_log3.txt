@@ -1,0 +1,182 @@
+[0][INF] BomberTalk starting
+[33][INF] TMAP not found, using default level
+[33][INF] Found 4 spawn points in map
+[183][WRN] PICT resources not found, using rectangle fallback
+[200][INF] RebuildBackground
+[216][INF] Renderer initialized: 480x416, tile=32, SE=no, PICTs=no
+[250][INF] FreeMem() = 1071296, using 803472 for PeerTalk
+[250][INF] Mac sizing: 32 peers, tcp_recv=4100, tcp_send=1024, reassembly=4096
+[466][INF] Open Transport initialized (IP: 10.188.1.102)
+[483][INF] Platform: machine=58, cpu=3, system=761
+[483][INF] Backend: Open Transport
+[483][INF] PeerTalk initialized: name='BomberTalk', max_peers=32
+[483][INF] Net initialized
+[500][INF] Loading screen started
+[500][INF] Free heap after init: 746608 bytes
+[500][INF] Entering main loop
+[1383][INF] Discovered peer: BomberTalk
+[1383][INF] Peer discovered: BomberTalk (10.188.1.55)
+[2516][INF] Screen transition: LOADING -> MENU
+[82066][INF] Keys: [00000000 10000000 00000000 00000000]
+[82083][INF] Menu: RETURN/SPACE pressed, sel=0
+[82083][INF] Screen transition: MENU -> LOBBY
+[82083][INF] TCP listener active on port 7354
+[82083][INF] Discovery started
+[82100][INF] Discovery started
+[82100][INF] Lobby entered, discovery started
+[126316][INF] Discovered peer: BomberTalk
+[126333][INF] Peer discovered: BomberTalk (10.188.1.213)
+[129116][INF] Keys: [00000000 10000000 00000000 00000000]
+[129133][INF] Connecting to BomberTalk...
+[129133][INF] Connecting to BomberTalk
+[129133][INF] Connecting to BomberTalk...
+[129150][INF] Connecting to BomberTalk
+[129150][INF] Connecting to 2 peers
+[129183][INF] TCP connected to BomberTalk
+[129200][INF] Connected to: BomberTalk
+[129200][INF] TCP connected to BomberTalk
+[129200][INF] Connected to: BomberTalk
+[129200][INF] All 2 peers connected, sending game start
+[129216][INF] TX game start: 3 players, proto v3
+[129233][INF] Full mesh: 2 connections for 3 players
+[129250][INF] Local IP: 10.188.1.102 (0x0ABC0166)
+[129250][INF] Peer 0 IP: 10.188.1.55 (0x0ABC0137)
+[129250][INF] Peer 1 IP: 10.188.1.213 (0x0ABC01D5)
+[129250][INF] Player ID assignment: local=1 (of 3 total)
+[129250][INF] Peer 10.188.1.55 -> player 0
+[129250][INF] Peer 10.188.1.213 -> player 2
+[129266][INF] Entering game: 3 players, localID=1
+[129266][INF] Screen transition: LOBBY -> GAME
+[129266][INF] TileMap reset to initial state
+[129283][INF] Player 0 init at (1,1) px=(32,32)
+[129283][INF] Player 1 init at (13,1) px=(416,32)
+[129283][INF] Player 2 init at (1,11) px=(32,352)
+[129283][INF] RebuildBackground
+[129316][INF] Game started: 3 players, local=1
+[129350][DBG] TX pos P1 px=(416,32) f=2
+[130283][DBG] Player 2 target pos px=(32,352) f=2
+[131166][DBG] Player 0 target pos px=(16,16) f=2
+[134950][DBG] Player 0 target pos px=(16,24) f=2
+[135300][DBG] Player 0 target pos px=(16,30) f=2
+[135550][DBG] Player 0 target pos px=(16,32) f=2
+[136916][INF] RX bomb placed P0 (1,2) range=1
+[136916][DBG] Bomb placed at (1,2) by player 0
+[137100][DBG] Player 0 target pos px=(16,19) f=1
+[137250][DBG] Player 0 target pos px=(16,16) f=1
+[137816][DBG] Player 0 target pos px=(26,16) f=4
+[137983][DBG] Player 0 target pos px=(32,16) f=4
+[139833][INF] Bomb exploding at (1,2) range=1 owner=P0 local
+[139833][DBG] Block destroyed at (1,3)
+[139833][DBG] TX block destroyed (1,3)
+[139833][INF] TX bomb explode (1,2) range=1
+[139833][INF] TX player killed: P0 by P0
+[139850][INF] Player 0 killed by player 0 (AABB overlap)
+[139850][INF] RebuildBackground
+[140000][DBG] RX block destroyed (1,3)
+[140000][INF] RebuildBackground
+[140050][INF] RX bomb explode (1,2)
+[140800][INF] Player 0 death animation complete
+[148166][DBG] Player 2 target pos px=(32,352) f=3
+[149016][DBG] Player 2 target pos px=(37,352) f=4
+[149066][DBG] Player 2 target pos px=(45,352) f=4
+[149116][DBG] Player 2 target pos px=(53,352) f=4
+[149250][DBG] Player 2 target pos px=(61,352) f=4
+[149250][DBG] Player 2 target pos px=(64,352) f=4
+[149600][INF] RX bomb placed P2 (2,11) range=1
+[149600][DBG] Bomb placed at (2,11) by player 2
+[149800][DBG] Player 2 target pos px=(59,352) f=3
+[149916][DBG] Player 2 target pos px=(51,352) f=3
+[149916][DBG] Player 2 target pos px=(43,352) f=3
+[149983][DBG] Player 2 target pos px=(32,352) f=3
+[150266][DBG] Player 2 target pos px=(32,336) f=1
+[150333][DBG] Player 2 target pos px=(32,326) f=1
+[150450][DBG] Player 2 target pos px=(32,320) f=1
+[152550][DBG] RX block destroyed (3,11)
+[152566][INF] RebuildBackground
+[152616][INF] Bomb exploding at (2,11) range=1 owner=P2 local
+[152616][INF] TX bomb explode (2,11) range=1
+[152633][INF] RX bomb explode (2,11)
+[153816][INF] RX bomb placed P2 (1,10) range=1
+[153833][DBG] Bomb placed at (1,10) by player 2
+[154050][DBG] Player 2 target pos px=(32,325) f=2
+[154050][DBG] Player 2 target pos px=(32,333) f=2
+[154200][DBG] Player 2 target pos px=(32,352) f=2
+[154333][DBG] Player 2 target pos px=(37,352) f=4
+[154383][DBG] Player 2 target pos px=(45,352) f=4
+[154450][DBG] Player 2 target pos px=(56,352) f=4
+[154600][DBG] Player 2 target pos px=(77,352) f=4
+[154716][DBG] Player 2 target pos px=(88,352) f=4
+[154716][DBG] Player 2 target pos px=(96,352) f=4
+[156800][INF] Bomb exploding at (1,10) range=1 owner=P2 local
+[156800][DBG] Block destroyed at (1,9)
+[156800][DBG] TX block destroyed (1,9)
+[156816][INF] TX bomb explode (1,10) range=1
+[156816][INF] RebuildBackground
+[156866][DBG] RX block destroyed (1,9)
+[156883][INF] RX bomb explode (1,10)
+[156883][INF] RebuildBackground
+[157266][INF] Keys: [00000000 00000000 00000000 00000008]
+[157283][DBG] P1 move px=(416,32)->(411,32) grid=(13,1)
+[157283][DBG] TX pos P1 px=(411,32) f=3
+[157316][DBG] P1 move px=(411,32)->(406,32) grid=(13,1)
+[157316][DBG] TX pos P1 px=(406,32) f=3
+[157400][DBG] P1 move px=(406,32)->(392,32) grid=(12,1)
+[157400][DBG] TX pos P1 px=(392,32) f=3
+[157433][DBG] P1 move px=(392,32)->(387,32) grid=(12,1)
+[157433][DBG] TX pos P1 px=(387,32) f=3
+[157466][DBG] P1 move px=(387,32)->(384,32) grid=(12,1)
+[157466][DBG] TX pos P1 px=(384,32) f=3
+[157650][DBG] Bomb placed at (12,1) by player 1
+[157650][INF] TX bomb placed (12,1) range=1
+[157900][DBG] P1 move px=(384,32)->(392,32) grid=(12,1)
+[157900][DBG] TX pos P1 px=(392,32) f=4
+[157933][DBG] P1 move px=(392,32)->(397,32) grid=(12,1)
+[157933][DBG] TX pos P1 px=(397,32) f=4
+[157966][DBG] P1 move px=(397,32)->(402,32) grid=(13,1)
+[157966][DBG] TX pos P1 px=(402,32) f=4
+[158000][DBG] P1 move px=(402,32)->(408,32) grid=(13,1)
+[158000][DBG] TX pos P1 px=(408,32) f=4
+[158033][DBG] P1 move px=(408,32)->(413,32) grid=(13,1)
+[158033][DBG] TX pos P1 px=(413,32) f=4
+[158066][DBG] P1 cleared pass-through bomb 0
+[158066][DBG] P1 move px=(413,32)->(416,32) grid=(13,1)
+[158066][DBG] TX pos P1 px=(416,32) f=4
+[158133][DBG] P1 move px=(416,32)->(416,37) grid=(13,1)
+[158133][DBG] TX pos P1 px=(416,37) f=2
+[158166][DBG] P1 move px=(416,37)->(416,42) grid=(13,1)
+[158166][DBG] TX pos P1 px=(416,42) f=2
+[158200][DBG] P1 move px=(416,42)->(416,48) grid=(13,2)
+[158200][DBG] TX pos P1 px=(416,48) f=2
+[158233][DBG] P1 move px=(416,48)->(416,53) grid=(13,2)
+[158233][DBG] TX pos P1 px=(416,53) f=2
+[158266][DBG] P1 move px=(416,53)->(416,58) grid=(13,2)
+[158266][DBG] TX pos P1 px=(416,58) f=2
+[158300][DBG] P1 move px=(416,58)->(416,64) grid=(13,2)
+[158300][DBG] TX pos P1 px=(416,64) f=2
+[160616][INF] Bomb exploding at (12,1) range=1 owner=P1 local
+[160616][DBG] Block destroyed at (11,1)
+[160616][DBG] TX block destroyed (11,1)
+[160616][INF] TX bomb explode (12,1) range=1
+[160633][INF] RebuildBackground
+[160683][DBG] RX block destroyed (11,1)
+[160683][INF] RX bomb explode (12,1)
+[160683][INF] RebuildBackground
+[160816][INF] Player 1 killed by 1 (remote)
+[161683][INF] Player 1 death animation complete
+[161683][INF] Game over! Winner: 2 (alive=1 dying=0)
+[161683][INF]   P0: active=1 alive=0 death=0
+[161683][INF]   P1: active=1 alive=0 death=0
+[161700][INF]   P2: active=1 alive=1 death=0
+[161700][INF] TX game over: winner=2
+[161700][INF] Screen transition: GAME -> LOBBY
+[161700][INF] TCP listener active on port 7354
+[161700][INF] Discovery started
+[161716][INF] Discovery started
+[161716][INF] Lobby entered, discovery started
+[165733][INF] Keys: [00000000 00008000 00000000 00000000]
+[165966][INF] Shutting down
+[165966][INF] Shutdown: renderer
+[165966][INF] Shutdown: window
+[166033][INF] Shutdown: net
+[166050][INF] Discovery broadcasting stopped (still listening)
+[166100][INF] PeerTalk shutdown complete

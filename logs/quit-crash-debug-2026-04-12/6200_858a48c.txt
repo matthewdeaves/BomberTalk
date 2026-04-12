@@ -1,0 +1,25 @@
+[0][INF] BomberTalk starting
+[16][INF] TMAP not found, using default level
+[16][INF] Found 4 spawn points in map
+[216][WRN] PICT resources not found, using rectangle fallback
+[233][INF] RebuildBackground
+[316][INF] Renderer initialized: 480x416, tile=32, SE=no, PICTs=no
+[316][INF] FreeMem() = 1053616, using 790212 for PeerTalk
+[316][INF] Mac sizing: 32 peers, tcp_recv=4100, tcp_send=1024, reassembly=4096
+[466][INF] MacTCP initialized (IP: 10.188.1.213)
+[466][INF] Platform: machine=42, cpu=3, system=753
+[466][INF] Backend: MacTCP
+[466][INF] PeerTalk initialized: name='BomberTalk', max_peers=32
+[483][INF] Net initialized
+[483][INF] Free heap after init: 465968 bytes
+[500][INF] Entering main loop
+[2516][INF] Screen transition: 0 -> 1
+[13966][INF] Keys: [00000000 10000000 00000000 00000000]
+[13983][INF] Menu: RETURN/SPACE pressed, sel=0
+[14000][INF] Screen transition: 1 -> 2
+[14000][INF] Listening on TCP port 7354 (stream 0)
+[14016][INF] Discovery started
+[14016][INF] Discovery started
+[14033][INF] Lobby entered, discovery started
+[14150][INF] Discovered peer: BomberTalk
+[14150][INF] Peer discovered: BomberTalk (10.188.1.55)

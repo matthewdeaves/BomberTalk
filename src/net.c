@@ -296,11 +296,7 @@ void Net_Init(const char *playerName)
     }
 
 #ifndef CLOG_STRIP
-    /* Enable UDP broadcast logging on color Macs only.
-     * On Mac SE, each MacTCP UDP send costs ~5-10ms — at 100+ CLOG calls
-     * per frame this drops FPS from 10 to <1 and eventually crashes.
-     * Mac SE still gets file logging via clog_set_file(). */
-    if (!gGame.isMacSE) {
+    {
         const char *lip = PT_LocalAddress(gPTCtx);
         const char *s = lip;
         int i = 0;

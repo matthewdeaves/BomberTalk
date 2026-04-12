@@ -1,0 +1,53 @@
+[0][INF] BomberTalk starting
+[16][INF] TMAP not found, using default level
+[16][INF] Found 4 spawn points in map
+[266][INF] Mac SE offscreen bitmaps allocated: 6240B each
+[283][INF] RebuildBackground
+[600][INF] Renderer initialized: 240x208, tile=16, SE=yes, PICTs=no
+[666][INF] FreeMem() = 1337976, using 1003482 for PeerTalk
+[683][INF] Mac sizing: 32 peers, tcp_recv=4100, tcp_send=1024, reassembly=4096
+[5733][INF] MacTCP initialized (IP: 10.188.1.55)
+[5733][INF] Platform: machine=5, cpu=1, system=607
+[5750][INF] Backend: MacTCP
+[5766][INF] PeerTalk initialized: name='BomberTalk', max_peers=32
+[5766][INF] Net initialized
+[5800][INF] Loading screen started
+[5816][INF] Free heap after init: 750602 bytes
+[5833][INF] Entering main loop
+[7816][INF] Screen transition: LOADING -> MENU
+[14133][INF] Keys: [08000000 00000000 00000000 00000000]
+[20833][INF] Keys: [00000000 10000000 00000000 00000000]
+[20866][INF] Menu: RETURN/SPACE pressed, sel=0
+[20883][INF] Screen transition: MENU -> LOBBY
+[20916][INF] Listening on TCP port 7354 (stream 0)
+[20933][INF] Discovery started
+[20950][INF] Discovery started
+[20966][INF] Lobby entered, discovery started
+[114733][INF] Discovered peer: BomberTalk
+[114750][INF] Peer discovered: BomberTalk (10.188.1.102)
+[235500][INF] Discovered peer: BomberTalk
+[235516][INF] Peer discovered: BomberTalk (10.188.1.213)
+[238066][INF] Incoming TCP connection accepted
+[238116][INF] Connected to: BomberTalk
+[238133][INF] Game start received, expecting 3 players
+[238200][INF] Connecting to BomberTalk...
+[238233][INF] Connecting to BomberTalk
+[238283][INF] TCP connected to BomberTalk
+[238316][INF] Connected to: BomberTalk
+[238383][INF] Game start received, waiting for mesh (3 expected)
+[238783][INF] Full mesh: 2 connections for 3 players
+[238816][INF] Local IP: 10.188.1.55 (0x0ABC0137)
+[238833][INF] Peer 0 IP: 10.188.1.102 (0x0ABC0166)
+[238850][INF] Peer 1 IP: 10.188.1.213 (0x0ABC01D5)
+[238866][INF] Player ID assignment: local=0 (of 3 total)
+[238900][INF] Peer 10.188.1.102 -> player 1
+[238916][INF] Peer 10.188.1.213 -> player 2
+[238933][INF] Entering game: 3 players, localID=0
+[238950][INF] Screen transition: LOBBY -> GAME
+[238966][INF] TileMap reset to initial state
+[239000][INF] Player 0 init at (1,1) px=(16,16)
+[239033][INF] Player 1 init at (13,1) px=(208,16)
+[239050][INF] Player 2 init at (1,11) px=(16,176)
+[239083][INF] RebuildBackground
+[239550][INF] Game started: 3 players, local=0
+[239783][DBG] TX pos P0 px=(16,16) f=2

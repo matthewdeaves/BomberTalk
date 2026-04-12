@@ -1,0 +1,1027 @@
+[0][INF] BomberTalk starting
+[16][INF] TMAP not found, using default level
+[33][INF] Found 4 spawn points in map
+[216][WRN] PICT resources not found, using rectangle fallback
+[233][INF] RebuildBackground
+[266][INF] Renderer initialized: 480x416, tile=32, SE=no, PICTs=no
+[283][INF] FreeMem() = 1067936, using 800952 for PeerTalk
+[300][INF] Mac sizing: 32 peers, tcp_recv=4100, tcp_send=1024, reassembly=4096
+[550][INF] Open Transport initialized (IP: 10.188.1.102)
+[566][INF] Platform: machine=58, cpu=3, system=761
+[566][INF] Backend: Open Transport
+[566][INF] PeerTalk initialized: name='BomberTalk', max_peers=32
+[566][INF] Net initialized
+[583][INF] Loading screen started
+[583][INF] Free heap after init: 743248 bytes
+[600][INF] Entering main loop
+[783][INF] Discovered peer: BomberTalk
+[800][INF] Peer discovered: BomberTalk (10.188.1.213)
+[2616][INF] Screen transition: LOADING -> MENU
+[2783][INF] Discovered peer: BomberTalk
+[2783][INF] Peer discovered: BomberTalk (10.188.1.55)
+[4300][INF] Keys: [08000000 00000000 00000000 00000000]
+[5350][INF] Menu: RETURN/SPACE pressed, sel=0
+[5350][INF] Screen transition: MENU -> LOBBY
+[5350][INF] TCP listener active on port 7354
+[5350][INF] Discovery started
+[5366][INF] Discovery started
+[5366][INF] Lobby entered, discovery started
+[7116][INF] Keys: [00000000 10000000 00000000 00000000]
+[7116][INF] Connecting to BomberTalk...
+[7133][INF] Connecting to BomberTalk
+[7133][INF] Connecting to BomberTalk...
+[7133][INF] Connecting to BomberTalk
+[7133][INF] Connecting to 2 peers
+[7200][INF] TCP connected to BomberTalk
+[7200][INF] Connected to: BomberTalk
+[7200][INF] TCP connected to BomberTalk
+[7216][INF] Connected to: BomberTalk
+[7216][INF] All 2 peers connected, sending game start
+[7216][INF] TX game start: 3 players, proto v4
+[7333][INF] Full mesh: 2 connections for 3 players
+[7333][INF] Local IP: 10.188.1.102 (0x0ABC0166)
+[7333][INF] Peer 0 IP: 10.188.1.213 (0x0ABC01D5)
+[7333][INF] Peer 1 IP: 10.188.1.55 (0x0ABC0137)
+[7333][INF] Player ID assignment: local=1 (of 3 total)
+[7350][INF] Peer 10.188.1.213 -> player 2
+[7350][INF] Peer 10.188.1.55 -> player 0
+[7350][INF] Entering game: 3 players, localID=1
+[7350][INF] Screen transition: LOBBY -> GAME
+[7350][INF] TileMap reset to initial state
+[7366][INF] P0 init at grid=(1,1) px=(32,32)
+[7366][INF] P1 init at grid=(13,1) px=(416,32)
+[7366][INF] P2 init at grid=(1,11) px=(32,352)
+[7366][INF] RebuildBackground
+[7400][INF] Game started: 3 players, local=1
+[7433][DBG] TX pos P1 px=(416,32) f=2
+[7933][DBG] P2 target pos px=(32,352) f=2
+[8333][DBG] TX pos P1 px=(416,32) f=1
+[8900][DBG] P1 move px=(416,32)->(411,32) grid=(13,1)
+[8900][DBG] TX pos P1 px=(411,32) f=3
+[8933][DBG] P1 move px=(411,32)->(406,32) grid=(13,1)
+[8966][DBG] P1 move px=(406,32)->(400,32) grid=(13,1)
+[8966][DBG] TX pos P1 px=(400,32) f=3
+[9000][DBG] P1 move px=(400,32)->(395,32) grid=(12,1)
+[9033][DBG] P1 move px=(395,32)->(390,32) grid=(12,1)
+[9033][DBG] TX pos P1 px=(390,32) f=3
+[9066][DBG] P1 move px=(390,32)->(384,32) grid=(12,1)
+[9100][DBG] TX pos P1 px=(384,32) f=3
+[9116][INF] Keys: [00000000 00000000 00000000 00000008]
+[9250][DBG] P0 target pos px=(32,32) f=2
+[9916][DBG] Bomb placed at (12,1) by P1
+[9916][INF] TX bomb placed (12,1) range=1
+[9966][DBG] P2 target pos px=(32,352) f=2
+[10133][DBG] P1 move px=(384,32)->(389,32) grid=(12,1)
+[10133][DBG] TX pos P1 px=(389,32) f=4
+[10166][DBG] P1 move px=(389,32)->(394,32) grid=(12,1)
+[10200][DBG] P1 move px=(394,32)->(400,32) grid=(13,1)
+[10200][DBG] TX pos P1 px=(400,32) f=4
+[10233][DBG] P1 move px=(400,32)->(405,32) grid=(13,1)
+[10266][DBG] P1 move px=(405,32)->(410,32) grid=(13,1)
+[10266][DBG] TX pos P1 px=(410,32) f=4
+[10300][DBG] P1 cleared pass-through bomb 0
+[10300][DBG] P1 move px=(410,32)->(416,32) grid=(13,1)
+[10333][DBG] TX pos P1 px=(416,32) f=4
+[10500][DBG] P1 move px=(416,32)->(416,48) grid=(13,2)
+[10500][DBG] TX pos P1 px=(416,48) f=2
+[10533][DBG] P1 move px=(416,48)->(416,53) grid=(13,2)
+[10566][DBG] P1 move px=(416,53)->(416,58) grid=(13,2)
+[10566][DBG] TX pos P1 px=(416,58) f=2
+[10600][DBG] P1 move px=(416,58)->(416,64) grid=(13,2)
+[10633][DBG] TX pos P1 px=(416,64) f=2
+[11233][DBG] P0 target pos px=(32,32) f=2
+[12016][DBG] P2 target pos px=(32,352) f=2
+[12650][DBG] TX pos P1 px=(416,64) f=2
+[12883][INF] Bomb exploding at (12,1) range=1 owner=P1 local
+[12883][DBG] Block destroyed at (11,1)
+[12883][INF] TX block destroyed (11,1)
+[12883][INF] TX bomb explode (12,1) range=1
+[12900][INF] RebuildBackground
+[13683][INF] Keys: [00000000 00000000 00000000 00000040]
+[13700][DBG] P1 move px=(416,64)->(416,59) grid=(13,2)
+[13700][DBG] TX pos P1 px=(416,59) f=1
+[13733][DBG] P1 move px=(416,59)->(416,54) grid=(13,2)
+[13766][DBG] P1 move px=(416,54)->(416,48) grid=(13,2)
+[13766][DBG] TX pos P1 px=(416,48) f=1
+[13800][DBG] P1 move px=(416,48)->(416,43) grid=(13,1)
+[13833][DBG] P1 move px=(416,43)->(416,38) grid=(13,1)
+[13833][DBG] TX pos P1 px=(416,38) f=1
+[13866][DBG] P1 move px=(416,38)->(416,32) grid=(13,1)
+[13900][DBG] TX pos P1 px=(416,32) f=1
+[13900][DBG] P0 target pos px=(32,32) f=2
+[14000][DBG] P2 target pos px=(32,352) f=2
+[14033][DBG] P1 move px=(416,32)->(411,32) grid=(13,1)
+[14033][DBG] TX pos P1 px=(411,32) f=3
+[14066][DBG] P1 move px=(411,32)->(406,32) grid=(13,1)
+[14100][DBG] P1 move px=(406,32)->(400,32) grid=(13,1)
+[14100][DBG] TX pos P1 px=(400,32) f=3
+[14133][DBG] P1 move px=(400,32)->(395,32) grid=(12,1)
+[14166][DBG] P1 move px=(395,32)->(390,32) grid=(12,1)
+[14166][DBG] TX pos P1 px=(390,32) f=3
+[14266][DBG] P1 move px=(390,32)->(374,32) grid=(12,1)
+[14266][DBG] TX pos P1 px=(374,32) f=3
+[14300][DBG] P1 move px=(374,32)->(368,32) grid=(12,1)
+[14333][DBG] P1 move px=(368,32)->(363,32) grid=(11,1)
+[14333][DBG] TX pos P1 px=(363,32) f=3
+[14366][DBG] P1 move px=(363,32)->(358,32) grid=(11,1)
+[14400][DBG] P1 move px=(358,32)->(352,32) grid=(11,1)
+[14400][DBG] TX pos P1 px=(352,32) f=3
+[14683][DBG] Bomb placed at (11,1) by P1
+[14683][INF] TX bomb placed (11,1) range=1
+[14750][DBG] P1 move px=(352,32)->(357,32) grid=(11,1)
+[14750][DBG] TX pos P1 px=(357,32) f=4
+[14833][DBG] P1 move px=(357,32)->(370,32) grid=(12,1)
+[14833][DBG] TX pos P1 px=(370,32) f=4
+[14866][DBG] P1 move px=(370,32)->(376,32) grid=(12,1)
+[14900][DBG] P1 move px=(376,32)->(381,32) grid=(12,1)
+[14900][DBG] TX pos P1 px=(381,32) f=4
+[14933][DBG] P1 cleared pass-through bomb 0
+[14933][DBG] P1 move px=(381,32)->(386,32) grid=(12,1)
+[14966][DBG] P1 move px=(386,32)->(392,32) grid=(12,1)
+[14966][DBG] TX pos P1 px=(392,32) f=4
+[15000][DBG] P1 move px=(392,32)->(397,32) grid=(12,1)
+[15033][DBG] P1 move px=(397,32)->(402,32) grid=(13,1)
+[15033][DBG] TX pos P1 px=(402,32) f=4
+[15066][DBG] P1 move px=(402,32)->(408,32) grid=(13,1)
+[15100][DBG] P1 move px=(408,32)->(413,32) grid=(13,1)
+[15100][DBG] TX pos P1 px=(413,32) f=4
+[15133][DBG] P1 move px=(413,32)->(416,32) grid=(13,1)
+[15216][DBG] TX pos P1 px=(416,32) f=4
+[15250][DBG] P1 move px=(416,32)->(416,37) grid=(13,1)
+[15283][DBG] P1 move px=(416,37)->(416,42) grid=(13,1)
+[15283][DBG] TX pos P1 px=(416,42) f=2
+[15316][DBG] P1 move px=(416,42)->(416,48) grid=(13,2)
+[15350][DBG] P1 move px=(416,48)->(416,53) grid=(13,2)
+[15350][DBG] TX pos P1 px=(416,53) f=2
+[15383][DBG] P1 move px=(416,53)->(416,58) grid=(13,2)
+[15416][DBG] P1 move px=(416,58)->(416,64) grid=(13,2)
+[15416][DBG] TX pos P1 px=(416,64) f=2
+[15683][INF] Keys: [00000000 00000000 00000000 00000020]
+[15950][DBG] P0 target pos px=(32,32) f=2
+[16083][DBG] P2 target pos px=(32,352) f=2
+[17416][DBG] TX pos P1 px=(416,64) f=2
+[17700][INF] Bomb exploding at (11,1) range=1 owner=P1 local
+[17700][DBG] Block destroyed at (11,2)
+[17700][INF] TX block destroyed (11,2)
+[17700][DBG] Block destroyed at (10,1)
+[17716][INF] TX block destroyed (10,1)
+[17716][INF] TX bomb explode (11,1) range=1
+[17716][INF] RebuildBackground
+[17850][INF] RX block destroyed (11,2)
+[17850][INF] RebuildBackground
+[17966][INF] RX block destroyed (10,1)
+[17983][INF] RebuildBackground
+[18116][INF] RX bomb explode (11,1)
+[18116][DBG] P2 target pos px=(32,352) f=2
+[19416][DBG] TX pos P1 px=(416,64) f=2
+[19683][DBG] P0 target pos px=(32,32) f=2
+[20083][DBG] P2 target pos px=(32,352) f=2
+[20366][INF] Keys: [00000000 00000000 00000000 00000040]
+[20400][DBG] P1 move px=(416,64)->(416,59) grid=(13,2)
+[20400][DBG] TX pos P1 px=(416,59) f=1
+[20433][DBG] P1 move px=(416,59)->(416,54) grid=(13,2)
+[20466][DBG] P1 move px=(416,54)->(416,48) grid=(13,2)
+[20466][DBG] TX pos P1 px=(416,48) f=1
+[20500][DBG] P1 move px=(416,48)->(416,43) grid=(13,1)
+[20583][DBG] P1 move px=(416,43)->(416,32) grid=(13,1)
+[20583][DBG] TX pos P1 px=(416,32) f=1
+[20750][DBG] P1 move px=(416,32)->(411,32) grid=(13,1)
+[20750][DBG] TX pos P1 px=(411,32) f=3
+[20783][DBG] P1 move px=(411,32)->(406,32) grid=(13,1)
+[20866][DBG] P1 move px=(406,32)->(392,32) grid=(12,1)
+[20866][DBG] TX pos P1 px=(392,32) f=3
+[20900][DBG] P1 move px=(392,32)->(387,32) grid=(12,1)
+[20933][DBG] P1 move px=(387,32)->(382,32) grid=(12,1)
+[20933][DBG] TX pos P1 px=(382,32) f=3
+[20966][DBG] P1 move px=(382,32)->(376,32) grid=(12,1)
+[21000][DBG] P1 move px=(376,32)->(371,32) grid=(12,1)
+[21000][DBG] TX pos P1 px=(371,32) f=3
+[21033][DBG] P1 move px=(371,32)->(366,32) grid=(11,1)
+[21066][DBG] P1 move px=(366,32)->(360,32) grid=(11,1)
+[21066][DBG] TX pos P1 px=(360,32) f=3
+[21100][DBG] P1 move px=(360,32)->(355,32) grid=(11,1)
+[21133][DBG] P1 move px=(355,32)->(350,32) grid=(11,1)
+[21133][DBG] TX pos P1 px=(350,32) f=3
+[21166][DBG] P1 move px=(350,32)->(344,32) grid=(11,1)
+[21233][DBG] P1 move px=(344,32)->(334,32) grid=(10,1)
+[21233][DBG] TX pos P1 px=(334,32) f=3
+[21266][DBG] P1 move px=(334,32)->(328,32) grid=(10,1)
+[21300][DBG] P1 move px=(328,32)->(323,32) grid=(10,1)
+[21300][DBG] TX pos P1 px=(323,32) f=3
+[21333][DBG] P1 move px=(323,32)->(320,32) grid=(10,1)
+[21366][DBG] TX pos P1 px=(320,32) f=3
+[21616][DBG] Bomb placed at (10,1) by P1
+[21616][INF] TX bomb placed (10,1) range=1
+[21750][DBG] P1 move px=(320,32)->(325,32) grid=(10,1)
+[21750][DBG] TX pos P1 px=(325,32) f=4
+[21783][DBG] P1 move px=(325,32)->(330,32) grid=(10,1)
+[21816][DBG] P1 move px=(330,32)->(336,32) grid=(11,1)
+[21816][DBG] TX pos P1 px=(336,32) f=4
+[21833][DBG] P0 target pos px=(32,32) f=2
+[21850][DBG] P1 move px=(336,32)->(341,32) grid=(11,1)
+[21883][DBG] P1 move px=(341,32)->(346,32) grid=(11,1)
+[21883][DBG] TX pos P1 px=(346,32) f=4
+[21916][DBG] P1 cleared pass-through bomb 0
+[21916][DBG] P1 move px=(346,32)->(352,32) grid=(11,1)
+[21950][DBG] P1 move px=(352,32)->(357,32) grid=(11,1)
+[21950][DBG] TX pos P1 px=(357,32) f=4
+[22000][DBG] P1 move px=(357,32)->(352,40) grid=(11,1)
+[22033][DBG] P1 move px=(352,40)->(352,45) grid=(11,1)
+[22033][DBG] TX pos P1 px=(352,45) f=2
+[22066][DBG] P1 move px=(352,45)->(352,50) grid=(11,2)
+[22100][DBG] P1 move px=(352,50)->(352,56) grid=(11,2)
+[22100][DBG] TX pos P1 px=(352,56) f=2
+[22116][DBG] P2 target pos px=(32,352) f=2
+[22133][DBG] P1 move px=(352,56)->(352,61) grid=(11,2)
+[22166][DBG] P1 move px=(352,61)->(352,64) grid=(11,2)
+[22166][DBG] TX pos P1 px=(352,64) f=2
+[22383][INF] Keys: [00000000 00000000 00000000 00000020]
+[23383][DBG] P2 target pos px=(32,347) f=1
+[23416][DBG] P2 target pos px=(32,334) f=1
+[23500][DBG] P2 target pos px=(32,320) f=1
+[23833][DBG] P0 target pos px=(32,32) f=2
+[23883][INF] RX bomb placed P2 (1,10) range=1
+[23883][DBG] Bomb placed at (1,10) by P2
+[24050][DBG] P2 target pos px=(32,336) f=2
+[24066][DBG] P2 target pos px=(32,349) f=2
+[24150][DBG] P2 target pos px=(32,352) f=2
+[24183][DBG] TX pos P1 px=(352,64) f=2
+[24333][DBG] P2 target pos px=(40,352) f=4
+[24400][DBG] P2 target pos px=(64,352) f=4
+[24616][INF] Bomb exploding at (10,1) range=1 owner=P1 local
+[24616][DBG] Block destroyed at (9,1)
+[24616][INF] TX block destroyed (9,1)
+[24616][INF] TX bomb explode (10,1) range=1
+[24616][INF] RebuildBackground
+[26233][DBG] TX pos P1 px=(352,64) f=2
+[26516][DBG] P2 target pos px=(64,352) f=4
+[26516][DBG] P0 target pos px=(32,32) f=2
+[26866][INF] Bomb exploding at (1,10) range=1 owner=P2 local
+[26866][DBG] Block destroyed at (1,9)
+[26866][INF] TX block destroyed (1,9)
+[26866][INF] TX bomb explode (1,10) range=1
+[26883][INF] RebuildBackground
+[26933][INF] RX block destroyed (1,9)
+[26933][INF] RebuildBackground
+[27000][INF] RX bomb explode (1,10)
+[27650][DBG] P2 target pos px=(59,352) f=3
+[27783][DBG] P2 target pos px=(46,352) f=3
+[27800][DBG] P2 target pos px=(35,352) f=3
+[27950][DBG] P2 target pos px=(32,336) f=1
+[28066][DBG] P2 target pos px=(32,323) f=1
+[28100][DBG] P2 target pos px=(32,312) f=1
+[28183][DBG] P2 target pos px=(32,299) f=1
+[28233][DBG] TX pos P1 px=(352,64) f=2
+[28316][DBG] P2 target pos px=(32,288) f=1
+[28533][INF] RX bomb placed P2 (1,9) range=1
+[28533][DBG] Bomb placed at (1,9) by P2
+[28716][DBG] P2 target pos px=(32,293) f=2
+[28833][DBG] P2 target pos px=(32,306) f=2
+[28966][DBG] P2 target pos px=(32,333) f=2
+[29116][DBG] P2 target pos px=(32,346) f=2
+[29133][DBG] P2 target pos px=(32,352) f=2
+[29150][DBG] P0 target pos px=(32,32) f=2
+[29216][DBG] P2 target pos px=(37,352) f=4
+[29266][DBG] P2 target pos px=(48,352) f=4
+[29416][DBG] P2 target pos px=(64,352) f=4
+[30233][DBG] TX pos P1 px=(352,64) f=2
+[30250][INF] Keys: [00000000 00000000 00000000 00000040]
+[30266][DBG] P1 move px=(352,64)->(352,59) grid=(11,2)
+[30350][DBG] P1 move px=(352,59)->(352,46) grid=(11,1)
+[30350][DBG] TX pos P1 px=(352,46) f=1
+[30383][DBG] P1 move px=(352,46)->(352,40) grid=(11,1)
+[30416][DBG] P1 move px=(352,40)->(352,35) grid=(11,1)
+[30416][DBG] TX pos P1 px=(352,35) f=1
+[30450][DBG] P1 move px=(352,35)->(352,32) grid=(11,1)
+[30483][DBG] TX pos P1 px=(352,32) f=1
+[30600][DBG] P1 move px=(352,32)->(344,32) grid=(11,1)
+[30616][DBG] TX pos P1 px=(344,32) f=3
+[30633][DBG] P1 move px=(344,32)->(339,32) grid=(11,1)
+[30666][DBG] P1 move px=(339,32)->(334,32) grid=(10,1)
+[30666][DBG] TX pos P1 px=(334,32) f=3
+[30700][DBG] P1 move px=(334,32)->(328,32) grid=(10,1)
+[30733][DBG] P1 move px=(328,32)->(323,32) grid=(10,1)
+[30733][DBG] TX pos P1 px=(323,32) f=3
+[30766][DBG] P1 move px=(323,32)->(318,32) grid=(10,1)
+[30800][DBG] P1 move px=(318,32)->(312,32) grid=(10,1)
+[30800][DBG] TX pos P1 px=(312,32) f=3
+[30900][DBG] P1 move px=(312,32)->(296,32) grid=(9,1)
+[30900][DBG] TX pos P1 px=(296,32) f=3
+[30933][DBG] P1 move px=(296,32)->(291,32) grid=(9,1)
+[30966][DBG] P1 move px=(291,32)->(288,32) grid=(9,1)
+[30966][DBG] TX pos P1 px=(288,32) f=3
+[31183][DBG] P0 target pos px=(32,32) f=2
+[31200][DBG] Bomb placed at (9,1) by P1
+[31200][INF] TX bomb placed (9,1) range=1
+[31333][DBG] P1 move px=(288,32)->(293,32) grid=(9,1)
+[31333][DBG] TX pos P1 px=(293,32) f=4
+[31366][DBG] P1 move px=(293,32)->(298,32) grid=(9,1)
+[31400][DBG] P1 move px=(298,32)->(304,32) grid=(10,1)
+[31400][DBG] TX pos P1 px=(304,32) f=4
+[31416][DBG] P2 target pos px=(64,352) f=4
+[31433][DBG] P1 move px=(304,32)->(309,32) grid=(10,1)
+[31466][DBG] P1 move px=(309,32)->(314,32) grid=(10,1)
+[31466][DBG] TX pos P1 px=(314,32) f=4
+[31500][DBG] P1 cleared pass-through bomb 1
+[31500][DBG] P1 move px=(314,32)->(320,32) grid=(10,1)
+[31516][INF] RX block destroyed (1,8)
+[31600][INF] RX block destroyed (2,9)
+[31600][DBG] P1 move px=(320,32)->(336,32) grid=(11,1)
+[31600][DBG] TX pos P1 px=(336,32) f=4
+[31616][INF] Bomb exploding at (1,9) range=1 owner=P2 local
+[31616][INF] TX bomb explode (1,9) range=1
+[31616][INF] RebuildBackground
+[31683][INF] RX bomb explode (1,9)
+[31683][INF] RX block destroyed (1,8)
+[31683][DBG] TX pos P1 px=(336,32) f=2
+[31683][INF] RebuildBackground
+[31766][INF] RX block destroyed (2,9)
+[31783][INF] RebuildBackground
+[31950][INF] RX bomb explode (1,9)
+[32333][INF] Keys: [00000000 00000000 00000000 00000010]
+[32366][DBG] P1 move px=(336,32)->(341,32) grid=(11,1)
+[32366][DBG] TX pos P1 px=(341,32) f=4
+[32400][DBG] P1 move px=(341,32)->(346,32) grid=(11,1)
+[32433][DBG] P1 move px=(346,32)->(352,32) grid=(11,1)
+[32433][DBG] TX pos P1 px=(352,32) f=4
+[32466][DBG] P1 move px=(352,32)->(352,37) grid=(11,1)
+[32500][DBG] P1 move px=(352,37)->(352,42) grid=(11,1)
+[32500][DBG] TX pos P1 px=(352,42) f=2
+[32533][DBG] P1 move px=(352,42)->(352,48) grid=(11,2)
+[32616][DBG] P1 move px=(352,48)->(352,61) grid=(11,2)
+[32616][DBG] TX pos P1 px=(352,61) f=2
+[32650][DBG] P1 move px=(352,61)->(352,64) grid=(11,2)
+[32683][DBG] TX pos P1 px=(352,64) f=2
+[33800][DBG] P2 target pos px=(64,352) f=4
+[34183][INF] Bomb exploding at (9,1) range=1 owner=P1 local
+[34183][DBG] Block destroyed at (9,2)
+[34183][INF] TX block destroyed (9,2)
+[34200][DBG] Block destroyed at (8,1)
+[34200][INF] TX block destroyed (8,1)
+[34200][INF] TX bomb explode (9,1) range=1
+[34200][INF] RebuildBackground
+[34266][DBG] P2 target pos px=(48,352) f=3
+[34316][DBG] P2 target pos px=(32,352) f=3
+[34650][DBG] P2 target pos px=(32,347) f=1
+[34700][DBG] TX pos P1 px=(352,64) f=2
+[34733][DBG] P2 target pos px=(32,334) f=1
+[34850][DBG] P2 target pos px=(32,320) f=1
+[34900][DBG] P2 target pos px=(32,307) f=1
+[34983][DBG] P2 target pos px=(32,294) f=1
+[35133][DBG] P2 target pos px=(32,272) f=1
+[35200][DBG] P2 target pos px=(32,259) f=1
+[35266][DBG] P2 target pos px=(32,256) f=1
+[35633][INF] RX bomb placed P2 (1,8) range=1
+[35633][DBG] Bomb placed at (1,8) by P2
+[35800][DBG] P0 target pos px=(32,32) f=2
+[35800][DBG] P2 target pos px=(32,272) f=2
+[35866][DBG] P2 target pos px=(32,272) f=4
+[36450][DBG] P2 target pos px=(32,277) f=2
+[36550][DBG] P2 target pos px=(32,290) f=2
+[36650][DBG] P2 target pos px=(32,301) f=2
+[36716][DBG] TX pos P1 px=(352,64) f=2
+[36816][DBG] P2 target pos px=(32,333) f=2
+[36866][DBG] P2 target pos px=(32,344) f=2
+[36950][DBG] P2 target pos px=(32,352) f=2
+[37733][DBG] P0 target pos px=(32,32) f=2
+[38616][INF] RX block destroyed (1,7)
+[38616][INF] Bomb exploding at (1,8) range=1 owner=P2 local
+[38616][INF] TX bomb explode (1,8) range=1
+[38616][INF] RebuildBackground
+[38683][INF] RX bomb explode (1,8)
+[38716][DBG] TX pos P1 px=(352,64) f=2
+[38733][INF] RX block destroyed (1,7)
+[38750][INF] RebuildBackground
+[38866][INF] RX bomb explode (1,8)
+[39216][DBG] P2 target pos px=(32,352) f=2
+[39250][INF] Keys: [00000000 00000000 00000000 00000040]
+[39283][DBG] P1 move px=(352,64)->(352,59) grid=(11,2)
+[39283][DBG] TX pos P1 px=(352,59) f=1
+[39316][DBG] P1 move px=(352,59)->(352,54) grid=(11,2)
+[39350][DBG] P1 move px=(352,54)->(352,48) grid=(11,2)
+[39350][DBG] TX pos P1 px=(352,48) f=1
+[39433][DBG] P1 move px=(352,48)->(352,35) grid=(11,1)
+[39433][DBG] TX pos P1 px=(352,35) f=1
+[39466][DBG] P1 move px=(352,35)->(352,32) grid=(11,1)
+[39500][DBG] TX pos P1 px=(352,32) f=1
+[39600][DBG] P1 move px=(352,32)->(347,32) grid=(11,1)
+[39600][DBG] TX pos P1 px=(347,32) f=3
+[39633][DBG] P1 move px=(347,32)->(342,32) grid=(11,1)
+[39716][DBG] P1 move px=(342,32)->(328,32) grid=(10,1)
+[39716][DBG] TX pos P1 px=(328,32) f=3
+[39750][DBG] P1 move px=(328,32)->(323,32) grid=(10,1)
+[39783][DBG] P1 move px=(323,32)->(318,32) grid=(10,1)
+[39783][DBG] TX pos P1 px=(318,32) f=3
+[39816][DBG] P1 move px=(318,32)->(312,32) grid=(10,1)
+[39850][DBG] P1 move px=(312,32)->(307,32) grid=(10,1)
+[39850][DBG] TX pos P1 px=(307,32) f=3
+[39883][DBG] P1 move px=(307,32)->(302,32) grid=(9,1)
+[39916][DBG] P1 move px=(302,32)->(296,32) grid=(9,1)
+[39916][DBG] TX pos P1 px=(296,32) f=3
+[40016][DBG] P1 move px=(296,32)->(280,32) grid=(9,1)
+[40016][DBG] TX pos P1 px=(280,32) f=3
+[40050][DBG] P1 move px=(280,32)->(275,32) grid=(9,1)
+[40083][DBG] P1 move px=(275,32)->(270,32) grid=(8,1)
+[40083][DBG] TX pos P1 px=(270,32) f=3
+[40116][DBG] P1 move px=(270,32)->(264,32) grid=(8,1)
+[40150][DBG] P1 move px=(264,32)->(259,32) grid=(8,1)
+[40150][DBG] TX pos P1 px=(259,32) f=3
+[40183][DBG] P1 move px=(259,32)->(256,32) grid=(8,1)
+[40216][DBG] TX pos P1 px=(256,32) f=3
+[40533][DBG] Bomb placed at (8,1) by P1
+[40533][INF] TX bomb placed (8,1) range=1
+[40566][DBG] P1 move px=(256,32)->(261,32) grid=(8,1)
+[40566][DBG] TX pos P1 px=(261,32) f=4
+[40600][DBG] P1 move px=(261,32)->(266,32) grid=(8,1)
+[40683][DBG] P1 move px=(266,32)->(280,32) grid=(9,1)
+[40683][DBG] TX pos P1 px=(280,32) f=4
+[40716][DBG] P1 move px=(280,32)->(285,32) grid=(9,1)
+[40750][DBG] P1 cleared pass-through bomb 0
+[40750][DBG] P1 move px=(285,32)->(290,32) grid=(9,1)
+[40750][DBG] TX pos P1 px=(290,32) f=4
+[40783][DBG] P1 move px=(290,32)->(288,37) grid=(9,1)
+[40816][DBG] P1 move px=(288,37)->(288,42) grid=(9,1)
+[40816][DBG] TX pos P1 px=(288,42) f=2
+[40850][DBG] P1 move px=(288,42)->(288,48) grid=(9,2)
+[40883][DBG] P1 move px=(288,48)->(288,53) grid=(9,2)
+[40883][DBG] TX pos P1 px=(288,53) f=2
+[40966][DBG] P1 move px=(288,53)->(288,64) grid=(9,2)
+[40966][DBG] TX pos P1 px=(288,64) f=2
+[41250][DBG] P2 target pos px=(32,352) f=2
+[41400][DBG] P0 target pos px=(32,32) f=2
+[42400][DBG] P2 target pos px=(32,352) f=3
+[42766][DBG] P2 target pos px=(32,336) f=1
+[42766][DBG] P2 target pos px=(32,323) f=1
+[42833][DBG] P2 target pos px=(32,310) f=1
+[42966][DBG] TX pos P1 px=(288,64) f=2
+[42983][DBG] P2 target pos px=(32,286) f=1
+[43050][DBG] P2 target pos px=(32,275) f=1
+[43150][DBG] P2 target pos px=(32,264) f=1
+[43216][DBG] P2 target pos px=(32,251) f=1
+[43266][DBG] P2 target pos px=(32,240) f=1
+[43333][DBG] P2 target pos px=(32,230) f=1
+[43466][DBG] P0 target pos px=(32,32) f=2
+[43466][DBG] P2 target pos px=(32,224) f=1
+[43500][INF] Bomb exploding at (8,1) range=1 owner=P1 local
+[43500][DBG] Block destroyed at (7,1)
+[43500][INF] TX block destroyed (7,1)
+[43500][INF] TX bomb explode (8,1) range=1
+[43516][INF] RebuildBackground
+[43766][INF] RX bomb placed P2 (1,7) range=1
+[43766][DBG] Bomb placed at (1,7) by P2
+[43866][DBG] P2 target pos px=(32,240) f=2
+[43983][DBG] P2 target pos px=(32,253) f=2
+[44033][DBG] P2 target pos px=(32,266) f=2
+[44166][DBG] P2 target pos px=(32,288) f=2
+[44233][DBG] P2 target pos px=(32,298) f=2
+[44316][DBG] P2 target pos px=(32,312) f=2
+[44400][DBG] P2 target pos px=(32,325) f=2
+[44550][DBG] P2 target pos px=(32,338) f=2
+[44600][DBG] P2 target pos px=(32,352) f=2
+[44966][DBG] TX pos P1 px=(288,64) f=2
+[46233][DBG] P0 target pos px=(32,32) f=2
+[46300][INF] Keys: [00000000 00000000 00000000 00000040]
+[46300][DBG] P1 move px=(288,64)->(288,59) grid=(9,2)
+[46300][DBG] TX pos P1 px=(288,59) f=1
+[46333][DBG] P1 move px=(288,59)->(288,54) grid=(9,2)
+[46366][DBG] P1 move px=(288,54)->(288,48) grid=(9,2)
+[46366][DBG] TX pos P1 px=(288,48) f=1
+[46400][DBG] P1 move px=(288,48)->(288,43) grid=(9,1)
+[46433][DBG] P1 move px=(288,43)->(288,38) grid=(9,1)
+[46433][DBG] TX pos P1 px=(288,38) f=1
+[46466][DBG] P1 move px=(288,38)->(288,32) grid=(9,1)
+[46500][DBG] TX pos P1 px=(288,32) f=1
+[46583][DBG] P2 target pos px=(32,352) f=2
+[46633][INF] RX block destroyed (1,6)
+[46650][DBG] P1 move px=(288,32)->(283,32) grid=(9,1)
+[46650][DBG] TX pos P1 px=(283,32) f=3
+[46650][INF] RebuildBackground
+[46700][DBG] P1 move px=(283,32)->(275,32) grid=(9,1)
+[46716][INF] RX block destroyed (2,7)
+[46733][DBG] P1 move px=(275,32)->(270,32) grid=(8,1)
+[46733][DBG] TX pos P1 px=(270,32) f=3
+[46733][INF] RebuildBackground
+[46783][DBG] P1 move px=(270,32)->(262,32) grid=(8,1)
+[46800][INF] Bomb exploding at (1,7) range=1 owner=P2 local
+[46800][INF] TX bomb explode (1,7) range=1
+[46816][INF] RX bomb explode (1,7)
+[46816][DBG] P1 move px=(262,32)->(256,32) grid=(8,1)
+[46816][DBG] TX pos P1 px=(256,32) f=3
+[46850][DBG] P1 move px=(256,32)->(251,32) grid=(8,1)
+[46883][DBG] P1 move px=(251,32)->(246,32) grid=(8,1)
+[46883][DBG] TX pos P1 px=(246,32) f=3
+[46916][DBG] P1 move px=(246,32)->(240,32) grid=(8,1)
+[47000][DBG] P1 move px=(240,32)->(227,32) grid=(7,1)
+[47000][DBG] TX pos P1 px=(227,32) f=3
+[47033][DBG] P1 move px=(227,32)->(224,32) grid=(7,1)
+[47066][DBG] TX pos P1 px=(224,32) f=3
+[47200][DBG] Bomb placed at (7,1) by P1
+[47200][INF] TX bomb placed (7,1) range=1
+[47366][DBG] P1 move px=(224,32)->(229,32) grid=(7,1)
+[47366][DBG] TX pos P1 px=(229,32) f=4
+[47400][DBG] P1 move px=(229,32)->(234,32) grid=(7,1)
+[47433][DBG] P1 move px=(234,32)->(240,32) grid=(8,1)
+[47433][DBG] TX pos P1 px=(240,32) f=4
+[47466][DBG] P1 move px=(240,32)->(245,32) grid=(8,1)
+[47500][DBG] P1 move px=(245,32)->(250,32) grid=(8,1)
+[47500][DBG] TX pos P1 px=(250,32) f=4
+[47583][DBG] P1 cleared pass-through bomb 0
+[47583][DBG] P1 move px=(250,32)->(264,32) grid=(8,1)
+[47583][DBG] TX pos P1 px=(264,32) f=4
+[47616][DBG] P1 move px=(264,32)->(269,32) grid=(8,1)
+[47650][DBG] P1 move px=(269,32)->(274,32) grid=(9,1)
+[47650][DBG] TX pos P1 px=(274,32) f=4
+[47716][DBG] TX pos P1 px=(274,32) f=2
+[48116][DBG] P1 move px=(274,32)->(279,32) grid=(9,1)
+[48116][DBG] TX pos P1 px=(279,32) f=4
+[48150][DBG] P1 move px=(279,32)->(284,32) grid=(9,1)
+[48183][DBG] P1 move px=(284,32)->(290,32) grid=(9,1)
+[48183][DBG] TX pos P1 px=(290,32) f=4
+[48216][DBG] P1 move px=(290,32)->(295,32) grid=(9,1)
+[48250][DBG] P1 move px=(295,32)->(300,32) grid=(9,1)
+[48250][DBG] TX pos P1 px=(300,32) f=4
+[48300][INF] Keys: [00000000 00000000 00000000 00000020]
+[48383][DBG] TX pos P1 px=(300,32) f=2
+[48950][DBG] P2 target pos px=(32,352) f=2
+[49650][DBG] P1 move px=(300,32)->(305,32) grid=(10,1)
+[49650][DBG] TX pos P1 px=(305,32) f=4
+[49666][DBG] P0 target pos px=(32,32) f=2
+[49683][DBG] P1 move px=(305,32)->(310,32) grid=(10,1)
+[49766][DBG] P1 move px=(310,32)->(324,32) grid=(10,1)
+[49766][DBG] TX pos P1 px=(324,32) f=4
+[49800][DBG] P1 move px=(324,32)->(329,32) grid=(10,1)
+[49833][DBG] P1 move px=(329,32)->(334,32) grid=(10,1)
+[49833][DBG] TX pos P1 px=(334,32) f=4
+[49866][DBG] P1 move px=(334,32)->(340,32) grid=(11,1)
+[49900][DBG] TX pos P1 px=(340,32) f=4
+[50183][INF] Bomb exploding at (7,1) range=1 owner=P1 local
+[50183][DBG] Block destroyed at (7,2)
+[50183][INF] TX block destroyed (7,2)
+[50183][DBG] Block destroyed at (6,1)
+[50200][INF] TX block destroyed (6,1)
+[50200][INF] TX bomb explode (7,1) range=1
+[50200][INF] RebuildBackground
+[50266][INF] RX block destroyed (7,2)
+[50266][INF] RebuildBackground
+[50333][INF] RX block destroyed (6,1)
+[50350][INF] RebuildBackground
+[50483][INF] RX bomb explode (7,1)
+[50816][INF] Keys: [00000000 00000000 00000000 00000008]
+[50833][DBG] P1 move px=(340,32)->(335,32) grid=(10,1)
+[50833][DBG] TX pos P1 px=(335,32) f=3
+[50866][DBG] P1 move px=(335,32)->(330,32) grid=(10,1)
+[50900][DBG] P1 move px=(330,32)->(324,32) grid=(10,1)
+[50900][DBG] TX pos P1 px=(324,32) f=3
+[50933][DBG] P1 move px=(324,32)->(319,32) grid=(10,1)
+[50966][DBG] P1 move px=(319,32)->(314,32) grid=(10,1)
+[50966][DBG] TX pos P1 px=(314,32) f=3
+[51050][DBG] P1 move px=(314,32)->(300,32) grid=(9,1)
+[51050][DBG] TX pos P1 px=(300,32) f=3
+[51083][DBG] P1 move px=(300,32)->(295,32) grid=(9,1)
+[51116][DBG] P1 move px=(295,32)->(290,32) grid=(9,1)
+[51116][DBG] TX pos P1 px=(290,32) f=3
+[51150][DBG] P1 move px=(290,32)->(284,32) grid=(9,1)
+[51183][DBG] P1 move px=(284,32)->(279,32) grid=(9,1)
+[51183][DBG] TX pos P1 px=(279,32) f=3
+[51216][DBG] P1 move px=(279,32)->(274,32) grid=(9,1)
+[51250][DBG] P1 move px=(274,32)->(268,32) grid=(8,1)
+[51250][DBG] TX pos P1 px=(268,32) f=3
+[51300][DBG] P1 move px=(268,32)->(260,32) grid=(8,1)
+[51333][DBG] P1 move px=(260,32)->(255,32) grid=(8,1)
+[51333][DBG] TX pos P1 px=(255,32) f=3
+[51366][DBG] P1 move px=(255,32)->(250,32) grid=(8,1)
+[51366][DBG] P2 target pos px=(32,352) f=2
+[51400][DBG] P1 move px=(250,32)->(244,32) grid=(8,1)
+[51400][DBG] TX pos P1 px=(244,32) f=3
+[51433][DBG] P1 move px=(244,32)->(239,32) grid=(7,1)
+[51466][DBG] P1 move px=(239,32)->(234,32) grid=(7,1)
+[51466][DBG] TX pos P1 px=(234,32) f=3
+[51500][DBG] P1 move px=(234,32)->(228,32) grid=(7,1)
+[51533][DBG] P1 move px=(228,32)->(223,32) grid=(7,1)
+[51533][DBG] TX pos P1 px=(223,32) f=3
+[51566][DBG] P1 move px=(223,32)->(218,32) grid=(7,1)
+[51600][DBG] P1 move px=(218,32)->(212,32) grid=(7,1)
+[51600][DBG] TX pos P1 px=(212,32) f=3
+[51700][DBG] P1 move px=(212,32)->(196,32) grid=(6,1)
+[51700][DBG] TX pos P1 px=(196,32) f=3
+[51733][DBG] P1 move px=(196,32)->(192,32) grid=(6,1)
+[51766][DBG] TX pos P1 px=(192,32) f=3
+[52483][DBG] Bomb placed at (6,1) by P1
+[52483][INF] TX bomb placed (6,1) range=1
+[52583][DBG] P1 move px=(192,32)->(197,32) grid=(6,1)
+[52583][DBG] TX pos P1 px=(197,32) f=4
+[52616][DBG] P1 move px=(197,32)->(202,32) grid=(6,1)
+[52650][DBG] P1 move px=(202,32)->(208,32) grid=(7,1)
+[52650][DBG] TX pos P1 px=(208,32) f=4
+[52683][DBG] P1 move px=(208,32)->(213,32) grid=(7,1)
+[52683][DBG] P0 target pos px=(32,32) f=2
+[52716][DBG] P1 move px=(213,32)->(218,32) grid=(7,1)
+[52716][DBG] TX pos P1 px=(218,32) f=4
+[52783][DBG] TX pos P1 px=(218,32) f=2
+[52883][INF] Keys: [00000000 00000000 00000000 00000020]
+[52883][DBG] P1 cleared pass-through bomb 0
+[52883][DBG] P1 move px=(218,32)->(224,48) grid=(7,2)
+[52883][DBG] TX pos P1 px=(224,48) f=2
+[52916][DBG] P1 move px=(224,48)->(224,54) grid=(7,2)
+[52950][DBG] P1 move px=(224,54)->(224,59) grid=(7,2)
+[52950][DBG] TX pos P1 px=(224,59) f=2
+[52983][DBG] P1 move px=(224,59)->(224,64) grid=(7,2)
+[53016][DBG] TX pos P1 px=(224,64) f=2
+[53450][DBG] P2 target pos px=(32,352) f=2
+[54383][DBG] P2 target pos px=(32,352) f=3
+[54650][DBG] P2 target pos px=(32,347) f=1
+[54700][DBG] P0 target pos px=(32,32) f=2
+[54800][DBG] P2 target pos px=(32,328) f=1
+[54883][DBG] P2 target pos px=(32,307) f=1
+[54966][DBG] P2 target pos px=(32,294) f=1
+[55033][DBG] TX pos P1 px=(224,64) f=2
+[55033][DBG] P2 target pos px=(32,280) f=1
+[55183][DBG] P2 target pos px=(32,267) f=1
+[55283][DBG] P2 target pos px=(32,243) f=1
+[55350][DBG] P2 target pos px=(32,232) f=1
+[55466][DBG] P2 target pos px=(32,219) f=1
+[55466][INF] Bomb exploding at (6,1) range=1 owner=P1 local
+[55466][DBG] Block destroyed at (5,1)
+[55466][INF] TX block destroyed (5,1)
+[55483][INF] TX bomb explode (6,1) range=1
+[55483][INF] RebuildBackground
+[55566][DBG] P2 target pos px=(32,198) f=1
+[55783][DBG] P2 target pos px=(32,192) f=1
+[56033][DBG] P2 target pos px=(32,197) f=2
+[56100][INF] RX bomb placed P2 (1,6) range=1
+[56100][DBG] Bomb placed at (1,6) by P2
+[56200][DBG] P2 target pos px=(32,224) f=2
+[56333][DBG] P2 target pos px=(32,245) f=2
+[56433][DBG] P2 target pos px=(32,250) f=2
+[56500][DBG] P2 target pos px=(32,263) f=2
+[56566][DBG] P2 target pos px=(32,274) f=2
+[56716][DBG] P2 target pos px=(32,298) f=2
+[56800][DBG] P2 target pos px=(32,311) f=2
+[56866][DBG] P2 target pos px=(32,311) f=4
+[57033][DBG] TX pos P1 px=(224,64) f=2
+[57350][DBG] P2 target pos px=(32,306) f=1
+[57433][DBG] P2 target pos px=(32,293) f=1
+[57500][DBG] P0 target pos px=(32,32) f=2
+[57550][DBG] P2 target pos px=(37,288) f=4
+[57716][DBG] P2 target pos px=(64,288) f=4
+[59033][DBG] TX pos P1 px=(224,64) f=2
+[59066][INF] Bomb exploding at (1,6) range=1 owner=P2 local
+[59066][DBG] Block destroyed at (1,5)
+[59066][INF] TX block destroyed (1,5)
+[59066][INF] TX bomb explode (1,6) range=1
+[59083][INF] RebuildBackground
+[59133][INF] RX block destroyed (1,5)
+[59133][INF] RebuildBackground
+[59200][INF] Keys: [00000000 00000000 00000000 00000040]
+[59200][DBG] P1 move px=(224,64)->(224,54) grid=(7,2)
+[59200][DBG] TX pos P1 px=(224,54) f=1
+[59300][INF] RX bomb explode (1,6)
+[59300][DBG] P1 move px=(224,54)->(224,38) grid=(7,1)
+[59300][DBG] TX pos P1 px=(224,38) f=1
+[59333][DBG] P1 move px=(224,38)->(224,32) grid=(7,1)
+[59366][DBG] P1 move px=(224,32)->(219,32) grid=(7,1)
+[59366][DBG] TX pos P1 px=(219,32) f=3
+[59400][DBG] P1 move px=(219,32)->(214,32) grid=(7,1)
+[59433][DBG] P1 move px=(214,32)->(208,32) grid=(7,1)
+[59433][DBG] TX pos P1 px=(208,32) f=3
+[59466][DBG] P1 move px=(208,32)->(203,32) grid=(6,1)
+[59550][DBG] P1 move px=(203,32)->(190,32) grid=(6,1)
+[59550][DBG] TX pos P1 px=(190,32) f=3
+[59583][DBG] P1 move px=(190,32)->(184,32) grid=(6,1)
+[59616][DBG] P1 move px=(184,32)->(179,32) grid=(6,1)
+[59616][DBG] TX pos P1 px=(179,32) f=3
+[59650][DBG] P1 move px=(179,32)->(174,32) grid=(5,1)
+[59733][DBG] P1 move px=(174,32)->(160,32) grid=(5,1)
+[59733][DBG] TX pos P1 px=(160,32) f=3
+[59966][DBG] P2 target pos px=(64,288) f=4
+[60066][DBG] Bomb placed at (5,1) by P1
+[60066][INF] TX bomb placed (5,1) range=1
+[60133][DBG] P1 move px=(160,32)->(165,32) grid=(5,1)
+[60133][DBG] TX pos P1 px=(165,32) f=4
+[60166][DBG] P1 move px=(165,32)->(170,32) grid=(5,1)
+[60200][DBG] P1 move px=(170,32)->(176,32) grid=(6,1)
+[60200][DBG] TX pos P1 px=(176,32) f=4
+[60233][DBG] P1 move px=(176,32)->(181,32) grid=(6,1)
+[60266][DBG] P1 move px=(181,32)->(186,32) grid=(6,1)
+[60266][DBG] TX pos P1 px=(186,32) f=4
+[60366][DBG] P0 target pos px=(32,32) f=2
+[60366][DBG] P1 cleared pass-through bomb 0
+[60366][DBG] P1 move px=(186,32)->(202,32) grid=(6,1)
+[60366][DBG] TX pos P1 px=(202,32) f=4
+[60400][DBG] P1 move px=(202,32)->(208,32) grid=(7,1)
+[60433][DBG] TX pos P1 px=(208,32) f=2
+[60883][DBG] P1 move px=(208,32)->(221,32) grid=(7,1)
+[60883][DBG] TX pos P1 px=(221,32) f=4
+[60916][DBG] P1 move px=(221,32)->(226,32) grid=(7,1)
+[60950][DBG] P1 move px=(226,32)->(224,37) grid=(7,1)
+[60950][DBG] TX pos P1 px=(224,37) f=2
+[60983][DBG] P1 move px=(224,37)->(224,42) grid=(7,1)
+[61016][DBG] P1 move px=(224,42)->(224,48) grid=(7,2)
+[61016][DBG] TX pos P1 px=(224,48) f=2
+[61050][DBG] P1 move px=(224,48)->(224,53) grid=(7,2)
+[61083][DBG] P1 move px=(224,53)->(224,58) grid=(7,2)
+[61083][DBG] TX pos P1 px=(224,58) f=2
+[61116][DBG] P1 move px=(224,58)->(224,64) grid=(7,2)
+[61150][DBG] TX pos P1 px=(224,64) f=2
+[61266][INF] Keys: [00000000 00000000 00000000 00000020]
+[61966][DBG] P2 target pos px=(64,288) f=4
+[62300][DBG] P0 target pos px=(32,32) f=2
+[62500][DBG] P2 target pos px=(48,288) f=3
+[62533][DBG] P2 target pos px=(35,288) f=3
+[62600][DBG] P2 target pos px=(32,288) f=3
+[62883][DBG] P2 target pos px=(32,283) f=1
+[62950][DBG] P2 target pos px=(32,272) f=1
+[63066][DBG] P2 target pos px=(32,259) f=1
+[63066][INF] Bomb exploding at (5,1) range=1 owner=P1 local
+[63066][DBG] Block destroyed at (5,2)
+[63066][INF] TX block destroyed (5,2)
+[63066][DBG] Block destroyed at (4,1)
+[63083][INF] TX block destroyed (4,1)
+[63083][INF] TX bomb explode (5,1) range=1
+[63083][INF] RebuildBackground
+[63150][DBG] TX pos P1 px=(224,64) f=2
+[63250][DBG] P2 target pos px=(32,224) f=1
+[63466][DBG] P2 target pos px=(32,198) f=1
+[63600][DBG] P2 target pos px=(32,174) f=1
+[63733][DBG] P2 target pos px=(32,160) f=1
+[64083][INF] RX bomb placed P2 (1,5) range=1
+[64083][DBG] Bomb placed at (1,5) by P2
+[64183][DBG] P2 target pos px=(32,176) f=2
+[64300][DBG] P2 target pos px=(32,189) f=2
+[64350][DBG] P2 target pos px=(32,202) f=2
+[64483][DBG] P2 target pos px=(32,224) f=2
+[64583][DBG] P2 target pos px=(45,224) f=4
+[64650][DBG] P2 target pos px=(58,224) f=4
+[64733][DBG] P2 target pos px=(64,224) f=4
+[65116][DBG] P0 target pos px=(32,32) f=2
+[65150][DBG] TX pos P1 px=(224,64) f=2
+[66050][INF] Keys: [00000000 00000000 00000000 00000040]
+[66050][DBG] P1 move px=(224,64)->(224,54) grid=(7,2)
+[66050][DBG] TX pos P1 px=(224,54) f=1
+[66083][DBG] P1 move px=(224,54)->(224,48) grid=(7,2)
+[66116][DBG] P1 move px=(224,48)->(224,43) grid=(7,1)
+[66116][DBG] TX pos P1 px=(224,43) f=1
+[66150][DBG] P1 move px=(224,43)->(224,38) grid=(7,1)
+[66183][DBG] P1 move px=(224,38)->(224,32) grid=(7,1)
+[66183][DBG] TX pos P1 px=(224,32) f=1
+[66366][DBG] P1 move px=(224,32)->(219,32) grid=(7,1)
+[66366][DBG] TX pos P1 px=(219,32) f=3
+[66400][DBG] P1 move px=(219,32)->(214,32) grid=(7,1)
+[66433][DBG] P1 move px=(214,32)->(208,32) grid=(7,1)
+[66433][DBG] TX pos P1 px=(208,32) f=3
+[66466][DBG] P1 move px=(208,32)->(203,32) grid=(6,1)
+[66500][DBG] P1 move px=(203,32)->(198,32) grid=(6,1)
+[66500][DBG] TX pos P1 px=(198,32) f=3
+[66533][DBG] P1 move px=(198,32)->(192,32) grid=(6,1)
+[66616][DBG] P1 move px=(192,32)->(179,32) grid=(6,1)
+[66616][DBG] TX pos P1 px=(179,32) f=3
+[66650][DBG] P1 move px=(179,32)->(174,32) grid=(5,1)
+[66683][DBG] P1 move px=(174,32)->(168,32) grid=(5,1)
+[66683][DBG] TX pos P1 px=(168,32) f=3
+[66716][DBG] P1 move px=(168,32)->(163,32) grid=(5,1)
+[66750][DBG] P1 move px=(163,32)->(158,32) grid=(5,1)
+[66750][DBG] TX pos P1 px=(158,32) f=3
+[66783][DBG] P1 move px=(158,32)->(152,32) grid=(5,1)
+[66816][DBG] P1 move px=(152,32)->(147,32) grid=(5,1)
+[66816][DBG] TX pos P1 px=(147,32) f=3
+[66833][DBG] P2 target pos px=(64,224) f=4
+[66916][DBG] P1 move px=(147,32)->(131,32) grid=(4,1)
+[66916][DBG] TX pos P1 px=(131,32) f=3
+[66950][DBG] P1 move px=(131,32)->(128,32) grid=(4,1)
+[66983][DBG] TX pos P1 px=(128,32) f=3
+[67050][INF] Bomb exploding at (1,5) range=1 owner=P2 local
+[67050][DBG] Block destroyed at (1,4)
+[67050][INF] TX block destroyed (1,4)
+[67050][DBG] Block destroyed at (2,5)
+[67066][INF] TX block destroyed (2,5)
+[67066][INF] TX bomb explode (1,5) range=1
+[67066][INF] RebuildBackground
+[67133][INF] RX block destroyed (1,4)
+[67133][INF] RX block destroyed (2,5)
+[67133][INF] RebuildBackground
+[67200][INF] RX bomb explode (1,5)
+[67466][DBG] P0 target pos px=(32,32) f=2
+[67583][DBG] Bomb placed at (4,1) by P1
+[67583][INF] TX bomb placed (4,1) range=1
+[67716][DBG] P1 move px=(128,32)->(133,32) grid=(4,1)
+[67716][DBG] TX pos P1 px=(133,32) f=4
+[67750][DBG] P1 move px=(133,32)->(138,32) grid=(4,1)
+[67783][DBG] P1 move px=(138,32)->(144,32) grid=(5,1)
+[67783][DBG] TX pos P1 px=(144,32) f=4
+[67816][DBG] P1 move px=(144,32)->(149,32) grid=(5,1)
+[67850][DBG] TX pos P1 px=(149,32) f=2
+[68050][INF] Keys: [00000000 00000000 00000000 00000020]
+[68316][DBG] P1 move px=(149,32)->(154,32) grid=(5,1)
+[68316][DBG] TX pos P1 px=(154,32) f=4
+[68350][DBG] P1 move px=(154,32)->(159,32) grid=(5,1)
+[68383][DBG] P1 cleared pass-through bomb 0
+[68383][DBG] P1 move px=(159,32)->(165,32) grid=(5,1)
+[68383][DBG] TX pos P1 px=(165,32) f=4
+[68416][DBG] P1 move px=(165,32)->(170,32) grid=(5,1)
+[68450][DBG] TX pos P1 px=(170,32) f=2
+[68633][DBG] P1 move px=(170,32)->(160,45) grid=(5,1)
+[68633][DBG] TX pos P1 px=(160,45) f=2
+[68666][DBG] P1 move px=(160,45)->(160,51) grid=(5,2)
+[68700][DBG] P1 move px=(160,51)->(160,56) grid=(5,2)
+[68700][DBG] TX pos P1 px=(160,56) f=2
+[68766][DBG] TX pos P1 px=(160,56) f=4
+[69183][DBG] P1 move px=(160,56)->(160,61) grid=(5,2)
+[69183][DBG] TX pos P1 px=(160,61) f=2
+[69200][DBG] P2 target pos px=(64,224) f=4
+[69216][DBG] P1 move px=(160,61)->(160,64) grid=(5,2)
+[69250][DBG] TX pos P1 px=(160,64) f=2
+[70183][DBG] P0 target pos px=(32,32) f=2
+[70566][INF] Bomb exploding at (4,1) range=1 owner=P1 local
+[70566][DBG] Block destroyed at (3,1)
+[70566][INF] TX block destroyed (3,1)
+[70566][INF] TX bomb explode (4,1) range=1
+[70583][INF] RebuildBackground
+[70683][DBG] P2 target pos px=(46,224) f=3
+[70883][DBG] P2 target pos px=(46,224) f=1
+[70966][DBG] P2 target pos px=(36,224) f=3
+[71050][DBG] P2 target pos px=(32,211) f=1
+[71200][DBG] P2 target pos px=(32,187) f=1
+[71266][DBG] TX pos P1 px=(160,64) f=2
+[71283][DBG] P2 target pos px=(32,174) f=1
+[71416][DBG] P2 target pos px=(32,163) f=1
+[71416][DBG] P2 target pos px=(32,152) f=1
+[71500][DBG] P2 target pos px=(32,139) f=1
+[71566][DBG] P2 target pos px=(32,128) f=1
+[71966][DBG] P2 target pos px=(32,138) f=2
+[72083][INF] RX bomb placed P2 (1,5) range=1
+[72083][DBG] Bomb placed at (1,5) by P2
+[72150][DBG] P2 target pos px=(32,165) f=2
+[72200][DBG] P2 target pos px=(42,160) f=4
+[72366][DBG] P2 target pos px=(56,160) f=4
+[72366][DBG] P2 target pos px=(64,160) f=4
+[72933][DBG] P0 target pos px=(32,32) f=2
+[72933][DBG] P2 target pos px=(64,160) f=3
+[73316][DBG] TX pos P1 px=(160,64) f=2
+[73816][INF] Keys: [00000000 00000000 00000000 00000040]
+[73833][DBG] P1 move px=(160,64)->(160,59) grid=(5,2)
+[73833][DBG] TX pos P1 px=(160,59) f=1
+[73866][DBG] P1 move px=(160,59)->(160,54) grid=(5,2)
+[73900][DBG] P1 move px=(160,54)->(160,48) grid=(5,2)
+[73900][DBG] TX pos P1 px=(160,48) f=1
+[73933][DBG] P1 move px=(160,48)->(160,43) grid=(5,1)
+[73966][DBG] P1 move px=(160,43)->(160,38) grid=(5,1)
+[73966][DBG] TX pos P1 px=(160,38) f=1
+[74000][DBG] P1 move px=(160,38)->(160,32) grid=(5,1)
+[74100][DBG] TX pos P1 px=(160,32) f=1
+[74166][DBG] P1 move px=(160,32)->(155,32) grid=(5,1)
+[74166][DBG] TX pos P1 px=(155,32) f=3
+[74200][DBG] P1 move px=(155,32)->(150,32) grid=(5,1)
+[74233][DBG] P1 move px=(150,32)->(144,32) grid=(5,1)
+[74233][DBG] TX pos P1 px=(144,32) f=3
+[74266][DBG] P1 move px=(144,32)->(139,32) grid=(4,1)
+[74300][DBG] P1 move px=(139,32)->(134,32) grid=(4,1)
+[74300][DBG] TX pos P1 px=(134,32) f=3
+[74333][DBG] P1 move px=(134,32)->(128,32) grid=(4,1)
+[74366][DBG] P1 move px=(128,32)->(123,32) grid=(4,1)
+[74366][DBG] TX pos P1 px=(123,32) f=3
+[74400][DBG] P1 move px=(123,32)->(118,32) grid=(4,1)
+[74483][DBG] P1 move px=(118,32)->(104,32) grid=(3,1)
+[74483][DBG] TX pos P1 px=(104,32) f=3
+[74516][DBG] P1 move px=(104,32)->(99,32) grid=(3,1)
+[74550][DBG] P1 move px=(99,32)->(94,32) grid=(3,1)
+[74550][DBG] TX pos P1 px=(94,32) f=3
+[74583][DBG] P1 move px=(94,32)->(88,32) grid=(3,1)
+[74616][DBG] TX pos P1 px=(88,32) f=3
+[74933][DBG] P2 target pos px=(64,160) f=3
+[74950][DBG] P0 target pos px=(32,32) f=2
+[74966][DBG] P1 move px=(88,32)->(83,32) grid=(3,1)
+[74966][DBG] TX pos P1 px=(83,32) f=3
+[75066][INF] RX bomb explode (1,5)
+[75066][DBG] Force-exploding bomb at (1,5) via network
+[75066][INF] Bomb exploding at (1,5) range=1 owner=P2 remote
+[75066][DBG] P1 move px=(83,32)->(67,32) grid=(2,1)
+[75083][DBG] TX pos P1 px=(67,32) f=3
+[75100][DBG] P1 move px=(67,32)->(62,32) grid=(2,1)
+[75116][INF] RX player killed P2 by P2
+[75133][DBG] TX pos P1 px=(62,32) f=3
+[76166][INF] P2 death animation complete
+[76500][INF] Keys: [00000000 00000200 00000000 00000000]
+[76516][DBG] Bomb placed at (2,1) by P1
+[76516][INF] TX bomb placed (2,1) range=1
+[76550][DBG] P1 move px=(62,32)->(67,32) grid=(2,1)
+[76550][DBG] TX pos P1 px=(67,32) f=4
+[76583][DBG] P1 move px=(67,32)->(72,32) grid=(2,1)
+[76616][DBG] P1 move px=(72,32)->(78,32) grid=(2,1)
+[76616][DBG] TX pos P1 px=(78,32) f=4
+[76650][DBG] P1 move px=(78,32)->(83,32) grid=(3,1)
+[76733][DBG] P1 cleared pass-through bomb 0
+[76733][DBG] P1 move px=(83,32)->(96,32) grid=(3,1)
+[76733][DBG] TX pos P1 px=(96,32) f=4
+[76766][DBG] P1 move px=(96,32)->(102,32) grid=(3,1)
+[76800][DBG] P1 move px=(102,32)->(107,32) grid=(3,1)
+[76800][DBG] TX pos P1 px=(107,32) f=4
+[76833][DBG] P1 move px=(107,32)->(112,32) grid=(4,1)
+[76866][DBG] P1 move px=(112,32)->(118,32) grid=(4,1)
+[76866][DBG] TX pos P1 px=(118,32) f=4
+[76900][DBG] P1 move px=(118,32)->(123,32) grid=(4,1)
+[76933][DBG] P1 move px=(123,32)->(128,32) grid=(4,1)
+[76933][DBG] TX pos P1 px=(128,32) f=4
+[76966][DBG] P1 move px=(128,32)->(134,32) grid=(4,1)
+[77000][DBG] P1 move px=(134,32)->(139,32) grid=(4,1)
+[77000][DBG] TX pos P1 px=(139,32) f=4
+[77033][DBG] P1 move px=(139,32)->(144,32) grid=(5,1)
+[77116][DBG] P1 move px=(144,32)->(158,32) grid=(5,1)
+[77116][DBG] TX pos P1 px=(158,32) f=4
+[77150][DBG] P1 move px=(158,32)->(163,32) grid=(5,1)
+[77150][DBG] P0 target pos px=(32,32) f=2
+[77183][DBG] P1 move px=(163,32)->(168,32) grid=(5,1)
+[77183][DBG] TX pos P1 px=(168,32) f=4
+[77216][DBG] P1 move px=(168,32)->(174,32) grid=(5,1)
+[77250][DBG] P1 move px=(174,32)->(179,32) grid=(6,1)
+[77250][DBG] TX pos P1 px=(179,32) f=4
+[77283][DBG] P1 move px=(179,32)->(184,32) grid=(6,1)
+[77316][DBG] P1 move px=(184,32)->(190,32) grid=(6,1)
+[77316][DBG] TX pos P1 px=(190,32) f=4
+[77416][DBG] P1 move px=(190,32)->(206,32) grid=(6,1)
+[77416][DBG] TX pos P1 px=(206,32) f=4
+[77450][DBG] P1 move px=(206,32)->(211,32) grid=(7,1)
+[77483][DBG] P1 move px=(211,32)->(216,32) grid=(7,1)
+[77483][DBG] TX pos P1 px=(216,32) f=4
+[77516][DBG] P1 move px=(216,32)->(222,32) grid=(7,1)
+[77550][DBG] P1 move px=(222,32)->(227,32) grid=(7,1)
+[77550][DBG] TX pos P1 px=(227,32) f=4
+[77583][DBG] P1 move px=(227,32)->(232,32) grid=(7,1)
+[77616][DBG] P1 move px=(232,32)->(238,32) grid=(7,1)
+[77616][DBG] TX pos P1 px=(238,32) f=4
+[78900][INF] Keys: [00000000 00000000 00000000 00000008]
+[78900][DBG] P1 move px=(238,32)->(233,32) grid=(7,1)
+[78900][DBG] TX pos P1 px=(233,32) f=3
+[78933][DBG] P1 move px=(233,32)->(228,32) grid=(7,1)
+[78966][DBG] P1 move px=(228,32)->(222,32) grid=(7,1)
+[78966][DBG] TX pos P1 px=(222,32) f=3
+[79000][DBG] P1 move px=(222,32)->(217,32) grid=(7,1)
+[79033][DBG] P1 move px=(217,32)->(212,32) grid=(7,1)
+[79033][DBG] TX pos P1 px=(212,32) f=3
+[79066][DBG] P1 move px=(212,32)->(206,32) grid=(6,1)
+[79150][DBG] P1 move px=(206,32)->(219,32) grid=(7,1)
+[79150][DBG] TX pos P1 px=(219,32) f=4
+[79183][DBG] P1 move px=(219,32)->(224,32) grid=(7,1)
+[79216][DBG] P1 move px=(224,32)->(230,32) grid=(7,1)
+[79216][DBG] TX pos P1 px=(230,32) f=4
+[79250][DBG] P1 move px=(230,32)->(235,32) grid=(7,1)
+[79283][DBG] P1 move px=(235,32)->(240,32) grid=(8,1)
+[79283][DBG] TX pos P1 px=(240,32) f=4
+[79316][DBG] P0 target pos px=(32,32) f=2
+[79516][DBG] P1 move px=(240,32)->(224,32) grid=(7,1)
+[79516][DBG] TX pos P1 px=(224,32) f=3
+[79516][INF] Bomb exploding at (2,1) range=1 owner=P1 local
+[79516][INF] TX bomb explode (2,1) range=1
+[79550][DBG] P1 move px=(224,32)->(219,32) grid=(7,1)
+[79550][INF] RX bomb explode (2,1)
+[79583][DBG] P1 move px=(219,32)->(214,32) grid=(7,1)
+[79583][DBG] TX pos P1 px=(214,32) f=3
+[79616][DBG] P1 move px=(214,32)->(208,32) grid=(7,1)
+[79650][DBG] P1 move px=(208,32)->(203,32) grid=(6,1)
+[79650][DBG] TX pos P1 px=(203,32) f=3
+[79750][DBG] P1 move px=(203,32)->(208,32) grid=(7,1)
+[79750][DBG] TX pos P1 px=(208,32) f=4
+[79783][DBG] P1 move px=(208,32)->(213,32) grid=(7,1)
+[79816][DBG] P1 move px=(213,32)->(219,32) grid=(7,1)
+[79816][DBG] TX pos P1 px=(219,32) f=4
+[79833][INF] RX player killed P0 by P1
+[79850][DBG] P1 move px=(219,32)->(224,32) grid=(7,1)
+[79883][DBG] P1 move px=(224,32)->(229,32) grid=(7,1)
+[79883][DBG] TX pos P1 px=(229,32) f=4
+[79916][DBG] P1 move px=(229,32)->(235,32) grid=(7,1)
+[79950][DBG] P1 move px=(235,32)->(240,32) grid=(8,1)
+[79950][DBG] TX pos P1 px=(240,32) f=4
+[80066][DBG] P1 move px=(240,32)->(235,32) grid=(7,1)
+[80066][DBG] TX pos P1 px=(235,32) f=3
+[80100][DBG] P1 move px=(235,32)->(230,32) grid=(7,1)
+[80133][DBG] P1 move px=(230,32)->(224,32) grid=(7,1)
+[80133][DBG] TX pos P1 px=(224,32) f=3
+[80166][DBG] P1 move px=(224,32)->(219,32) grid=(7,1)
+[80200][DBG] P1 move px=(219,32)->(214,32) grid=(7,1)
+[80200][DBG] TX pos P1 px=(214,32) f=3
+[80233][DBG] P1 move px=(214,32)->(208,32) grid=(7,1)
+[80316][DBG] TX pos P1 px=(208,32) f=3
+[80816][INF] P0 death animation complete
+[80816][INF] Game over! Winner: 1 (alive=1 dying=0)
+[80816][INF]   P0: active=1 alive=0 death=0
+[80816][INF]   P1: active=1 alive=1 death=0
+[80816][INF]   P2: active=1 alive=0 death=-4
+[80833][INF] TX game over: winner=1
+[80833][INF] Discovery broadcasting stopped (still listening)
+[80833][INF] Peer BomberTalk disconnected (reason: 0)
+[80833][INF] Disconnected from: BomberTalk (reason=0, screen=3)
+[80850][INF] Peer BomberTalk disconnected (reason: 0)
+[80850][INF] Disconnected from: BomberTalk (reason=0, screen=3)
+[80850][INF] Disconnected all peers (2)
+[80850][INF] Screen transition: GAME -> LOBBY
+[80850][INF] TCP listener active on port 7354
+[80866][INF] Discovery started
+[80866][INF] Discovery started
+[80866][INF] Lobby entered, discovery started
+[81066][INF] Re-discovered disconnected peer: BomberTalk
+[81083][INF] Peer discovered: BomberTalk (10.188.1.213)
+[82050][INF] Re-discovered disconnected peer: BomberTalk
+[82050][INF] Peer discovered: BomberTalk (10.188.1.55)
+[85950][INF] Keys: [00000000 00008000 00000000 00000000]
+[86216][INF] Shutting down
+[86233][INF] Discovery broadcasting stopped (still listening)
+[86283][INF] PeerTalk shutdown complete
