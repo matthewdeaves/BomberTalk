@@ -138,13 +138,13 @@ Thin wrapper around PeerTalk SDK. All network I/O is callback-driven via `PT_Pol
 
 - **Discovery**: UDP broadcast, peers appear in lobby
 - **Connection**: TCP mesh — any player can initiate, tiebreaker handles simultaneous connects
-- **Player IDs**: Deterministic IP-sort (lowest IP = player 0). No host concept.
+- **Player IDs**: Deterministic via `PT_GetPeerRank()` (lowest IP = rank 0). No host concept.
 - **Messages**: 7 types registered at init. `PT_FAST` (UDP) for positions, `PT_RELIABLE` (TCP) for game events.
 - **TCP Keepalive**: PeerTalk sends automatic keepalive frames (type 254) every 20s to prevent TCP timeout during gameplay. Positions go via UDP, so without keepalive the TCP connection starves if no game events (bombs, kills) happen for 60s.
 - **MsgPosition v4**: 8 bytes — `{playerID: u8, facing: u8, pixelX: short, pixelY: short, pad: u8[2]}`. Coords are tile-independent fixed-point (256 units = 1 tile), not raw pixels. Sent via PT_FAST every frame the player moves. Remote machines convert to local pixel space and set interpolation targets.
 - **Protocol Version**: `BT_PROTOCOL_VERSION 4` sent in MSG_GAME_START. Receivers reject mismatches and show warning in lobby. v3 sent raw pixel coords (broken across different tile sizes). Old v1.0-alpha clients send version 0 (the old `pad` byte).
 - **Winner ID Validation**: MSG_GAME_OVER `winnerID` is bounds-checked against MAX_PLAYERS. Values >= MAX_PLAYERS (including 0xFF for draw) treated as no winner.
-- **Logging**: `CLOG_LVL_DBG` level (Mac SE: `CLOG_LVL_INFO` to reduce File Manager overhead). All game events instrumented. UDP-broadcast to port 7356 (NOT 7355 — sharing PeerTalk's message UDP port floods MacTCP's 2KB receive buffer). Receive with `socat UDP-RECV:7356 -`. Mac SE has UDP log sink disabled (MacTCP send too slow).
+- **Logging**: `CLOG_LVL_DBG` level (Mac SE: `CLOG_LVL_INFO` to reduce File Manager overhead). All game events instrumented. Debug output via PeerTalk's debug broadcast channel (`PT_EnableDebugBroadcast`, port 7356). clog's network sink is wired to `PT_DebugSend()` via a 3-line bridge — PeerTalk handles prefixing and UDP broadcast. Receive with `socat -u UDP-RECV:7356,reuseaddr -`.
 
 ### Global State (`game.h`)
 
@@ -218,6 +218,7 @@ Six classic Mac game programming books in `books/` — consult before implementi
 - C89/C90 (Retro68 cross-compiler) + PeerTalk SDK (commit 7e89304), clog (commit e8d5da9), Retro68/RetroPPC toolchains, Classic Mac Toolbox (QuickDraw) (004-smooth-movement)
 
 ## Recent Changes
+- v1.3.0: Migrated to PeerTalk SDK v1.9.0. Player ID assignment now uses `PT_GetPeerRank()` instead of app-level IP parsing/sorting (~80 lines removed from net.c). Debug logging now uses PeerTalk's debug broadcast channel (`PT_EnableDebugBroadcast`/`PT_DebugSend`) instead of manual UDP log sink — PeerTalk owns the network pipe, clog stays file-only. 3-line bridge wires clog into the debug channel.
 - 004-smooth-movement: Pixel-authoritative positions replace grid-locked movement. Fractional accumulator for resolution-independent speed. AABB collision with tilemap (axis-separated) and explosions (overlap = death). Bomb walk-off via passThroughBombIdx. Corner sliding. MsgPosition v4 with tile-independent network coords (256 units/tile) — fixes false kills and crashes when SE (16px) and PPC (32px) play together. Remote interpolation. Disconnect dirty rect fix. BOMBERTALK_DEBUG CMake toggle. Mac SE clog UDP sink disabled (MacTCP send too slow). All CLOG_STRIP-safe.
 - Input responsiveness + TCP keepalive: Movement cooldown falls through on expiry instead of wasting a frame (critical at Mac SE 3-10fps). Direction input checks both held keys and accumulated edges to catch quick taps between frames. PeerTalk TCP keepalive (type 254, 20s interval) prevents connection timeout during gameplay — positions go via UDP, so TCP starved if no game events for 60s.
 - 003-optimize-correctness: ForeColor/BackColor normalization on all platforms (not just Mac SE) for faster CopyBits. Deferred background rebuild via Renderer_RequestRebuildBackground() batching multiple block-destroys to one rebuild per frame. TileMap_Reset() for round restarts without Resource Manager calls. Spatial bomb grid (gBombGrid) for O(1) Bomb_ExistsAt(). Peer pointer NULLed on disconnect.

@@ -35,7 +35,7 @@ Read the full write-up: [BomberTalk Alpha](https://matthewdeaves.com/blog/2026-0
 - Deterministic player ID assignment (IP-sort)
 - PICT sprite graphics with colored-rectangle fallback
 - 1-bit monochrome rendering path for Mac SE
-- Remote log monitoring via UDP broadcast (port 7355)
+- Remote log monitoring via PeerTalk debug broadcast (port 7356)
 
 ## Prerequisites
 
@@ -65,10 +65,10 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE=$RETRO68_TOOLCHAIN/powerpc-apple-macos/cmake/ret
 
 ## Remote Log Monitoring
 
-All three Macs broadcast clog messages via UDP at DEBUG level — player movement, bomb events, network TX/RX, and screen transitions are all instrumented. Receive on any machine on the LAN:
+All three Macs broadcast debug messages via PeerTalk's debug broadcast channel (port 7356). Player movement, bomb events, network TX/RX, and screen transitions are all instrumented. Receive on any machine on the LAN:
 
 ```bash
-socat UDP-RECV:7355 -
+socat -u UDP-RECV:7356,reuseaddr -
 ```
 
 ## Project Structure

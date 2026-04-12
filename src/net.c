@@ -252,34 +252,14 @@ static void on_game_over(PT_Peer *peer, const void *data, size_t len,
     gGame.gameOverTimeout = 180; /* 3 second safety timeout */
 }
 
-/* ---- UDP Log Broadcast ---- */
+/* ---- Debug Broadcast (via PeerTalk debug channel) ---- */
 
 #ifndef CLOG_STRIP
-/* Use a separate port from PT_UDP_MSG_PORT (7355) for clog broadcasts.
- * Sharing port 7355 causes clog flood to starve game position messages
- * in MacTCP's small (2KB) single-read UDP receive buffer. */
-#define CLOG_UDP_PORT 7356
-
-static char gLogPrefix[20];
-static int  gLogPrefixLen = 0;
-
-static void udp_log_sink(const char *msg, int len, void *user_data)
+/* Bridge clog output into PeerTalk's debug broadcast channel.
+ * PeerTalk handles prefixing and UDP broadcast; clog stays file-only. */
+static void log_to_debug(const char *msg, int len, void *user_data)
 {
-    static char udp_buf[220];
-    int total;
-
-    (void)user_data;
-    if (!gPTCtx || len <= 0) return;
-
-    /* Prefix with IP, add newline */
-    memcpy(udp_buf, gLogPrefix, (size_t)gLogPrefixLen);
-    total = gLogPrefixLen;
-    if (total + len > 216) len = 216 - total;
-    memcpy(udp_buf + total, msg, (size_t)len);
-    total += len;
-    udp_buf[total++] = '\n';
-
-    PT_SendUDPBroadcast(gPTCtx, CLOG_UDP_PORT, udp_buf, (size_t)total);
+    PT_DebugSend((PT_Context *)user_data, msg, (size_t)len);
 }
 #endif
 
@@ -296,19 +276,8 @@ void Net_Init(const char *playerName)
     }
 
 #ifndef CLOG_STRIP
-    {
-        const char *lip = PT_LocalAddress(gPTCtx);
-        const char *s = lip;
-        int i = 0;
-        gLogPrefix[i++] = '[';
-        while (*s && i < 17) {
-            gLogPrefix[i++] = *s++;
-        }
-        gLogPrefix[i++] = ']';
-        gLogPrefix[i++] = ' ';
-        gLogPrefixLen = i;
-        clog_set_network_sink(udp_log_sink, NULL);
-    }
+    PT_EnableDebugBroadcast(gPTCtx, 0);
+    clog_set_network_sink(log_to_debug, gPTCtx);
 #endif
 
     /* Register message types */
@@ -570,106 +539,38 @@ void Net_ResetVersionMismatch(void)
 }
 
 /*
- * ip_to_ulong -- Convert dotted-quad string to unsigned long for comparison
- *
- * Returns 0 on invalid input. Result is a comparable value (NOT network order).
- */
-static unsigned long ip_to_ulong(const char *ip)
-{
-    unsigned long result = 0;
-    unsigned long octet = 0;
-    int dots = 0;
-
-    if (!ip || !*ip) return 0;
-
-    while (*ip) {
-        if (*ip >= '0' && *ip <= '9') {
-            octet = octet * 10 + (unsigned long)(*ip - '0');
-        } else if (*ip == '.') {
-            result = (result << 8) | (octet & 0xFF);
-            octet = 0;
-            dots++;
-        } else {
-            return 0;
-        }
-        ip++;
-    }
-    result = (result << 8) | (octet & 0xFF);
-
-    if (dots != 3) return 0;
-    return result;
-}
-
-/*
  * Net_ComputeLocalPlayerID -- Assign player IDs by sorting IP addresses
  *
- * All connected peer IPs + local IP sorted ascending.
- * Lowest IP = player 0. This is deterministic across all clients.
+ * Uses PT_GetPeerRank() for deterministic IP-sort ranking.
+ * Lowest IP = player 0. Identical result across all clients.
  * Source: contracts/network-protocol.md
  */
 short Net_ComputeLocalPlayerID(void)
 {
     int count, i;
     PT_Peer *peer;
-    short localID = 0;
-    unsigned long localIP;
-    const char *localAddr;
-
-    /* Collected connected peers (max MAX_PLAYERS-1 peers + local) */
-    PT_Peer *connPeers[MAX_PLAYERS];
-    unsigned long connIPs[MAX_PLAYERS];
-    int numConn = 0;
+    short localID;
 
     if (!gPTCtx) return 0;
 
-    localAddr = PT_LocalAddress(gPTCtx);
-    localIP = ip_to_ulong(localAddr);
-
-    CLOG_INFO("Local IP: %s (0x%08lX)", localAddr, localIP);
-
-    /* Gather connected peers and their IPs */
-    count = PT_GetPeerCount(gPTCtx);
-    for (i = 0; i < count && numConn < MAX_PLAYERS - 1; i++) {
-        peer = PT_GetPeer(gPTCtx, i);
-        if (peer && PT_GetPeerState(peer) == PT_PEER_CONNECTED) {
-            connPeers[numConn] = peer;
-            connIPs[numConn] = ip_to_ulong(PT_PeerAddress(peer));
-            CLOG_INFO("Peer %d IP: %s (0x%08lX)",
-                      numConn, PT_PeerAddress(peer), connIPs[numConn]);
-            numConn++;
-        }
-    }
-
-    /* Count how many connected peers have a lower IP than us */
-    localID = 0;
-    for (i = 0; i < numConn; i++) {
-        if (connIPs[i] < localIP) {
-            localID++;
-        }
-    }
-
-    CLOG_INFO("Player ID assignment: local=%d (of %d total)",
-              localID, numConn + 1);
+    localID = (short)PT_GetPeerRank(gPTCtx, NULL);
+    CLOG_INFO("Local IP: %s -> player %d",
+              PT_LocalAddress(gPTCtx), localID);
 
     /* Assign peer pointers to player slots */
-    for (i = 0; i < numConn; i++) {
-        /* Peer's player ID: count how many IPs are below this peer's IP */
-        short pid = 0;
-        int j;
-        /* Count local IP if below this peer */
-        if (localIP < connIPs[i]) pid++;
-        /* Count other peers below this one */
-        for (j = 0; j < numConn; j++) {
-            if (j != i && connIPs[j] < connIPs[i]) pid++;
-        }
-
-        if (pid < MAX_PLAYERS) {
-            gGame.players[pid].peer = connPeers[i];
-            gGame.players[pid].active = TRUE;
-            strncpy(gGame.players[pid].name, PT_PeerName(connPeers[i]), 31);
-            gGame.players[pid].name[31] = '\0';
-            CLOG_INFO("Peer %s -> player %d",
-                      PT_PeerAddress(connPeers[i]), pid);
+    count = PT_GetPeerCount(gPTCtx);
+    for (i = 0; i < count; i++) {
+        peer = PT_GetPeer(gPTCtx, i);
+        if (peer && PT_GetPeerState(peer) == PT_PEER_CONNECTED) {
+            int pid = PT_GetPeerRank(gPTCtx, peer);
+            if (pid >= 0 && pid < MAX_PLAYERS) {
+                gGame.players[pid].peer = peer;
+                gGame.players[pid].active = TRUE;
+                strncpy(gGame.players[pid].name, PT_PeerName(peer), 31);
+                gGame.players[pid].name[31] = '\0';
+                CLOG_INFO("Peer %s -> player %d",
+                          PT_PeerAddress(peer), pid);
+            }
         }
     }
 
