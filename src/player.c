@@ -32,7 +32,7 @@ static void DeriveGrid(Player *p)
 
 void Player_GetHitbox(short playerID, Rect *outRect)
 {
-    Player *p;
+    const Player *p;
     short inset;
     short ts = gGame.tileSize;
 
@@ -50,7 +50,7 @@ void Player_GetHitbox(short playerID, Rect *outRect)
 
 void Player_MarkDirtyTiles(short playerID)
 {
-    Player *p;
+    const Player *p;
     short ts = gGame.tileSize;
     short minCol, maxCol, minRow, maxRow;
     short c, r;
@@ -133,13 +133,13 @@ void Player_SetPosition(short playerID, short pixelX, short pixelY, short facing
  * CheckTileSolid -- Returns TRUE if tile at (col,row) is solid for this player.
  * Handles bomb pass-through: skip the bomb the player is walking off of.
  */
-static int CheckTileSolid(Player *p, short col, short row)
+static int CheckTileSolid(const Player *p, short col, short row)
 {
     if (TileMap_IsSolid(col, row)) return TRUE;
     if (Bomb_ExistsAt(col, row)) {
         /* Check pass-through */
         if (p->passThroughBombIdx >= 0 && p->passThroughBombIdx < MAX_BOMBS) {
-            Bomb *passB = &gGame.bombs[p->passThroughBombIdx];
+            const Bomb *passB = &gGame.bombs[p->passThroughBombIdx];
             if (passB->active && passB->gridCol == col && passB->gridRow == row) {
                 return FALSE; /* pass-through bomb */
             }
@@ -335,7 +335,7 @@ static void InterpolateRemote(Player *p)
 static void UpdatePassThrough(Player *p)
 {
     short ts = gGame.tileSize;
-    Bomb *b;
+    const Bomb *b;
     short bLeft, bTop, bRight, bBottom;
     short hLeft, hTop, hRight, hBottom;
 

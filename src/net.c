@@ -86,7 +86,6 @@ static void on_position(PT_Peer *peer, const void *data, size_t len,
                         void *user_data)
 {
     MsgPosition msg;
-    Player *p;
     short localPX, localPY;
     short ts = gGame.tileSize;
     (void)peer;
@@ -100,8 +99,6 @@ static void on_position(PT_Peer *peer, const void *data, size_t len,
     if (msg.playerID < MAX_PLAYERS &&
         msg.playerID < (unsigned char)gGame.numPlayers &&
         msg.playerID != (unsigned char)gGame.localPlayerID) {
-        p = &gGame.players[msg.playerID];
-
         /* Convert tile-independent network coords back to local pixel coords.
          * Network coords use 256 units per tile, so multiply by local tileSize
          * and divide by 256 to get pixel position in our coordinate space. */
@@ -474,7 +471,7 @@ void Net_SendGameOver(unsigned char winnerID)
 int Net_GetDiscoveredPeerCount(void)
 {
     int count, i, discovered;
-    PT_Peer *peer;
+    const PT_Peer *peer;
 
     if (!gPTCtx) return 0;
 

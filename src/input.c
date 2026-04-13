@@ -88,7 +88,7 @@ void Input_ConsumeFrame(void)
  */
 int Input_IsKeyDown(unsigned char keyCode)
 {
-    unsigned char *keys = (unsigned char *)gCurrentKeys;
+    const unsigned char *keys = (const unsigned char *)gCurrentKeys;
     return (keys[keyCode >> 3] >> (keyCode & 7)) & 1;
 }
 
@@ -101,7 +101,7 @@ int Input_IsKeyDown(unsigned char keyCode)
  */
 int Input_WasKeyPressed(unsigned char keyCode)
 {
-    unsigned char *accum = (unsigned char *)gAccumEdges;
+    const unsigned char *accum = (const unsigned char *)gAccumEdges;
     unsigned char byteIdx = keyCode >> 3;
     unsigned char bitMask = 1 << (keyCode & 7);
 
