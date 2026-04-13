@@ -98,6 +98,7 @@ static void on_position(PT_Peer *peer, const void *data, size_t len,
     memcpy(&msg, data, sizeof(MsgPosition));
 
     if (msg.playerID < MAX_PLAYERS &&
+        msg.playerID < (unsigned char)gGame.numPlayers &&
         msg.playerID != (unsigned char)gGame.localPlayerID) {
         p = &gGame.players[msg.playerID];
 
@@ -135,6 +136,8 @@ static void on_bomb_placed(PT_Peer *peer, const void *data, size_t len,
 
     if (len < sizeof(MsgBombPlaced)) return;
     msg = (const MsgBombPlaced *)data;
+
+    if (msg->playerID >= (unsigned char)gGame.numPlayers) return;
 
     CLOG_INFO("RX bomb placed P%d (%d,%d) range=%d",
               msg->playerID, msg->gridCol, msg->gridRow, msg->range);
@@ -185,7 +188,8 @@ static void on_player_killed(PT_Peer *peer, const void *data, size_t len,
     if (len < sizeof(MsgPlayerKilled)) return;
     msg = (const MsgPlayerKilled *)data;
 
-    if (msg->playerID < MAX_PLAYERS) {
+    if (msg->playerID < MAX_PLAYERS &&
+        msg->playerID < (unsigned char)gGame.numPlayers) {
         gGame.players[msg->playerID].deathTimer = DEATH_FLASH_TICKS;
         CLOG_INFO("RX player killed P%d by P%d", msg->playerID, msg->killerID);
     }
@@ -335,7 +339,6 @@ void Net_StartDiscovery(void)
 {
     if (gPTCtx) {
         PT_StartDiscovery(gPTCtx);
-        CLOG_INFO("Discovery started");
     }
 }
 

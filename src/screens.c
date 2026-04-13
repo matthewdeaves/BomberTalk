@@ -6,6 +6,7 @@
  */
 
 #include "screens.h"
+#include "input.h"
 #include <clog.h>
 
 void Screens_Init(void)
@@ -23,6 +24,11 @@ void Screens_TransitionTo(ScreenState newScreen)
     CLOG_INFO("Screen transition: %s -> %s",
               gScreenNames[gGame.currentScreen], gScreenNames[newScreen]);
     gGame.currentScreen = newScreen;
+
+    /* Flush stale key presses so the new screen starts clean.
+     * Without this, a Space held during gameplay triggers single-player
+     * mode immediately on lobby entry. */
+    Input_ConsumeFrame();
 
     switch (newScreen) {
     case SCREEN_LOADING:

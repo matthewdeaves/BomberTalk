@@ -55,7 +55,7 @@ void Lobby_Init(void)
 
     Net_ResetVersionMismatch();
     Net_StartDiscovery();
-    CLOG_INFO("Lobby entered, discovery started");
+    CLOG_INFO("Lobby entered");
 }
 
 static void enter_game(int numPlayers)
