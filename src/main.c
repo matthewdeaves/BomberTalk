@@ -337,7 +337,16 @@ int main(void)
     /* Shut down networking first: clears the clog UDP sink and tears
      * down MacTCP/OT streams before we free GWorlds and the window.
      * Prevents async MacTCP completions from referencing freed buffers
-     * after ExitToShell reclaims the app heap. */
+     * after ExitToShell reclaims the app heap.
+     *
+     * NOTE: We intentionally do NOT call Net_DisconnectAllPeers() here.
+     * That sends goodbye frames via synchronous TCP, which requires the
+     * remote side to ACK — per MacTCP guide: "the connection may remain
+     * an arbitrary amount of time after TCPClose."  If two players quit
+     * simultaneously, both block waiting for the other's ACK (deadlock).
+     * PT_Shutdown uses TCPAbort/OTSndDisconnect (abortive disconnect)
+     * which tears down immediately.  The game-over flow in screen_game.c
+     * uses the graceful path because the game loop is still running. */
     Net_Shutdown();
 
     /* Renderer_Shutdown redirects QuickDraw to the window before
