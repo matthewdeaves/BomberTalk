@@ -367,9 +367,16 @@ void Net_SendPosition(short pixelX, short pixelY, short facing)
 {
     MsgPosition msg;
     short ts = gGame.tileSize;
-    /* tileSize is always power of 2 (16 or 32): use shift instead of
-     * 32-bit division. 16: <<8/16 = <<4.  32: <<8/32 = <<3.
-     * Saves ~200 cycles per send on 68k (avoids __divsi3). */
+    /* Optimization: pixel * 256 / tileSize as a pure shift.
+     * tileSize is always power of 2 (16 or 32), set at startup from
+     * display capabilities — constrained by QuickDraw alignment, PICT
+     * resource sizes, and Mac SE memory.  If a third tile size is ever
+     * added, update this shift table (and verify it's power of 2).
+     * 16px: 256/16 = 16 = 1<<4.  32px: 256/32 = 8 = 1<<3.
+     * Saves ~200 cycles per send on 68k (avoids __divsi3 soft divide).
+     * Receive side (on_position) uses multiply+shift which works for
+     * any tile size — only the send path needs this optimization since
+     * it runs every frame the local player moves. */
     short shift = (ts == 16) ? 4 : 3;
     if (!gPTCtx) return;
 
