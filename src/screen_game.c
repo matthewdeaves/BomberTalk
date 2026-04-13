@@ -20,7 +20,6 @@ static short gLastSentFacing = -1;
 static long  gHeartbeatTimer = 0;
 static long  gPosSendTimer = 0;
 
-#define HEARTBEAT_TICKS   120  /* ~2 seconds: resend position even when idle */
 #define POS_SEND_INTERVAL   4  /* ticks between position sends (~15/sec max) */
 
 void Game_Init(void)

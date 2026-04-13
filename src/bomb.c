@@ -20,7 +20,6 @@ static unsigned char gBombGrid[MAX_GRID_ROWS][MAX_GRID_COLS];
 static const short kExplodeDCol[4] = {0, 0, -1, 1};
 static const short kExplodeDRow[4] = {-1, 1, 0, 0};
 
-#define EXPLOSION_DURATION_TICKS 20  /* ~0.33 sec at 60 ticks/sec */
 
 void Bomb_Init(void)
 {

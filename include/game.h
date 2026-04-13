@@ -64,9 +64,12 @@
 /* ---- Player / Bomb Limits ---- */
 #define MAX_PLAYERS     4
 #define MAX_BOMBS       16
-#define BOMB_FUSE_TICKS 180 /* 3 seconds at 60 ticks/sec */
-#define DEATH_FLASH_TICKS  60 /* ~1 second of flashing at 60 ticks/sec */
-#define DEATH_FLASH_RATE    8  /* toggle visibility every 8 ticks */
+#define BOMB_FUSE_TICKS             180 /* 3 seconds at 60 ticks/sec */
+#define EXPLOSION_DURATION_TICKS     20 /* ~0.33 sec at 60 ticks/sec */
+#define DEATH_FLASH_TICKS            60 /* ~1 second of flashing at 60 ticks/sec */
+#define DEATH_FLASH_RATE              8 /* toggle visibility every 8 ticks */
+#define GAME_OVER_TIMEOUT_TICKS     180 /* 3 second safety timeout for pending game over */
+#define HEARTBEAT_TICKS             120 /* ~2 seconds: resend position even when idle */
 
 /* ---- Resource IDs ---- */
 #define rMenuApple      128

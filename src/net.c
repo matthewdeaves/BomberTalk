@@ -244,7 +244,7 @@ static void on_game_over(PT_Peer *peer, const void *data, size_t len,
      * Game_Update will handle the actual transition. */
     gGame.pendingGameOver = TRUE;
     gGame.pendingWinner = msg->winnerID;
-    gGame.gameOverTimeout = 180; /* 3 second safety timeout */
+    gGame.gameOverTimeout = GAME_OVER_TIMEOUT_TICKS;
 }
 
 /* ---- Debug Broadcast (via PeerTalk debug channel) ---- */
