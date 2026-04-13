@@ -122,6 +122,7 @@ static void on_bomb_placed(PT_Peer *peer, const void *data, size_t len,
     (void)peer;
     (void)user_data;
 
+    if (gGame.currentScreen != SCREEN_GAME) return;
     if (len < sizeof(MsgBombPlaced)) return;
     msg = (const MsgBombPlaced *)data;
 
@@ -141,6 +142,7 @@ static void on_bomb_explode(PT_Peer *peer, const void *data, size_t len,
     (void)peer;
     (void)user_data;
 
+    if (gGame.currentScreen != SCREEN_GAME) return;
     if (len < sizeof(MsgBombExplode)) return;
     msg = (const MsgBombExplode *)data;
 
@@ -157,8 +159,14 @@ static void on_block_destroyed(PT_Peer *peer, const void *data, size_t len,
     (void)peer;
     (void)user_data;
 
+    if (gGame.currentScreen != SCREEN_GAME) return;
     if (len < sizeof(MsgBlockDestroyed)) return;
     msg = (const MsgBlockDestroyed *)data;
+
+    /* Skip if tile already destroyed (duplicate from near-simultaneous
+     * fuse expiry on multiple machines sending the same explosion) */
+    if (TileMap_GetTile((short)msg->gridCol, (short)msg->gridRow) == TILE_FLOOR)
+        return;
 
     CLOG_INFO("RX block destroyed (%d,%d)", msg->gridCol, msg->gridRow);
     TileMap_SetTile((short)msg->gridCol, (short)msg->gridRow, TILE_FLOOR);
@@ -173,6 +181,7 @@ static void on_player_killed(PT_Peer *peer, const void *data, size_t len,
     (void)peer;
     (void)user_data;
 
+    if (gGame.currentScreen != SCREEN_GAME) return;
     if (len < sizeof(MsgPlayerKilled)) return;
     msg = (const MsgPlayerKilled *)data;
 
