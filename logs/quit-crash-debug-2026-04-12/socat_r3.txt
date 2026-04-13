@@ -1,1 +1,0 @@
-2026/04/11 12:15:52 socat[1473551] W address is opened in read-write mode but only supports read-only
