@@ -211,13 +211,11 @@ Six classic Mac game programming books in `books/` — consult before implementi
 - **Macintosh Game Animation (1985)** — historical reference
 
 ## Active Technologies
-- C89/C90 (Retro68 cross-compiler) + PeerTalk SDK (latest, commit 7e89304), clog (latest, commit e8d5da9), Retro68/RetroPPC toolchains (002-perf-extensibility)
-- Classic Mac resource fork ('TMAP' resource type for map data) (002-perf-extensibility)
-- C89/C90 (Retro68 cross-compiler) + PeerTalk SDK, clog, Retro68/RetroPPC toolchains, Classic Mac Toolbox (QuickDraw, Resource Manager) (003-optimize-correctness)
-- Mac resource fork ('TMAP' resource type 128), static level data fallback (003-optimize-correctness)
-- C89/C90 (Retro68 cross-compiler) + PeerTalk SDK (commit 7e89304), clog (commit e8d5da9), Retro68/RetroPPC toolchains, Classic Mac Toolbox (QuickDraw) (004-smooth-movement)
+- C89/C90 (Retro68 cross-compiler) + PeerTalk SDK v1.11.0, clog v1.3.0, Retro68/RetroPPC toolchains
+- Classic Mac Toolbox (QuickDraw, Resource Manager), Mac resource fork ('TMAP' resource type 128)
 
 ## Recent Changes
+- v1.6.0: Guard gameplay message handlers (bomb placed/explode, block destroyed, player killed) with screen check — prevents processing game events during mesh formation in lobby on slow machines. Deduplicate block-destroy messages (skip if tile already TILE_FLOOR) — eliminates redundant RebuildBackground from near-simultaneous fuse expiry. Requires PeerTalk v1.11.0 (discovery v2 with UDP leave broadcast, OT listener fix).
 - v1.3.0: Migrated to PeerTalk SDK v1.9.0. Player ID assignment now uses `PT_GetPeerRank()` instead of app-level IP parsing/sorting (~80 lines removed from net.c). Debug logging now uses PeerTalk's debug broadcast channel (`PT_EnableDebugBroadcast`/`PT_DebugSend`) instead of manual UDP log sink — PeerTalk owns the network pipe, clog stays file-only. 3-line bridge wires clog into the debug channel.
 - 004-smooth-movement: Pixel-authoritative positions replace grid-locked movement. Fractional accumulator for resolution-independent speed. AABB collision with tilemap (axis-separated) and explosions (overlap = death). Bomb walk-off via passThroughBombIdx. Corner sliding. MsgPosition v4 with tile-independent network coords (256 units/tile) — fixes false kills and crashes when SE (16px) and PPC (32px) play together. Remote interpolation. Disconnect dirty rect fix. BOMBERTALK_DEBUG CMake toggle. Mac SE clog UDP sink disabled (MacTCP send too slow). All CLOG_STRIP-safe.
 - Input responsiveness + TCP keepalive: Movement cooldown falls through on expiry instead of wasting a frame (critical at Mac SE 3-10fps). Direction input checks both held keys and accumulated edges to catch quick taps between frames. PeerTalk TCP keepalive (type 254, 20s interval) prevents connection timeout during gameplay — positions go via UDP, so TCP starved if no game events for 60s.
