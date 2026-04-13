@@ -63,6 +63,7 @@
 
 /* ---- Player / Bomb Limits ---- */
 #define MAX_PLAYERS     4
+#define PLAYER_NAME_MAX 31  /* max chars in player name (matches PT_NAME_MAX) */
 #define MAX_BOMBS       16
 #define BOMB_FUSE_TICKS             180 /* 3 seconds at 60 ticks/sec */
 #define EXPLOSION_DURATION_TICKS     20 /* ~0.33 sec at 60 ticks/sec */
@@ -203,7 +204,7 @@ typedef struct {
     short       bombsAvailable;
     PlayerStats stats;
     unsigned char playerID;
-    char        name[32];
+    char        name[PLAYER_NAME_MAX + 1];
     void        *peer; /* PT_Peer* -- opaque to avoid header dep */
 } Player;
 

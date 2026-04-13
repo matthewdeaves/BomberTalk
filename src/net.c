@@ -567,8 +567,8 @@ short Net_ComputeLocalPlayerID(void)
             if (pid >= 0 && pid < MAX_PLAYERS) {
                 gGame.players[pid].peer = peer;
                 gGame.players[pid].active = TRUE;
-                strncpy(gGame.players[pid].name, PT_PeerName(peer), 31);
-                gGame.players[pid].name[31] = '\0';
+                strncpy(gGame.players[pid].name, PT_PeerName(peer), PLAYER_NAME_MAX);
+                gGame.players[pid].name[PLAYER_NAME_MAX] = '\0';
                 CLOG_INFO("Peer %s -> player %d",
                           PT_PeerAddress(peer), pid);
             }
