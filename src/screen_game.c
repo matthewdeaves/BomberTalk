@@ -69,6 +69,22 @@ void Game_Update(void)
         oldPY[i] = gGame.players[i].pixelY;
     }
 
+    /* Reactivate remote players that received position data while inactive.
+     * Handles transient disconnect/reconnect: net layer delivers coords to
+     * inactive player (setting targetPixelX/Y), detected here by target
+     * diverging from current position. */
+    for (i = 0; i < gGame.numPlayers; i++) {
+        if (i == gGame.localPlayerID) continue;
+        if (!gGame.players[i].active &&
+            (gGame.players[i].targetPixelX != gGame.players[i].pixelX ||
+             gGame.players[i].targetPixelY != gGame.players[i].pixelY)) {
+            gGame.players[i].active = TRUE;
+            gGame.players[i].alive = TRUE;
+            gGame.players[i].deathTimer = 0;
+            CLOG_INFO("P%d reactivated via network data", i);
+        }
+    }
+
     /* Update all players (local moves, remotes interpolate) */
     for (i = 0; i < MAX_PLAYERS; i++) {
         if (gGame.players[i].active) {

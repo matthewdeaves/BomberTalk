@@ -102,15 +102,6 @@ static void on_position(PT_Peer *peer, const void *data, size_t len,
         msg.playerID != (unsigned char)gGame.localPlayerID) {
         p = &gGame.players[msg.playerID];
 
-        /* Reactivate player if we receive position data from them.
-         * Handles transient disconnect/reconnect during gameplay. */
-        if (!p->active && gGame.currentScreen == SCREEN_GAME) {
-            p->active = TRUE;
-            p->alive = TRUE;
-            p->deathTimer = 0;
-            CLOG_INFO("P%d reactivated via position msg", msg.playerID);
-        }
-
         /* Convert tile-independent network coords back to local pixel coords.
          * Network coords use 256 units per tile, so multiply by local tileSize
          * and divide by 256 to get pixel position in our coordinate space. */
