@@ -242,23 +242,23 @@ static void SetPortWork(void)
         SetGWorld(gWorkBuffer, NULL);
 }
 
-static CGrafPtr gSavedPort = NULL;
-static GDHandle gSavedDevice = NULL;
+static CGrafPtr gSavedBuildPort = NULL;
+static GDHandle gSavedBuildDevice = NULL;
 
 static void SavePort(void)
 {
     if (gGame.isMacSE)
-        GetPort((GrafPtr *)&gSavedPort);
+        GetPort((GrafPtr *)&gSavedBuildPort);
     else
-        GetGWorld(&gSavedPort, &gSavedDevice);
+        GetGWorld(&gSavedBuildPort, &gSavedBuildDevice);
 }
 
 static void RestorePort(void)
 {
     if (gGame.isMacSE)
-        SetPort((GrafPtr)gSavedPort);
+        SetPort((GrafPtr)gSavedBuildPort);
     else
-        SetGWorld(gSavedPort, gSavedDevice);
+        SetGWorld(gSavedBuildPort, gSavedBuildDevice);
 }
 
 /* ==== PICT Loading (color Macs only) ==== */
