@@ -307,6 +307,9 @@ void Game_Draw(WindowPtr window)
     /* Copy background to work buffer */
     Renderer_BeginFrame();
 
+    /* Batch port save/restore for all sprite drawing (006-renderer-optimization) */
+    Renderer_BeginSpriteDraw();
+
     /* Draw bombs */
     for (i = 0; i < MAX_BOMBS; i++) {
         if (gGame.bombs[i].active) {
@@ -336,6 +339,8 @@ void Game_Draw(WindowPtr window)
                 gGame.players[i].facing);
         }
     }
+
+    Renderer_EndSpriteDraw();
 
     /* Blit to window */
     Renderer_EndFrame(window);

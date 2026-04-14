@@ -21,4 +21,11 @@ short TileMap_GetSpawnRow(short index);
 /* Access the global tilemap */
 TileMap *TileMap_Get(void);
 
+/*
+ * TILEMAP_TILE -- Direct array access, no bounds checking.
+ * Callers MUST validate col/row are in range before use.
+ * For hot-path inner loops only; use TileMap_GetTile() elsewhere.
+ */
+#define TILEMAP_TILE(map, col, row) ((map)->tiles[(row)][(col)])
+
 #endif /* TILEMAP_H */
