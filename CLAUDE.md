@@ -214,7 +214,7 @@ Six classic Mac game programming books in `books/` — consult before implementi
 - **Macintosh Game Animation (1985)** — historical reference
 
 ## Active Technologies
-- C89/C90 (Retro68 cross-compiler) + PeerTalk SDK v1.11.0, clog v1.3.0, Retro68/RetroPPC toolchains
+- C89/C90 (Retro68 cross-compiler) + PeerTalk SDK v1.11.2, clog v1.4.1, Retro68/RetroPPC toolchains
 - Classic Mac Toolbox (QuickDraw, Resource Manager), Mac resource fork ('TMAP' resource type 128)
 
 ## Recent Changes
