@@ -47,6 +47,10 @@ void Lobby_Init(void)
     gGame.pendingGameOver = FALSE;
     gGame.gameStartReceived = FALSE;
     gGame.gameOverTimeout = 0;
+    gGame.disconnectGraceTimer = 0;
+    gGame.meshStaggerTimer = 0;
+    gGame.localGameOverDetected = FALSE;
+    gGame.gameOverFailsafeTimer = 0;
 
     /* Clear stale peer pointers from previous game */
     for (i = 0; i < MAX_PLAYERS; i++) {
@@ -90,8 +94,20 @@ void Lobby_Update(void)
     /*
      * Waiting for full mesh: all players must be connected to each other.
      * Both the initiator and receivers end up here.
+     * Stagger: delay first connect by rank * MESH_STAGGER_PER_RANK (005).
      */
     if (gWaitingForMesh) {
+        /* Stagger delay: higher-rank peers wait longer before first connect */
+        if (gGame.meshStaggerTimer > 0) {
+            gGame.meshStaggerTimer -= gGame.deltaTicks;
+            if (gGame.meshStaggerTimer <= 0) {
+                gGame.meshStaggerTimer = 0;
+                CLOG_INFO("Mesh stagger complete, connecting");
+                Net_ConnectToAllPeers();
+            }
+            return;
+        }
+
         if (connectedCount >= expected - 1) {
             CLOG_INFO("Full mesh: %d connections for %d players",
                       connectedCount, expected);
@@ -120,13 +136,21 @@ void Lobby_Update(void)
 
     /*
      * Receiver: got MSG_GAME_START from another player.
-     * Connect to any unconnected peers and wait for full mesh.
+     * Stagger connect by rank to give slower machines time to prepare
+     * their TCP listener (005).
      */
     if (gGame.gameStartReceived && !gWaitingForMesh) {
-        CLOG_INFO("Game start received, waiting for mesh (%d expected)",
-                  expected);
+        short rank = Net_GetLocalRank();
+        short stagger = rank * MESH_STAGGER_PER_RANK;
+        CLOG_INFO("Game start received, mesh stagger: rank %d, delay %d ticks "
+                  "(%d expected)", rank, stagger, expected);
+        gGame.meshStaggerTimer = stagger;
         gWaitingForMesh = TRUE;
         gConnectStartTick = TickCount();
+        if (stagger == 0) {
+            /* Rank 0: connect immediately */
+            Net_ConnectToAllPeers();
+        }
         return;
     }
 

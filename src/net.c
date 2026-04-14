@@ -251,6 +251,10 @@ static void on_game_over(PT_Peer *peer, const void *data, size_t len,
     gGame.pendingGameOver = TRUE;
     gGame.pendingWinner = msg->winnerID;
     gGame.gameOverTimeout = GAME_OVER_TIMEOUT_TICKS;
+
+    /* Cancel failsafe timer if active — authority's message arrived (005) */
+    gGame.localGameOverDetected = FALSE;
+    gGame.gameOverFailsafeTimer = 0;
 }
 
 /* ---- Debug Broadcast (via PeerTalk debug channel) ---- */
@@ -533,6 +537,49 @@ int Net_GetConnectedPeerCount(void)
 short Net_GetExpectedPlayers(void)
 {
     return gExpectedPlayers;
+}
+
+/*
+ * Net_GetLocalRank -- Return local peer rank without side effects.
+ * Safe to call during mesh formation (does not assign peer pointers).
+ */
+short Net_GetLocalRank(void)
+{
+    if (!gPTCtx) return 0;
+    return (short)PT_GetPeerRank(gPTCtx, NULL);
+}
+
+/*
+ * Net_IsLowestRankConnected -- TRUE if local machine has the lowest
+ * rank among all currently connected peers.
+ * Used for game-over authority: only lowest rank sends MSG_GAME_OVER.
+ * Returns TRUE if no peers are connected (single player fallback).
+ */
+int Net_IsLowestRankConnected(void)
+{
+    int count, i;
+    short localRank, peerRank;
+    PT_Peer *peer;
+
+    if (!gPTCtx) return TRUE;
+
+    localRank = (short)PT_GetPeerRank(gPTCtx, NULL);
+
+    count = PT_GetPeerCount(gPTCtx);
+    for (i = 0; i < count; i++) {
+        peer = PT_GetPeer(gPTCtx, i);
+        if (peer && PT_GetPeerState(peer) == PT_PEER_CONNECTED) {
+            peerRank = (short)PT_GetPeerRank(gPTCtx, peer);
+            if (peerRank < localRank) {
+                CLOG_DEBUG("Not authority: peer rank %d < local %d",
+                           peerRank, localRank);
+                return FALSE;
+            }
+        }
+    }
+
+    CLOG_DEBUG("Authority: local rank %d is lowest", localRank);
+    return TRUE;
 }
 
 int Net_HasVersionMismatch(void)

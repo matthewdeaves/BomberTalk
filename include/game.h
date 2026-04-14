@@ -24,7 +24,7 @@
 #include <Sound.h>
 
 /* ---- Protocol Version ---- */
-#define BT_PROTOCOL_VERSION 4
+#define BT_PROTOCOL_VERSION 5
 
 /* ---- Grid Constants ---- */
 #define GRID_COLS       15
@@ -71,6 +71,13 @@
 #define DEATH_FLASH_RATE              8 /* toggle visibility every 8 ticks */
 #define GAME_OVER_TIMEOUT_TICKS     180 /* 3 second safety timeout for pending game over */
 #define HEARTBEAT_TICKS             120 /* ~2 seconds: resend position even when idle */
+
+/* ---- Network Authority & Robustness (005) ---- */
+#define DISCONNECT_GRACE_TICKS       90 /* ~1.5s grace before TCP teardown after game over */
+#define MESH_STAGGER_PER_RANK        30 /* ~0.5s per rank before first connect attempt */
+#define GAME_OVER_FAILSAFE_TICKS    120 /* ~2s timeout before non-authority sends game over */
+#define LOW_HEAP_WARNING_BYTES   262144L /* 256KB threshold for heap warning */
+#define HEAP_CHECK_INTERVAL_TICKS  1800 /* ~30s between periodic heap checks */
 
 /* ---- Resource IDs ---- */
 #define rMenuApple      128
@@ -247,6 +254,12 @@ typedef struct {
     int             pendingGameOver;  /* remote game over received, wait for death anims */
     unsigned char   pendingWinner;    /* winner ID from remote MSG_GAME_OVER */
     short           gameOverTimeout;  /* safety timeout ticks for pending game over */
+    short           disconnectGraceTimer;  /* ticks before TCP teardown after game over */
+    short           meshStaggerTimer;      /* ticks before first connect after game start */
+    int             gameOverAuthority;     /* TRUE if this machine sends MSG_GAME_OVER */
+    int             localGameOverDetected; /* TRUE if local game over detected, not authority */
+    short           gameOverFailsafeTimer; /* failsafe timeout for non-authority game over */
+    long            heapCheckTimer;        /* ticks since last periodic heap check */
     WindowPtr       window;
 } GameState;
 

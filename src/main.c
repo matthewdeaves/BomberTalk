@@ -263,6 +263,18 @@ static void MainLoop(void)
                 Renderer_DrawFPS(gGame.fpsValue);
             }
 
+            /* Periodic heap check during gameplay (005) */
+            if (gGame.currentScreen == SCREEN_GAME) {
+                gGame.heapCheckTimer += gGame.deltaTicks;
+                if (gGame.heapCheckTimer >= HEAP_CHECK_INTERVAL_TICKS) {
+                    gGame.heapCheckTimer = 0;
+                    if (FreeMem() < LOW_HEAP_WARNING_BYTES) {
+                        CLOG_WARN("Low heap during gameplay: %ld bytes free",
+                                  FreeMem());
+                    }
+                }
+            }
+
             Input_ConsumeFrame();  /* clear accumulated edges after frame */
         }
     }
@@ -288,6 +300,12 @@ static void InitGameState(void)
     gGame.pendingGameOver = FALSE;
     gGame.pendingWinner = 0xFF;
     gGame.gameOverTimeout = 0;
+    gGame.disconnectGraceTimer = 0;
+    gGame.meshStaggerTimer = 0;
+    gGame.gameOverAuthority = FALSE;
+    gGame.localGameOverDetected = FALSE;
+    gGame.gameOverFailsafeTimer = 0;
+    gGame.heapCheckTimer = 0;
 
     for (i = 0; i < MAX_PLAYERS; i++) {
         gGame.players[i].active = FALSE;
@@ -343,6 +361,10 @@ int main(void)
 
     /* Memory budget check (T038) */
     CLOG_INFO("Free heap after init: %ld bytes", FreeMem());
+    if (FreeMem() < LOW_HEAP_WARNING_BYTES) {
+        CLOG_WARN("Low heap warning: %ld bytes free (threshold: %ld)",
+                  FreeMem(), (long)LOW_HEAP_WARNING_BYTES);
+    }
 
     CLOG_INFO("Entering main loop");
     MainLoop();
