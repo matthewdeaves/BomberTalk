@@ -60,6 +60,24 @@ void Game_Update(void)
     short i;
     Player *local;
     short oldPX[MAX_PLAYERS], oldPY[MAX_PLAYERS];
+
+    /* Grace period: wait for TCP buffers to flush before disconnect (005).
+     * Net_Poll() runs in MainLoop() before Screens_Update(), so TCP
+     * delivery continues during this wait without additional code. */
+    if (gGame.disconnectGraceTimer > 0) {
+        gGame.disconnectGraceTimer -= gGame.deltaTicks;
+        if (gGame.disconnectGraceTimer <= 0) {
+            CLOG_INFO("Grace period complete, disconnecting");
+            gGame.gameStartReceived = FALSE;
+            gGame.pendingGameOver = FALSE;
+            gGame.localGameOverDetected = FALSE;
+            Net_StopDiscovery();
+            Net_DisconnectAllPeers();
+            Screens_TransitionTo(SCREEN_LOBBY);
+        }
+        return;
+    }
+
     if (!gGame.gameRunning) return;
 
     /* Save positions before update for moved-player dirty optimization */
@@ -206,6 +224,31 @@ void Game_Update(void)
             }
         }
 
+        /* Failsafe: non-authority machine detected game over locally but
+         * hasn't received MSG_GAME_OVER from authority yet (005).
+         * Only fires if authority has disconnected OR timer expired.
+         * If authority is still connected, keep waiting — it will send.
+         * Placed after alive-count loop to reuse aliveCount/lastAlive. */
+        if (gGame.localGameOverDetected) {
+            int authorityGone = Net_IsLowestRankConnected();
+            gGame.gameOverFailsafeTimer -= gGame.deltaTicks;
+            if (!gGame.pendingGameOver &&
+                (authorityGone || gGame.gameOverFailsafeTimer <= 0)) {
+                unsigned char winnerFC = (aliveCount == 1) ?
+                                         (unsigned char)lastAlive : 0xFF;
+                CLOG_WARN("Game over failsafe: %s, sending as backup",
+                          authorityGone ? "authority disconnected"
+                                        : "authority timeout");
+                Net_SendGameOver(winnerFC);
+                gGame.localGameOverDetected = FALSE;
+                gGame.gameRunning = FALSE;
+                gGame.disconnectGraceTimer = DISCONNECT_GRACE_TICKS;
+                CLOG_INFO("Game over: starting grace period (%d ticks)",
+                          DISCONNECT_GRACE_TICKS);
+                return;
+            }
+        }
+
         /* Handle pending remote game over: wait for death anims or timeout */
         if (gGame.pendingGameOver) {
             gGame.gameOverTimeout -= gGame.deltaTicks;
@@ -216,18 +259,15 @@ void Game_Update(void)
                 CLOG_INFO("Game over (remote): winner=%d", gGame.pendingWinner);
                 gGame.gameRunning = FALSE;
                 gGame.pendingGameOver = FALSE;
-                gGame.gameStartReceived = FALSE;
-                /* Cleanly disconnect all TCP peers before lobby re-entry.
-                 * Stale TCP connections cause OT freeze / MacTCP crash
-                 * when lobby calls PT_StartDiscovery. */
-                Net_StopDiscovery();
-                Net_DisconnectAllPeers();
-                Screens_TransitionTo(SCREEN_LOBBY);
+                gGame.disconnectGraceTimer = DISCONNECT_GRACE_TICKS;
+                CLOG_INFO("Game over: starting grace period (%d ticks)",
+                          DISCONNECT_GRACE_TICKS);
             }
             return;
         }
 
-        if (!anyDying && aliveCount <= 1 && gGame.numPlayers > 1) {
+        if (!anyDying && aliveCount <= 1 && gGame.numPlayers > 1 &&
+            !gGame.localGameOverDetected) {
             unsigned char winner = (aliveCount == 1) ?
                                    (unsigned char)lastAlive : 0xFF;
             CLOG_INFO("Game over! Winner: %d (alive=%d dying=%d)",
@@ -238,17 +278,23 @@ void Game_Update(void)
                           gGame.players[i].alive,
                           gGame.players[i].deathTimer);
             }
-            Net_SendGameOver(winner);
-            gGame.gameRunning = FALSE;
 
-            /* Transition back to lobby after a brief pause */
-            gGame.gameStartReceived = FALSE;
-            /* Cleanly disconnect all TCP peers before lobby re-entry.
-             * Stale TCP connections cause OT freeze / MacTCP crash
-             * when lobby calls PT_StartDiscovery. */
-            Net_StopDiscovery();
-            Net_DisconnectAllPeers();
-            Screens_TransitionTo(SCREEN_LOBBY);
+            /* Authority-based game over (005): only lowest-rank
+             * connected player broadcasts MSG_GAME_OVER. */
+            if (Net_IsLowestRankConnected()) {
+                CLOG_INFO("Game over authority: sending MSG_GAME_OVER");
+                Net_SendGameOver(winner);
+            } else {
+                CLOG_INFO("Game over non-authority: starting failsafe timer");
+                gGame.localGameOverDetected = TRUE;
+                gGame.gameOverFailsafeTimer = GAME_OVER_FAILSAFE_TICKS;
+                return;
+            }
+
+            gGame.gameRunning = FALSE;
+            gGame.disconnectGraceTimer = DISCONNECT_GRACE_TICKS;
+            CLOG_INFO("Game over: starting grace period (%d ticks)",
+                      DISCONNECT_GRACE_TICKS);
         }
     }
 }

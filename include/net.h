@@ -27,6 +27,8 @@ void Net_SendGameStart(unsigned char numPlayers);
 void Net_SendGameOver(unsigned char winnerID);
 
 /* Query state */
+int Net_IsLowestRankConnected(void);
+short Net_GetLocalRank(void);
 int Net_HasVersionMismatch(void);
 void Net_ResetVersionMismatch(void);
 int Net_GetDiscoveredPeerCount(void);

@@ -86,6 +86,15 @@ static void AddExplosion(short col, short row)
  * ExplodeBomb -- Process explosion in cross pattern
  * broadcast: TRUE if this machine should send network messages
  *            FALSE if triggered by a remote MSG_BOMB_EXPLODE
+ *
+ * Owner-authoritative (005): only the bomb owner's machine broadcasts.
+ * The broadcast flag also gates Net_SendBlockDestroyed() for blocks
+ * hit by the raycast.
+ *
+ * Chain explosions (bomb A raycast triggering bomb B) are NOT currently
+ * implemented — the raycast checks walls and blocks only. If chains are
+ * added later, the broadcast flag must propagate from the parent
+ * explosion to chained bombs.
  */
 static void ExplodeBomb(Bomb *b, int broadcast)
 {
@@ -190,12 +199,22 @@ void Bomb_Update(void)
     short i;
     short dt = gGame.deltaTicks;
 
-    /* Update bomb fuses (tick-based, not frame-based) */
+    /* Update bomb fuses (tick-based, not frame-based).
+     * Owner-authoritative: only the bomb owner broadcasts the explosion.
+     * Non-owners explode locally with broadcast=FALSE. (005) */
     for (i = 0; i < MAX_BOMBS; i++) {
         if (gGame.bombs[i].active) {
             gGame.bombs[i].fuseTimer -= dt;
             if (gGame.bombs[i].fuseTimer <= 0) {
-                ExplodeBomb(&gGame.bombs[i], TRUE);
+                int isOwner = (gGame.localPlayerID >= 0 &&
+                               gGame.localPlayerID == (short)gGame.bombs[i].ownerID);
+                if (!isOwner) {
+                    CLOG_INFO("Bomb at (%d,%d) fuse expired locally "
+                              "(owner=P%d, not local P%d)",
+                              gGame.bombs[i].gridCol, gGame.bombs[i].gridRow,
+                              gGame.bombs[i].ownerID, gGame.localPlayerID);
+                }
+                ExplodeBomb(&gGame.bombs[i], isOwner);
             }
         }
     }
