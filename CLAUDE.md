@@ -112,8 +112,10 @@ Two offscreen buffers: **background** (static tilemap) and **work** (per-frame c
 
 **Gameplay frame:**
 1. `Renderer_BeginFrame()` — dirty rect CopyBits bg→work (partial or full), locks sprite PixMaps
-2. Draw bombs, explosions, players into work buffer (using cached PixMap pointers)
-3. `Renderer_EndFrame()` — unlocks sprites, unlocks work, dirty rect CopyBits work→window, clears dirty grid
+2. `Renderer_BeginSpriteDraw()` — saves port, sets work port + color state once for all sprites
+3. Draw bombs, explosions, players into work buffer (using cached PixMap pointers). Color Macs use srcCopy + pre-computed mask regions (not transparent mode) for 2-3x faster sprite blits. Fallback to transparent mode if mask region is NULL.
+4. `Renderer_EndSpriteDraw()` — restores saved port
+5. `Renderer_EndFrame()` — unlocks sprites, unlocks work, dirty rect CopyBits work→window, clears dirty grid
 
 **Menu/loading/lobby screens:** Use `Renderer_BeginScreenDraw()` / `Renderer_EndScreenDraw()` which clear work to black and draw text directly.
 
@@ -124,9 +126,12 @@ Two offscreen buffers: **background** (static tilemap) and **work** (per-frame c
 - If >50% tiles dirty, falls back to full-screen CopyBits (avoids overhead of per-tile iteration)
 - 32-bit aligned CopyBits rects via `AlignRect32()` — longword moves on both SE (32-pixel) and color (4-pixel)
 - All sprite GWorlds locked once in BeginFrame, cached as `static BitMap *` pointers, unlocked in EndFrame
+- Sprite mask regions (`RgnHandle`) pre-computed at PICT load time via `CreateMaskFromGWorld()` + `BitMapToRegion()`. Enables srcCopy + maskRgn (3x faster than transparent mode per Sex Lies p.5988). Disposed at Renderer_Shutdown(). NULL = fallback to transparent mode.
+- `Renderer_BeginSpriteDraw()`/`Renderer_EndSpriteDraw()` bracket: single SavePort/SetPortWork/RestorePort per frame instead of per-sprite. Individual draw functions check `gSpriteDrawActive` flag and skip own port management when true.
+- `RebuildBackground()` batches tile drawing by type: one ForeColor per tile type (3-4 passes) instead of per-tile. Reduces ForeColor trap calls from O(tiles) to O(tile_types). Only affects fallback rectangle path; tile sheet CopyBits path unchanged.
 
 **Performance rules:**
-- ForeColor(blackColor)/BackColor(whiteColor) MUST be set before every srcCopy CopyBits call on ALL platforms (per "Sex, Lies and Video Games" 1996 benchmarks — up to 2.5x penalty without)
+- ForeColor(blackColor)/BackColor(whiteColor) set once on work port at init + after each RebuildBackground (006-renderer-optimization). No per-frame color state setup needed — work port state persists across frames.
 - `Renderer_RebuildBackground()` redraws all tiles — only call directly for initialization (Renderer_Init, Game_Init)
 - `Renderer_RequestRebuildBackground()` sets deferred flag — use for gameplay events (explosions, network block-destroy). Coalesced to one rebuild per frame in BeginFrame.
 - Port save/lock is hoisted to `RebuildBackground`, not per-tile
@@ -167,6 +172,7 @@ Single `GameState gGame` struct holds all game state. Key fields:
 - Dimensions clamped to [7-31] cols, [7-25] rows. Unknown tile values sanitized to TILE_FLOOR.
 - `TileMap_ScanSpawns()` finds TILE_SPAWN tiles top-left to bottom-right, fills remaining with default corners
 - All gameplay code uses `TileMap_GetCols()`/`TileMap_GetRows()` instead of compile-time GRID_COLS/GRID_ROWS
+- `TILEMAP_TILE(map, col, row)` macro in `tilemap.h` — direct array access without bounds checking for hot-path inner loops (bomb raycast, player collision). Callers must validate bounds before use. `TileMap_GetTile()` remains the safe public API.
 
 ## Code Style
 
@@ -215,9 +221,10 @@ Six classic Mac game programming books in `books/` — consult before implementi
 
 ## Active Technologies
 - C89/C90 (Retro68 cross-compiler) + PeerTalk SDK v1.11.2, clog v1.4.1, Retro68/RetroPPC toolchains
-- Classic Mac Toolbox (QuickDraw, Resource Manager), Mac resource fork ('TMAP' resource type 128)
+- Classic Mac Toolbox (QuickDraw, QDOffscreen, Resource Manager), Mac resource fork ('TMAP' resource type 128)
 
 ## Recent Changes
+- 006-renderer-optimization: Five renderer performance optimizations from book research. (1) Sprite draw bracket: Renderer_BeginSpriteDraw/EndSpriteDraw batches SavePort/SetPortWork/RestorePort to once per frame instead of per-sprite (~30 fewer traps/frame on SE). (2) Color state at init: ForeColor/BackColor set once at Renderer_Init + post-RebuildBackground, removed from BeginFrame (~5 fewer traps/frame). (3) Mask region sprite blitting: pre-computed RgnHandle per sprite via CreateMaskFromGWorld/BitMapToRegion, CopyBits uses srcCopy+maskRgn instead of transparent mode (2-3x faster per Sex Lies benchmarks). Falls back to transparent if mask creation fails. (4) Batched tile drawing: RebuildBackground draws tiles in passes by type (one ForeColor per type) instead of per-tile, reducing ForeColor calls from O(tiles) to O(tile_types). (5) TILEMAP_TILE macro: direct array access in bomb raycast and player collision hot paths, bypassing TileMap_GetTile function call overhead. New renderer.h API: Renderer_BeginSpriteDraw/EndSpriteDraw. New tilemap.h macro: TILEMAP_TILE(map, col, row). New renderer.c statics: gSpriteDrawActive, gPlayerMaskRgn[], gBombMaskRgn, gExplosionMaskRgn, gTitleMaskRgn, CreateMaskFromGWorld(). Modified player.c: CheckTileSolid takes const TileMap *map parameter.
 - 005-network-authority: Owner-authoritative bomb explosions (only bomb owner broadcasts MSG_BOMB_EXPLODE and MSG_BLOCK_DESTROYED, ~67% TCP traffic reduction). Authority-based game over (lowest-rank connected player sends MSG_GAME_OVER, 60-tick failsafe for non-authority). Graceful game-over shutdown (30-tick grace period before TCP teardown, fixes Mac SE disconnect reason 2). Mesh stagger (rank * 30 ticks delay before first connect after MSG_GAME_START, fixes 6200 TCP connect failure). Heap monitoring (256KB threshold, checked at init + every 30s). Protocol v5 (behavioral change only, v4-compatible). New constants: DISCONNECT_GRACE_TICKS(30), MESH_STAGGER_PER_RANK(30), GAME_OVER_FAILSAFE_TICKS(60), LOW_HEAP_WARNING_BYTES(262144), HEAP_CHECK_INTERVAL_TICKS(1800). New GameState fields: disconnectGraceTimer, meshStaggerTimer, gameOverAuthority, localGameOverDetected, gameOverFailsafeTimer, heapCheckTimer. New net.c functions: Net_IsLowestRankConnected(), Net_GetLocalRank().
 - v1.6.0: Guard gameplay message handlers (bomb placed/explode, block destroyed, player killed) with screen check — prevents processing game events during mesh formation in lobby on slow machines. Deduplicate block-destroy messages (skip if tile already TILE_FLOOR) — eliminates redundant RebuildBackground from near-simultaneous fuse expiry. Requires PeerTalk v1.11.0 (discovery v2 with UDP leave broadcast, OT listener fix).
 - v1.3.0: Migrated to PeerTalk SDK v1.9.0. Player ID assignment now uses `PT_GetPeerRank()` instead of app-level IP parsing/sorting (~80 lines removed from net.c). Debug logging now uses PeerTalk's debug broadcast channel (`PT_EnableDebugBroadcast`/`PT_DebugSend`) instead of manual UDP log sink — PeerTalk owns the network pipe, clog stays file-only. 3-line bridge wires clog into the debug channel.

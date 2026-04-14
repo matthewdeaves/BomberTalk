@@ -133,9 +133,11 @@ void Player_SetPosition(short playerID, short pixelX, short pixelY, short facing
  * CheckTileSolid -- Returns TRUE if tile at (col,row) is solid for this player.
  * Handles bomb pass-through: skip the bomb the player is walking off of.
  */
-static int CheckTileSolid(const Player *p, short col, short row)
+static int CheckTileSolid(const Player *p, short col, short row,
+                          const TileMap *map)
 {
-    if (TileMap_IsSolid(col, row)) return TRUE;
+    unsigned char t = TILEMAP_TILE(map, col, row);
+    if (t == TILE_WALL || t == TILE_BLOCK) return TRUE;
     if (Bomb_ExistsAt(col, row)) {
         /* Check pass-through */
         if (p->passThroughBombIdx >= 0 && p->passThroughBombIdx < MAX_BOMBS) {
@@ -165,6 +167,7 @@ static void CollideAxis(Player *p, short dx, short dy)
     short hLeft, hTop, hRight, hBottom;
     short minCol, maxCol, minRow, maxRow;
     short c, r;
+    const TileMap *map = TileMap_Get();
 
     newPX = (short)(p->pixelX + dx);
     newPY = (short)(p->pixelY + dy);
@@ -204,7 +207,7 @@ static void CollideAxis(Player *p, short dx, short dy)
     /* Check for solid tiles */
     for (r = minRow; r <= maxRow; r++) {
         for (c = minCol; c <= maxCol; c++) {
-            if (CheckTileSolid(p, c, r)) {
+            if (CheckTileSolid(p, c, r, map)) {
                 /* Clamp sprite flush against tile boundary */
                 if (dx > 0) {
                     newPX = (short)(c * ts - ts);

@@ -37,6 +37,12 @@ static GWorldPtr gBombSprite = NULL;
 static GWorldPtr gExplosionSprite = NULL;
 static GWorldPtr gTitleSprite = NULL;
 
+/* ---- Sprite mask regions for srcCopy blitting (006-renderer-optimization) ---- */
+static RgnHandle gPlayerMaskRgn[MAX_PLAYERS];
+static RgnHandle gBombMaskRgn = NULL;
+static RgnHandle gExplosionMaskRgn = NULL;
+static RgnHandle gTitleMaskRgn = NULL;
+
 /* ---- Mac SE: BitMap-based offscreen ---- */
 static GrafPort gBgPortSE;
 static GrafPort gWorkPortSE;
@@ -50,6 +56,9 @@ static CGrafPtr gSavedScreenCPort = NULL;
 static GDHandle gSavedScreenDevice = NULL;
 
 static int gPICTsLoaded = FALSE;
+
+/* ---- Sprite draw bracket state (006-renderer-optimization) ---- */
+static int gSpriteDrawActive = FALSE;
 
 /* ---- Static color constants (T012) ---- */
 static const RGBColor kPlayerWhite  = {0xFFFF, 0xFFFF, 0xFFFF};
@@ -294,6 +303,95 @@ static GWorldPtr LoadPICTToGWorld(short pictID, short width, short height)
     return gw;
 }
 
+/*
+ * CreateMaskFromGWorld -- Build a mask Region from a sprite GWorld.
+ *
+ * Scans the GWorld for non-background pixels and creates a 1-bit mask,
+ * then converts to a Region via BitMapToRegion(). Returns NULL on failure.
+ * Source: Sex, Lies and Video Games (1996) p.6615-6700.
+ */
+static RgnHandle CreateMaskFromGWorld(GWorldPtr gw, short width, short height)
+{
+    PixMapHandle pmh;
+    Ptr pixBase;
+    long pixRowBytes;
+    short maskRowBytes;
+    Ptr maskStorage;
+    BitMap maskBM;
+    RgnHandle rgn;
+    CTabHandle ctab;
+    short bgIndex;
+    short row, col;
+    const unsigned char *srcRow;
+    unsigned char *dstRow;
+
+    if (gw == NULL) return NULL;
+
+    pmh = GetGWorldPixMap(gw);
+    if (pmh == NULL) return NULL;
+    LockPixels(pmh);
+
+    pixBase = GetPixBaseAddr(pmh);
+    pixRowBytes = (*pmh)->rowBytes & 0x3FFF;
+
+    /* Find the white (background) pixel index from the color table */
+    ctab = (*pmh)->pmTable;
+    bgIndex = 0;
+    if (ctab != NULL) {
+        short numEntries, i;
+        numEntries = (*ctab)->ctSize + 1;
+        for (i = 0; i < numEntries; i++) {
+            if ((*ctab)->ctTable[i].rgb.red >= 0xFF00 &&
+                (*ctab)->ctTable[i].rgb.green >= 0xFF00 &&
+                (*ctab)->ctTable[i].rgb.blue >= 0xFF00) {
+                bgIndex = (short)((*ctab)->ctTable[i].value & 0xFF);
+                break;
+            }
+        }
+    }
+
+    /* Allocate 1-bit mask bitmap */
+    maskRowBytes = ((width + 15) / 16) * 2;
+    maskStorage = NewPtrClear((long)maskRowBytes * height);
+    if (maskStorage == NULL) {
+        UnlockPixels(pmh);
+        return NULL;
+    }
+
+    /* Scan sprite pixels: set mask bit where pixel != background */
+    for (row = 0; row < height; row++) {
+        srcRow = (const unsigned char *)pixBase + (long)row * pixRowBytes;
+        dstRow = (unsigned char *)maskStorage + (long)row * maskRowBytes;
+        for (col = 0; col < width; col++) {
+            if (srcRow[col] != (unsigned char)bgIndex) {
+                dstRow[col >> 3] |= (0x80 >> (col & 7));
+            }
+        }
+    }
+
+    UnlockPixels(pmh);
+
+    /* Convert 1-bit mask to Region */
+    rgn = NewRgn();
+    if (rgn == NULL) {
+        DisposePtr(maskStorage);
+        return NULL;
+    }
+
+    maskBM.baseAddr = maskStorage;
+    maskBM.rowBytes = maskRowBytes;
+    SetRect(&maskBM.bounds, 0, 0, width, height);
+
+    if (BitMapToRegion(rgn, &maskBM) != noErr) {
+        DisposeRgn(rgn);
+        DisposePtr(maskStorage);
+        return NULL;
+    }
+
+    DisposePtr(maskStorage);
+    return rgn;
+}
+
 static void LoadPICTResources(void)
 {
     short ts = gGame.tileSize;
@@ -326,6 +424,27 @@ static void LoadPICTResources(void)
     } else {
         gPICTsLoaded = FALSE;
         CLOG_WARN("PICT resources not found, using rectangle fallback");
+    }
+
+    /* Create mask regions for srcCopy sprite blitting (006-renderer-optimization).
+     * Color Macs only — Mac SE uses fallback rectangles, no GWorlds for sprites. */
+    if (!gGame.isMacSE) {
+        for (i = 0; i < MAX_PLAYERS; i++) {
+            gPlayerMaskRgn[i] = CreateMaskFromGWorld(gPlayerSprites[i], ts, ts);
+        }
+        gBombMaskRgn = CreateMaskFromGWorld(gBombSprite, ts, ts);
+        gExplosionMaskRgn = CreateMaskFromGWorld(gExplosionSprite, ts, ts);
+        gTitleMaskRgn = CreateMaskFromGWorld(gTitleSprite,
+                            gGame.isMacSE ? 240 : 320,
+                            gGame.isMacSE ? 80 : 128);
+        CLOG_INFO("Mask regions: P0=%s P1=%s P2=%s P3=%s bomb=%s expl=%s title=%s",
+                  gPlayerMaskRgn[0] ? "ok" : "FAIL",
+                  gPlayerMaskRgn[1] ? "ok" : "FAIL",
+                  gPlayerMaskRgn[2] ? "ok" : "FAIL",
+                  gPlayerMaskRgn[3] ? "ok" : "FAIL",
+                  gBombMaskRgn ? "ok" : "FAIL",
+                  gExplosionMaskRgn ? "ok" : "FAIL",
+                  gTitleMaskRgn ? "ok" : "FAIL");
     }
 }
 
@@ -399,6 +518,15 @@ void Renderer_Init(WindowPtr window)
         }
     }
 
+    /* Set clean color state on work buffer once (006-renderer-optimization).
+     * CopyBits requires ForeColor(black)/BackColor(white) on the dest port
+     * for correct srcCopy behavior. Persists across frames. */
+    SavePort();
+    SetPortWork();
+    ForeColor(blackColor);
+    BackColor(whiteColor);
+    RestorePort();
+
     /* Load PICT resources (fall back to rectangles if missing) */
     if (!gGame.isMacSE) {
         LoadPICTResources();
@@ -462,6 +590,27 @@ void Renderer_Shutdown(void)
         gTileSheet = NULL;
     }
 
+    /* Dispose mask regions before sprite GWorlds (006-renderer-optimization) */
+    for (i = 0; i < MAX_PLAYERS; i++) {
+        if (gPlayerMaskRgn[i] != NULL) {
+            short j;
+            int dup = FALSE;
+            for (j = 0; j < i; j++) {
+                if (gPlayerMaskRgn[j] == gPlayerMaskRgn[i]) {
+                    dup = TRUE;
+                    break;
+                }
+            }
+            if (!dup) {
+                DisposeRgn(gPlayerMaskRgn[i]);
+            }
+            gPlayerMaskRgn[i] = NULL;
+        }
+    }
+    if (gBombMaskRgn) { DisposeRgn(gBombMaskRgn); gBombMaskRgn = NULL; }
+    if (gExplosionMaskRgn) { DisposeRgn(gExplosionMaskRgn); gExplosionMaskRgn = NULL; }
+    if (gTitleMaskRgn) { DisposeRgn(gTitleMaskRgn); gTitleMaskRgn = NULL; }
+
     for (i = 0; i < MAX_PLAYERS; i++) {
         if (gPlayerSprites[i] != NULL) {
             short j;
@@ -498,60 +647,6 @@ void Renderer_Shutdown(void)
 }
 
 /* ==== Tile Drawing ==== */
-
-static void DrawTileRect(short tileType, short col, short row)
-{
-    Rect r;
-    short ts = gGame.tileSize;
-
-    SetRect(&r, col * ts, row * ts, (col + 1) * ts, (row + 1) * ts);
-
-    if (gGame.isMacSE) {
-        switch (tileType) {
-        case TILE_FLOOR:
-        case TILE_SPAWN:
-            ForeColor(whiteColor);
-            PaintRect(&r);
-            ForeColor(blackColor);
-            break;
-        case TILE_WALL:
-            PaintRect(&r);
-            break;
-        case TILE_BLOCK:
-            FillRect(&r, &qd.gray);
-            break;
-        default:
-            ForeColor(whiteColor);
-            PaintRect(&r);
-            ForeColor(blackColor);
-            break;
-        }
-    } else {
-        switch (tileType) {
-        case TILE_FLOOR:
-        case TILE_SPAWN:
-            RGBForeColor(&kTileGreen);
-            PaintRect(&r);
-            break;
-        case TILE_WALL:
-            RGBForeColor(&kTileGray);
-            PaintRect(&r);
-            RGBForeColor(&kTileDarkGray);
-            FrameRect(&r);
-            break;
-        case TILE_BLOCK:
-            RGBForeColor(&kTileBrown);
-            PaintRect(&r);
-            RGBForeColor(&kTileDarkBrown);
-            FrameRect(&r);
-            break;
-        default:
-            ForeColor(whiteColor);
-            PaintRect(&r);
-            break;
-        }
-    }
-}
 
 static void DrawTileFromSheet(short tileIndex, short col, short row,
                               BitMap *sheetBits)
@@ -598,19 +693,116 @@ void Renderer_RebuildBackground(void)
     if (useSheet) {
         LockPixels(GetGWorldPixMap(gTileSheet));
         sheetBits = (BitMap *)*GetGWorldPixMap(gTileSheet);
-    }
 
-    for (r = 0; r < mapRows; r++) {
-        for (c = 0; c < mapCols; c++) {
-            tile = map->tiles[r][c];
-            if (useSheet) {
-                short idx = (tile == TILE_SPAWN) ? 0 : tile;
+        for (r = 0; r < mapRows; r++) {
+            for (c = 0; c < mapCols; c++) {
+                short idx;
+                tile = map->tiles[r][c];
+                idx = (tile == TILE_SPAWN) ? 0 : tile;
                 if (idx > 3) idx = 0;
                 DrawTileFromSheet(idx, c, r, sheetBits);
-            } else {
-                DrawTileRect(tile, c, r);
             }
         }
+    } else {
+        /* Batched tile drawing: one ForeColor per tile type instead of
+         * per tile. Reduces ForeColor trap calls from O(tiles) to
+         * O(tile_types). Source: Sex Lies (1996) p.5645-5653. */
+        short ts = gGame.tileSize;
+
+        if (gGame.isMacSE) {
+            /* Pass 1: Floor/spawn (white) */
+            ForeColor(whiteColor);
+            for (r = 0; r < mapRows; r++) {
+                for (c = 0; c < mapCols; c++) {
+                    tile = map->tiles[r][c];
+                    if (tile == TILE_FLOOR || tile == TILE_SPAWN ||
+                        (tile != TILE_WALL && tile != TILE_BLOCK)) {
+                        Rect tr;
+                        SetRect(&tr, c * ts, r * ts, (c+1) * ts, (r+1) * ts);
+                        PaintRect(&tr);
+                    }
+                }
+            }
+            /* Pass 2: Walls (black) */
+            ForeColor(blackColor);
+            for (r = 0; r < mapRows; r++) {
+                for (c = 0; c < mapCols; c++) {
+                    if (map->tiles[r][c] == TILE_WALL) {
+                        Rect tr;
+                        SetRect(&tr, c * ts, r * ts, (c+1) * ts, (r+1) * ts);
+                        PaintRect(&tr);
+                    }
+                }
+            }
+            /* Pass 3: Blocks (gray pattern, no ForeColor needed) */
+            for (r = 0; r < mapRows; r++) {
+                for (c = 0; c < mapCols; c++) {
+                    if (map->tiles[r][c] == TILE_BLOCK) {
+                        Rect tr;
+                        SetRect(&tr, c * ts, r * ts, (c+1) * ts, (r+1) * ts);
+                        FillRect(&tr, &qd.gray);
+                    }
+                }
+            }
+        } else {
+            /* Pass 1: Floor/spawn (green) */
+            RGBForeColor(&kTileGreen);
+            for (r = 0; r < mapRows; r++) {
+                for (c = 0; c < mapCols; c++) {
+                    tile = map->tiles[r][c];
+                    if (tile == TILE_FLOOR || tile == TILE_SPAWN ||
+                        (tile != TILE_WALL && tile != TILE_BLOCK)) {
+                        Rect tr;
+                        SetRect(&tr, c * ts, r * ts, (c+1) * ts, (r+1) * ts);
+                        PaintRect(&tr);
+                    }
+                }
+            }
+            /* Pass 2: Walls (gray fill + dark gray frame) */
+            RGBForeColor(&kTileGray);
+            for (r = 0; r < mapRows; r++) {
+                for (c = 0; c < mapCols; c++) {
+                    if (map->tiles[r][c] == TILE_WALL) {
+                        Rect tr;
+                        SetRect(&tr, c * ts, r * ts, (c+1) * ts, (r+1) * ts);
+                        PaintRect(&tr);
+                    }
+                }
+            }
+            RGBForeColor(&kTileDarkGray);
+            for (r = 0; r < mapRows; r++) {
+                for (c = 0; c < mapCols; c++) {
+                    if (map->tiles[r][c] == TILE_WALL) {
+                        Rect tr;
+                        SetRect(&tr, c * ts, r * ts, (c+1) * ts, (r+1) * ts);
+                        FrameRect(&tr);
+                    }
+                }
+            }
+            /* Pass 3: Blocks (brown fill + dark brown frame) */
+            RGBForeColor(&kTileBrown);
+            for (r = 0; r < mapRows; r++) {
+                for (c = 0; c < mapCols; c++) {
+                    if (map->tiles[r][c] == TILE_BLOCK) {
+                        Rect tr;
+                        SetRect(&tr, c * ts, r * ts, (c+1) * ts, (r+1) * ts);
+                        PaintRect(&tr);
+                    }
+                }
+            }
+            RGBForeColor(&kTileDarkBrown);
+            for (r = 0; r < mapRows; r++) {
+                for (c = 0; c < mapCols; c++) {
+                    if (map->tiles[r][c] == TILE_BLOCK) {
+                        Rect tr;
+                        SetRect(&tr, c * ts, r * ts, (c+1) * ts, (r+1) * ts);
+                        FrameRect(&tr);
+                    }
+                }
+            }
+        }
+        /* Restore ForeColor for CopyBits after rebuild */
+        ForeColor(blackColor);
     }
 
     if (useSheet) {
@@ -620,6 +812,15 @@ void Renderer_RebuildBackground(void)
     UnlockBg();
     RestorePort();
 
+    /* Restore work buffer color state after rebuild (006-renderer-optimization).
+     * RebuildBackground operates on the bg port; restore work port colors
+     * so BeginFrame's CopyBits gets correct srcCopy behavior. */
+    SavePort();
+    SetPortWork();
+    ForeColor(blackColor);
+    BackColor(whiteColor);
+    RestorePort();
+
     /* Mark all tiles dirty after background rebuild */
     Renderer_MarkAllDirty();
 }
@@ -627,6 +828,23 @@ void Renderer_RebuildBackground(void)
 void Renderer_RequestRebuildBackground(void)
 {
     gNeedRebuildBg = TRUE;
+}
+
+/* ==== Sprite Draw Bracket (006-renderer-optimization) ==== */
+
+void Renderer_BeginSpriteDraw(void)
+{
+    SavePort();
+    SetPortWork();
+    ForeColor(blackColor);
+    BackColor(whiteColor);
+    gSpriteDrawActive = TRUE;
+}
+
+void Renderer_EndSpriteDraw(void)
+{
+    gSpriteDrawActive = FALSE;
+    RestorePort();
 }
 
 /* ==== Per-Frame Rendering ==== */
@@ -642,12 +860,8 @@ void Renderer_BeginFrame(void)
     LockBg();
     LockWork();
 
-    /* Ensure clean color state before srcCopy CopyBits (all platforms) */
-    SavePort();
-    SetPortWork();
-    ForeColor(blackColor);
-    BackColor(whiteColor);
-    RestorePort();
+    /* Color state set once at init + after rebuild (006-renderer-optimization).
+     * No code path between EndFrame and BeginFrame modifies the work port. */
 
     /* Dirty rect optimization (T017):
      * If all dirty or >50% dirty, do full-screen CopyBits.
@@ -694,13 +908,24 @@ void Renderer_DrawPlayer(short playerID, short pixelX, short pixelY, short facin
         Rect srcRect;
         SetRect(&srcRect, 0, 0, ts, ts);
 
-        CopyBits(
-            gCachedPlayerPM[playerID],
-            GetWorkBits(),
-            &srcRect, &dstRect, transparent, NULL);
+        if (gPlayerMaskRgn[playerID] != NULL) {
+            OffsetRgn(gPlayerMaskRgn[playerID], dstRect.left, dstRect.top);
+            CopyBits(
+                gCachedPlayerPM[playerID],
+                GetWorkBits(),
+                &srcRect, &dstRect, srcCopy, gPlayerMaskRgn[playerID]);
+            OffsetRgn(gPlayerMaskRgn[playerID], -dstRect.left, -dstRect.top);
+        } else {
+            CopyBits(
+                gCachedPlayerPM[playerID],
+                GetWorkBits(),
+                &srcRect, &dstRect, transparent, NULL);
+        }
     } else {
-        SavePort();
-        SetPortWork();
+        if (!gSpriteDrawActive) {
+            SavePort();
+            SetPortWork();
+        }
 
         InsetRect(&dstRect, 2, 2);
 
@@ -734,7 +959,9 @@ void Renderer_DrawPlayer(short playerID, short pixelX, short pixelY, short facin
             FrameRect(&dstRect);
         }
 
-        RestorePort();
+        if (!gSpriteDrawActive) {
+            RestorePort();
+        }
     }
 }
 
@@ -749,19 +976,32 @@ void Renderer_DrawBomb(short col, short row)
         Rect srcRect;
         SetRect(&srcRect, 0, 0, ts, ts);
 
-        CopyBits(
-            gCachedBombPM,
-            GetWorkBits(),
-            &srcRect, &dstRect, transparent, NULL);
+        if (gBombMaskRgn != NULL) {
+            OffsetRgn(gBombMaskRgn, dstRect.left, dstRect.top);
+            CopyBits(
+                gCachedBombPM,
+                GetWorkBits(),
+                &srcRect, &dstRect, srcCopy, gBombMaskRgn);
+            OffsetRgn(gBombMaskRgn, -dstRect.left, -dstRect.top);
+        } else {
+            CopyBits(
+                gCachedBombPM,
+                GetWorkBits(),
+                &srcRect, &dstRect, transparent, NULL);
+        }
     } else {
-        SavePort();
-        SetPortWork();
+        if (!gSpriteDrawActive) {
+            SavePort();
+            SetPortWork();
+        }
 
         InsetRect(&dstRect, 4, 4);
         ForeColor(blackColor);
         PaintOval(&dstRect);
 
-        RestorePort();
+        if (!gSpriteDrawActive) {
+            RestorePort();
+        }
     }
 }
 
@@ -776,13 +1016,24 @@ void Renderer_DrawExplosion(short col, short row)
         Rect srcRect;
         SetRect(&srcRect, 0, 0, ts, ts);
 
-        CopyBits(
-            gCachedExplosionPM,
-            GetWorkBits(),
-            &srcRect, &dstRect, transparent, NULL);
+        if (gExplosionMaskRgn != NULL) {
+            OffsetRgn(gExplosionMaskRgn, dstRect.left, dstRect.top);
+            CopyBits(
+                gCachedExplosionPM,
+                GetWorkBits(),
+                &srcRect, &dstRect, srcCopy, gExplosionMaskRgn);
+            OffsetRgn(gExplosionMaskRgn, -dstRect.left, -dstRect.top);
+        } else {
+            CopyBits(
+                gCachedExplosionPM,
+                GetWorkBits(),
+                &srcRect, &dstRect, transparent, NULL);
+        }
     } else {
-        SavePort();
-        SetPortWork();
+        if (!gSpriteDrawActive) {
+            SavePort();
+            SetPortWork();
+        }
 
         if (gGame.isMacSE) {
             InvertRect(&dstRect);
@@ -791,7 +1042,9 @@ void Renderer_DrawExplosion(short col, short row)
             PaintRect(&dstRect);
         }
 
-        RestorePort();
+        if (!gSpriteDrawActive) {
+            RestorePort();
+        }
     }
 }
 

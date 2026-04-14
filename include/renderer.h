@@ -25,6 +25,11 @@ void Renderer_BeginFrame(void);
 void Renderer_DrawPlayer(short playerID, short pixelX, short pixelY, short facing);
 void Renderer_DrawBomb(short col, short row);
 void Renderer_DrawExplosion(short col, short row);
+
+/* Bracket all per-frame sprite drawing to batch port save/restore */
+void Renderer_BeginSpriteDraw(void);
+void Renderer_EndSpriteDraw(void);
+
 void Renderer_EndFrame(WindowPtr window);
 void Renderer_BlitToWindow(WindowPtr window);
 

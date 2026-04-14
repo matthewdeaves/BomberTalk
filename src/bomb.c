@@ -101,6 +101,7 @@ static void ExplodeBomb(Bomb *b, int broadcast)
     short dir, dist;
     short col, row;
     int blocksDestroyed = FALSE;
+    const TileMap *map = TileMap_Get();
 
     CLOG_INFO("Bomb exploding at (%d,%d) range=%d owner=P%d %s",
               b->gridCol, b->gridRow, b->range, b->ownerID,
@@ -120,13 +121,13 @@ static void ExplodeBomb(Bomb *b, int broadcast)
             if (col < 0 || col >= TileMap_GetCols() ||
                 row < 0 || row >= TileMap_GetRows()) break;
 
-            if (TileMap_GetTile(col, row) == TILE_WALL) break;
+            if (TILEMAP_TILE(map, col, row) == TILE_WALL) break;
 
             AddExplosion(col, row);
             Renderer_MarkDirty(col, row);
 
             /* Destroy blocks and stop */
-            if (TileMap_GetTile(col, row) == TILE_BLOCK) {
+            if (TILEMAP_TILE(map, col, row) == TILE_BLOCK) {
                 CLOG_DEBUG("Block destroyed at (%d,%d)", col, row);
                 TileMap_SetTile(col, row, TILE_FLOOR);
                 if (broadcast) Net_SendBlockDestroyed(col, row);
