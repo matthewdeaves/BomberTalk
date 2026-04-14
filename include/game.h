@@ -253,12 +253,12 @@ typedef struct {
     short           fpsValue;
     int             pendingGameOver;  /* remote game over received, wait for death anims */
     unsigned char   pendingWinner;    /* winner ID from remote MSG_GAME_OVER */
-    short           gameOverTimeout;  /* safety timeout ticks for pending game over */
-    short           disconnectGraceTimer;  /* ticks before TCP teardown after game over */
-    short           meshStaggerTimer;      /* ticks before first connect after game start */
+    unsigned long   gameOverTimeoutStart;  /* TickCount() when started, 0 = inactive */
+    unsigned long   disconnectGraceStart;  /* TickCount() when started, 0 = inactive */
+    unsigned long   meshStaggerStart;      /* TickCount() when started, 0 = inactive */
     int             gameOverAuthority;     /* TRUE if this machine sends MSG_GAME_OVER */
     int             localGameOverDetected; /* TRUE if local game over detected, not authority */
-    short           gameOverFailsafeTimer; /* failsafe timeout for non-authority game over */
+    unsigned long   gameOverFailsafeStart; /* TickCount() when started, 0 = inactive */
     long            heapCheckTimer;        /* ticks since last periodic heap check */
     WindowPtr       window;
 } GameState;

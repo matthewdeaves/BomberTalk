@@ -299,12 +299,12 @@ static void InitGameState(void)
     gGame.fpsValue = 0;
     gGame.pendingGameOver = FALSE;
     gGame.pendingWinner = 0xFF;
-    gGame.gameOverTimeout = 0;
-    gGame.disconnectGraceTimer = 0;
-    gGame.meshStaggerTimer = 0;
+    gGame.gameOverTimeoutStart = 0;
+    gGame.disconnectGraceStart = 0;
+    gGame.meshStaggerStart = 0;
     gGame.gameOverAuthority = FALSE;
     gGame.localGameOverDetected = FALSE;
-    gGame.gameOverFailsafeTimer = 0;
+    gGame.gameOverFailsafeStart = 0;
     gGame.heapCheckTimer = 0;
 
     for (i = 0; i < MAX_PLAYERS; i++) {

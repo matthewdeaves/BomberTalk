@@ -63,10 +63,10 @@ void Game_Update(void)
 
     /* Grace period: wait for TCP buffers to flush before disconnect (005).
      * Net_Poll() runs in MainLoop() before Screens_Update(), so TCP
-     * delivery continues during this wait without additional code. */
-    if (gGame.disconnectGraceTimer > 0) {
-        gGame.disconnectGraceTimer -= gGame.deltaTicks;
-        if (gGame.disconnectGraceTimer <= 0) {
+     * delivery continues during this wait without additional code.
+     * Uses TickCount() wall-clock timing (007) — immune to deltaTicks cap. */
+    if (gGame.disconnectGraceStart != 0) {
+        if (TickCount() - gGame.disconnectGraceStart >= DISCONNECT_GRACE_TICKS) {
             CLOG_INFO("Grace period complete, disconnecting");
             gGame.gameStartReceived = FALSE;
             gGame.pendingGameOver = FALSE;
@@ -231,9 +231,10 @@ void Game_Update(void)
          * Placed after alive-count loop to reuse aliveCount/lastAlive. */
         if (gGame.localGameOverDetected) {
             int authorityGone = Net_IsLowestRankConnected();
-            gGame.gameOverFailsafeTimer -= gGame.deltaTicks;
             if (!gGame.pendingGameOver &&
-                (authorityGone || gGame.gameOverFailsafeTimer <= 0)) {
+                (authorityGone ||
+                 (gGame.gameOverFailsafeStart != 0 &&
+                  TickCount() - gGame.gameOverFailsafeStart >= GAME_OVER_FAILSAFE_TICKS))) {
                 unsigned char winnerFC = (aliveCount == 1) ?
                                          (unsigned char)lastAlive : 0xFF;
                 CLOG_WARN("Game over failsafe: %s, sending as backup",
@@ -242,24 +243,26 @@ void Game_Update(void)
                 Net_SendGameOver(winnerFC);
                 gGame.localGameOverDetected = FALSE;
                 gGame.gameRunning = FALSE;
-                gGame.disconnectGraceTimer = DISCONNECT_GRACE_TICKS;
+                gGame.disconnectGraceStart = TickCount();
                 CLOG_INFO("Game over: starting grace period (%d ticks)",
                           DISCONNECT_GRACE_TICKS);
                 return;
             }
         }
 
-        /* Handle pending remote game over: wait for death anims or timeout */
+        /* Handle pending remote game over: wait for death anims or timeout.
+         * Uses TickCount() wall-clock timing (007). */
         if (gGame.pendingGameOver) {
-            gGame.gameOverTimeout -= gGame.deltaTicks;
-            if (!anyDying || gGame.gameOverTimeout <= 0) {
-                if (gGame.gameOverTimeout <= 0) {
+            int timedOut = (gGame.gameOverTimeoutStart != 0 &&
+                            TickCount() - gGame.gameOverTimeoutStart >= GAME_OVER_TIMEOUT_TICKS);
+            if (!anyDying || timedOut) {
+                if (timedOut) {
                     CLOG_WARN("Game over timeout, forcing transition");
                 }
                 CLOG_INFO("Game over (remote): winner=%d", gGame.pendingWinner);
                 gGame.gameRunning = FALSE;
                 gGame.pendingGameOver = FALSE;
-                gGame.disconnectGraceTimer = DISCONNECT_GRACE_TICKS;
+                gGame.disconnectGraceStart = TickCount();
                 CLOG_INFO("Game over: starting grace period (%d ticks)",
                           DISCONNECT_GRACE_TICKS);
             }
@@ -287,12 +290,12 @@ void Game_Update(void)
             } else {
                 CLOG_INFO("Game over non-authority: starting failsafe timer");
                 gGame.localGameOverDetected = TRUE;
-                gGame.gameOverFailsafeTimer = GAME_OVER_FAILSAFE_TICKS;
+                gGame.gameOverFailsafeStart = TickCount();
                 return;
             }
 
             gGame.gameRunning = FALSE;
-            gGame.disconnectGraceTimer = DISCONNECT_GRACE_TICKS;
+            gGame.disconnectGraceStart = TickCount();
             CLOG_INFO("Game over: starting grace period (%d ticks)",
                       DISCONNECT_GRACE_TICKS);
         }
