@@ -210,7 +210,7 @@ void Bomb_Update(void)
                 int isOwner = (gGame.localPlayerID >= 0 &&
                                gGame.localPlayerID == (short)gGame.bombs[i].ownerID);
                 if (!isOwner) {
-                    CLOG_INFO("Bomb at (%d,%d) fuse expired locally "
+                    CLOG_DEBUG("Bomb at (%d,%d) fuse expired locally "
                               "(owner=P%d, not local P%d)",
                               gGame.bombs[i].gridCol, gGame.bombs[i].gridRow,
                               gGame.bombs[i].ownerID, gGame.localPlayerID);

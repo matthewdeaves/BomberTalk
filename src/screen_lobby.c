@@ -46,11 +46,11 @@ void Lobby_Init(void)
      * already be FALSE but belt-and-suspenders. */
     gGame.pendingGameOver = FALSE;
     gGame.gameStartReceived = FALSE;
-    gGame.gameOverTimeout = 0;
-    gGame.disconnectGraceTimer = 0;
-    gGame.meshStaggerTimer = 0;
+    gGame.gameOverTimeoutStart = 0;
+    gGame.disconnectGraceStart = 0;
+    gGame.meshStaggerStart = 0;
     gGame.localGameOverDetected = FALSE;
-    gGame.gameOverFailsafeTimer = 0;
+    gGame.gameOverFailsafeStart = 0;
 
     /* Clear stale peer pointers from previous game */
     for (i = 0; i < MAX_PLAYERS; i++) {
@@ -97,11 +97,12 @@ void Lobby_Update(void)
      * Stagger: delay first connect by rank * MESH_STAGGER_PER_RANK (005).
      */
     if (gWaitingForMesh) {
-        /* Stagger delay: higher-rank peers wait longer before first connect */
-        if (gGame.meshStaggerTimer > 0) {
-            gGame.meshStaggerTimer -= gGame.deltaTicks;
-            if (gGame.meshStaggerTimer <= 0) {
-                gGame.meshStaggerTimer = 0;
+        /* Stagger delay: higher-rank peers wait longer before first connect.
+         * Uses TickCount() wall-clock timing (007) — immune to deltaTicks cap. */
+        if (gGame.meshStaggerStart != 0) {
+            unsigned long stagger = (unsigned long)(Net_GetLocalRank() * MESH_STAGGER_PER_RANK);
+            if (TickCount() - gGame.meshStaggerStart >= stagger) {
+                gGame.meshStaggerStart = 0;
                 CLOG_INFO("Mesh stagger complete, connecting");
                 Net_ConnectToAllPeers();
             }
@@ -144,12 +145,14 @@ void Lobby_Update(void)
         short stagger = rank * MESH_STAGGER_PER_RANK;
         CLOG_INFO("Game start received, mesh stagger: rank %d, delay %d ticks "
                   "(%d expected)", rank, stagger, expected);
-        gGame.meshStaggerTimer = stagger;
         gWaitingForMesh = TRUE;
         gConnectStartTick = TickCount();
         if (stagger == 0) {
             /* Rank 0: connect immediately */
+            gGame.meshStaggerStart = 0;
             Net_ConnectToAllPeers();
+        } else {
+            gGame.meshStaggerStart = TickCount();
         }
         return;
     }
