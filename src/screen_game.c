@@ -170,7 +170,7 @@ void Game_Update(void)
     }
     {
         short expCount;
-        Explosion *exps = Bomb_GetExplosions(&expCount);
+        const Explosion *exps = Bomb_GetExplosions(&expCount);
         for (i = 0; i < expCount; i++) {
             Renderer_MarkDirty(exps[i].col, exps[i].row);
         }
@@ -256,7 +256,7 @@ void Game_Update(void)
 void Game_Draw(WindowPtr window)
 {
     short i, explosionCount;
-    Explosion *explosions;
+    const Explosion *explosions;
 
     /* Copy background to work buffer */
     Renderer_BeginFrame();

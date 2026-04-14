@@ -253,4 +253,7 @@ typedef struct {
 /* The single global game state */
 extern GameState gGame;
 
+/* Request clean quit (sets main loop flag; do NOT call ExitToShell directly) */
+void Game_RequestQuit(void);
+
 #endif /* GAME_H */

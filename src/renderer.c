@@ -440,11 +440,27 @@ void Renderer_Shutdown(void)
         if (gBgStorageSE) { DisposePtr(gBgStorageSE); gBgStorageSE = NULL; }
         if (gWorkStorageSE) { DisposePtr(gWorkStorageSE); gWorkStorageSE = NULL; }
     } else {
-        if (gBackground) { DisposeGWorld(gBackground); gBackground = NULL; }
-        if (gWorkBuffer) { DisposeGWorld(gWorkBuffer); gWorkBuffer = NULL; }
+        /* UnlockPixels before DisposeGWorld per Black Art (1996) Ch. 5:
+         * "The GWorld's PixMapHandle should be unlocked before calling
+         * DisposeGWorld."  Inside Mac VI confirms unlocking already-unlocked
+         * pixels is harmless, so unconditional unlock is safe here. */
+        if (gBackground) {
+            UnlockPixels(GetGWorldPixMap(gBackground));
+            DisposeGWorld(gBackground);
+            gBackground = NULL;
+        }
+        if (gWorkBuffer) {
+            UnlockPixels(GetGWorldPixMap(gWorkBuffer));
+            DisposeGWorld(gWorkBuffer);
+            gWorkBuffer = NULL;
+        }
     }
 
-    if (gTileSheet) { DisposeGWorld(gTileSheet); gTileSheet = NULL; }
+    if (gTileSheet) {
+        UnlockPixels(GetGWorldPixMap(gTileSheet));
+        DisposeGWorld(gTileSheet);
+        gTileSheet = NULL;
+    }
 
     for (i = 0; i < MAX_PLAYERS; i++) {
         if (gPlayerSprites[i] != NULL) {
@@ -456,14 +472,29 @@ void Renderer_Shutdown(void)
                     break;
                 }
             }
-            if (!dup) DisposeGWorld(gPlayerSprites[i]);
+            if (!dup) {
+                UnlockPixels(GetGWorldPixMap(gPlayerSprites[i]));
+                DisposeGWorld(gPlayerSprites[i]);
+            }
             gPlayerSprites[i] = NULL;
         }
     }
 
-    if (gBombSprite) { DisposeGWorld(gBombSprite); gBombSprite = NULL; }
-    if (gExplosionSprite) { DisposeGWorld(gExplosionSprite); gExplosionSprite = NULL; }
-    if (gTitleSprite) { DisposeGWorld(gTitleSprite); gTitleSprite = NULL; }
+    if (gBombSprite) {
+        UnlockPixels(GetGWorldPixMap(gBombSprite));
+        DisposeGWorld(gBombSprite);
+        gBombSprite = NULL;
+    }
+    if (gExplosionSprite) {
+        UnlockPixels(GetGWorldPixMap(gExplosionSprite));
+        DisposeGWorld(gExplosionSprite);
+        gExplosionSprite = NULL;
+    }
+    if (gTitleSprite) {
+        UnlockPixels(GetGWorldPixMap(gTitleSprite));
+        DisposeGWorld(gTitleSprite);
+        gTitleSprite = NULL;
+    }
 }
 
 /* ==== Tile Drawing ==== */

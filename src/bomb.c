@@ -258,7 +258,7 @@ void Bomb_ForceExplodeAt(short col, short row)
     }
 }
 
-Explosion *Bomb_GetExplosions(short *count)
+const Explosion *Bomb_GetExplosions(short *count)
 {
     *count = gExplosionCount;
     return gExplosions;

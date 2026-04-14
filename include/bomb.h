@@ -22,6 +22,6 @@ typedef struct {
     short timer;    /* ticks remaining to display */
 } Explosion;
 
-Explosion *Bomb_GetExplosions(short *count);
+const Explosion *Bomb_GetExplosions(short *count);
 
 #endif /* BOMB_H */

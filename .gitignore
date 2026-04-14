@@ -12,8 +12,10 @@ build/
 Thumbs.db
 *.tmp
 *.swp
+*~
 .vscode/
 .idea/
 *.log
+logs/
 .env*
 .rtk/

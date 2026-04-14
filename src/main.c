@@ -19,6 +19,21 @@ GameState gGame;
 
 /* ---- Local state ---- */
 static int      gQuitting = FALSE;
+
+/*
+ * Game_RequestQuit -- Set the quit flag so the main loop exits cleanly.
+ *
+ * All quit paths MUST go through this instead of calling ExitToShell()
+ * directly, so the shutdown sequence in main() runs (Net_Shutdown,
+ * Renderer_Shutdown port redirection, DisposeWindow, clog_shutdown).
+ * Source: Macintosh Game Programming Techniques (1996) Ch. 4 — global
+ * quit flag pattern: while (!bQuitting) ... then CleanupDesertTrek().
+ */
+void Game_RequestQuit(void)
+{
+    gQuitting = TRUE;
+}
+
 static long     gLastFrameTick = 0;
 static short    gFPSFrameCount = 0;
 static long     gFPSLastTick = 0;

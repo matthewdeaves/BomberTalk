@@ -63,7 +63,7 @@ void Menu_Update(void)
         if (gMenuSelection == 0) {
             Screens_TransitionTo(SCREEN_LOBBY);
         } else {
-            ExitToShell();
+            Game_RequestQuit();
         }
     }
 }
