@@ -263,14 +263,20 @@ static void MainLoop(void)
                 Renderer_DrawFPS(gGame.fpsValue);
             }
 
-            /* Periodic heap check during gameplay (005) */
+            /* Periodic heap check during gameplay (005).
+             * Use PurgeSpace instead of FreeMem (008 FR-007): PurgeSpace
+             * reports obtainable memory including purgeable blocks, matching
+             * Inside Macintosh IV semantics. FreeMem under-counts. */
             if (gGame.currentScreen == SCREEN_GAME) {
                 gGame.heapCheckTimer += gGame.deltaTicks;
                 if (gGame.heapCheckTimer >= HEAP_CHECK_INTERVAL_TICKS) {
+                    long total, contig;
                     gGame.heapCheckTimer = 0;
-                    if (FreeMem() < LOW_HEAP_WARNING_BYTES) {
-                        CLOG_WARN("Low heap during gameplay: %ld bytes free",
-                                  FreeMem());
+                    PurgeSpace(&total, &contig);
+                    if (total < LOW_HEAP_WARNING_BYTES) {
+                        CLOG_WARN("Low heap during gameplay: %ld bytes "
+                                  "obtainable (contig %ld)",
+                                  total, contig);
                     }
                 }
             }
@@ -359,11 +365,17 @@ int main(void)
 
     Screens_Init();
 
-    /* Memory budget check (T038) */
-    CLOG_INFO("Free heap after init: %ld bytes", FreeMem());
-    if (FreeMem() < LOW_HEAP_WARNING_BYTES) {
-        CLOG_WARN("Low heap warning: %ld bytes free (threshold: %ld)",
-                  FreeMem(), (long)LOW_HEAP_WARNING_BYTES);
+    /* Memory budget check (T038; 008 FR-007: PurgeSpace over FreeMem) */
+    {
+        long total, contig;
+        PurgeSpace(&total, &contig);
+        CLOG_INFO("Heap after init: %ld bytes obtainable (contig %ld)",
+                  total, contig);
+        if (total < LOW_HEAP_WARNING_BYTES) {
+            CLOG_WARN("Low heap warning: %ld bytes obtainable "
+                      "(threshold: %ld)",
+                      total, (long)LOW_HEAP_WARNING_BYTES);
+        }
     }
 
     CLOG_INFO("Entering main loop");

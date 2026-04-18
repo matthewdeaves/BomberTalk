@@ -398,25 +398,19 @@ static void LoadPICTResources(void)
     short tileSheetW = ts * 4;
     short i;
 
-    if (gGame.isMacSE) {
-        gTileSheet = LoadPICTToGWorld(rPictTilesSE, tileSheetW, ts);
-        gPlayerSprites[0] = LoadPICTToGWorld(rPictPlayerSE, ts, ts);
-        for (i = 1; i < MAX_PLAYERS; i++) {
-            gPlayerSprites[i] = gPlayerSprites[0];
-        }
-        gBombSprite = LoadPICTToGWorld(rPictBombSE, ts, ts);
-        gExplosionSprite = LoadPICTToGWorld(rPictExplosionSE, ts, ts);
-        gTitleSprite = LoadPICTToGWorld(rPictTitleSE, 240, 80);
-    } else {
-        gTileSheet = LoadPICTToGWorld(rPictTiles, tileSheetW, ts);
-        gPlayerSprites[0] = LoadPICTToGWorld(rPictPlayerP0, ts, ts);
-        gPlayerSprites[1] = LoadPICTToGWorld(rPictPlayerP1, ts, ts);
-        gPlayerSprites[2] = LoadPICTToGWorld(rPictPlayerP2, ts, ts);
-        gPlayerSprites[3] = LoadPICTToGWorld(rPictPlayerP3, ts, ts);
-        gBombSprite = LoadPICTToGWorld(rPictBomb, ts, ts);
-        gExplosionSprite = LoadPICTToGWorld(rPictExplosion, ts, ts);
-        gTitleSprite = LoadPICTToGWorld(rPictTitle, 320, 128);
-    }
+    /* Color Macs only. Mac SE runs the rectangle fallback path and never
+     * reaches here (call-site in Renderer_Init guards on !gGame.isMacSE).
+     * The rPict*SE resource IDs (see include/game.h) remain reserved for
+     * future Mac SE PICT support — re-add an isMacSE branch to use them.
+     * 008 FR-006: previous dead SE branches and ternaries removed. */
+    gTileSheet = LoadPICTToGWorld(rPictTiles, tileSheetW, ts);
+    gPlayerSprites[0] = LoadPICTToGWorld(rPictPlayerP0, ts, ts);
+    gPlayerSprites[1] = LoadPICTToGWorld(rPictPlayerP1, ts, ts);
+    gPlayerSprites[2] = LoadPICTToGWorld(rPictPlayerP2, ts, ts);
+    gPlayerSprites[3] = LoadPICTToGWorld(rPictPlayerP3, ts, ts);
+    gBombSprite = LoadPICTToGWorld(rPictBomb, ts, ts);
+    gExplosionSprite = LoadPICTToGWorld(rPictExplosion, ts, ts);
+    gTitleSprite = LoadPICTToGWorld(rPictTitle, 320, 128);
 
     if (gTileSheet != NULL) {
         gPICTsLoaded = TRUE;
@@ -426,26 +420,21 @@ static void LoadPICTResources(void)
         CLOG_WARN("PICT resources not found, using rectangle fallback");
     }
 
-    /* Create mask regions for srcCopy sprite blitting (006-renderer-optimization).
-     * Color Macs only — Mac SE uses fallback rectangles, no GWorlds for sprites. */
-    if (!gGame.isMacSE) {
-        for (i = 0; i < MAX_PLAYERS; i++) {
-            gPlayerMaskRgn[i] = CreateMaskFromGWorld(gPlayerSprites[i], ts, ts);
-        }
-        gBombMaskRgn = CreateMaskFromGWorld(gBombSprite, ts, ts);
-        gExplosionMaskRgn = CreateMaskFromGWorld(gExplosionSprite, ts, ts);
-        gTitleMaskRgn = CreateMaskFromGWorld(gTitleSprite,
-                            gGame.isMacSE ? 240 : 320,
-                            gGame.isMacSE ? 80 : 128);
-        CLOG_INFO("Mask regions: P0=%s P1=%s P2=%s P3=%s bomb=%s expl=%s title=%s",
-                  gPlayerMaskRgn[0] ? "ok" : "FAIL",
-                  gPlayerMaskRgn[1] ? "ok" : "FAIL",
-                  gPlayerMaskRgn[2] ? "ok" : "FAIL",
-                  gPlayerMaskRgn[3] ? "ok" : "FAIL",
-                  gBombMaskRgn ? "ok" : "FAIL",
-                  gExplosionMaskRgn ? "ok" : "FAIL",
-                  gTitleMaskRgn ? "ok" : "FAIL");
+    /* Create mask regions for srcCopy sprite blitting (006-renderer-optimization). */
+    for (i = 0; i < MAX_PLAYERS; i++) {
+        gPlayerMaskRgn[i] = CreateMaskFromGWorld(gPlayerSprites[i], ts, ts);
     }
+    gBombMaskRgn = CreateMaskFromGWorld(gBombSprite, ts, ts);
+    gExplosionMaskRgn = CreateMaskFromGWorld(gExplosionSprite, ts, ts);
+    gTitleMaskRgn = CreateMaskFromGWorld(gTitleSprite, 320, 128);
+    CLOG_INFO("Mask regions: P0=%s P1=%s P2=%s P3=%s bomb=%s expl=%s title=%s",
+              gPlayerMaskRgn[0] ? "ok" : "FAIL",
+              gPlayerMaskRgn[1] ? "ok" : "FAIL",
+              gPlayerMaskRgn[2] ? "ok" : "FAIL",
+              gPlayerMaskRgn[3] ? "ok" : "FAIL",
+              gBombMaskRgn ? "ok" : "FAIL",
+              gExplosionMaskRgn ? "ok" : "FAIL",
+              gTitleMaskRgn ? "ok" : "FAIL");
 }
 
 /* ==== Mac SE: Offscreen BitMap allocation ==== */
@@ -935,8 +924,10 @@ void Renderer_DrawPlayer(short playerID, short pixelX, short pixelY, short facin
             short cy = dstRect.top + (dstRect.bottom - dstRect.top) / 2;
             Rect mark;
 
-            ForeColor(blackColor);
-            BackColor(whiteColor);
+            /* ForeColor=black, BackColor=white already set by
+             * Renderer_BeginSpriteDraw bracket (006) and restored by the
+             * trailing ForeColor(blackColor) below — no per-player re-assert
+             * needed (008 FR-003 minimal; saves ~8 traps/frame on SE). */
             PaintRect(&dstRect);
 
             ForeColor(whiteColor);
@@ -951,7 +942,7 @@ void Renderer_DrawPlayer(short playerID, short pixelX, short pixelY, short facin
                 SetRect(&mark, cx - 2, cy - 2, cx + 2, cy + 2);
                 PaintRect(&mark);
             }
-            ForeColor(blackColor);
+            ForeColor(blackColor); /* reset for next player's body PaintRect */
         } else {
             RGBForeColor(kPlayerColors[playerID & 3]);
             PaintRect(&dstRect);

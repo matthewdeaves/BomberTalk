@@ -13,7 +13,9 @@ void TileMap_Init(void);
 void TileMap_Reset(void);
 unsigned char TileMap_GetTile(short col, short row);
 void TileMap_SetTile(short col, short row, unsigned char type);
-int  TileMap_IsSolid(short col, short row);
+/* TileMap_IsSolid removed 008 FR-005 — unused. For solid-tile tests, read
+ * TileMap_GetTile(col,row) == TILE_WALL || == TILE_BLOCK, or use the
+ * TILEMAP_TILE(map,col,row) macro directly in bounds-checked hot paths. */
 short TileMap_GetCols(void);
 short TileMap_GetRows(void);
 short TileMap_GetSpawnCol(short index);

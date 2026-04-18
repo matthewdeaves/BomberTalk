@@ -13,8 +13,9 @@
 static Explosion gExplosions[MAX_EXPLOSIONS];
 static short gExplosionCount = 0;
 
-/* Spatial grid for O(1) bomb-position lookups */
-static unsigned char gBombGrid[MAX_GRID_ROWS][MAX_GRID_COLS];
+/* Spatial grid for O(1) bomb-position lookups.
+ * Exposed via extern in bomb.h for BOMB_GRID_CELL macro (008-perf-hotpath). */
+unsigned char gBombGrid[MAX_GRID_ROWS][MAX_GRID_COLS];
 
 /* Explosion raycast directions (static const avoids stack init per call) */
 static const short kExplodeDCol[4] = {0, 0, -1, 1};
@@ -61,13 +62,6 @@ int Bomb_PlaceAt(short col, short row, short range, unsigned char ownerID)
         }
     }
     return FALSE;
-}
-
-int Bomb_ExistsAt(short col, short row)
-{
-    if (col < 0 || col >= TileMap_GetCols() ||
-        row < 0 || row >= TileMap_GetRows()) return FALSE;
-    return gBombGrid[row][col];
 }
 
 /*
@@ -161,10 +155,12 @@ static void ExplodeBomb(Bomb *b, int broadcast)
             for (e = 0; e < gExplosionCount; e++) {
                 Rect expRect;
                 if (gExplosions[e].timer != EXPLOSION_DURATION_TICKS) continue;
-                SetRect(&expRect,
-                        gExplosions[e].col * ts, gExplosions[e].row * ts,
-                        (gExplosions[e].col + 1) * ts,
-                        (gExplosions[e].row + 1) * ts);
+                /* Inline SetRect in per-frame AABB loop (008 FR-002):
+                 * direct field writes avoid the Toolbox trap dispatch. */
+                expRect.left   = (short)(gExplosions[e].col * ts);
+                expRect.top    = (short)(gExplosions[e].row * ts);
+                expRect.right  = (short)(expRect.left + ts);
+                expRect.bottom = (short)(expRect.top + ts);
                 /* AABB overlap test */
                 if (!(hitbox.right <= expRect.left ||
                       hitbox.left >= expRect.right ||
@@ -244,10 +240,11 @@ void Bomb_Update(void)
             Player_GetHitbox(gGame.localPlayerID, &hitbox);
             for (i = 0; i < gExplosionCount; i++) {
                 Rect expRect;
-                SetRect(&expRect,
-                        gExplosions[i].col * ts, gExplosions[i].row * ts,
-                        (gExplosions[i].col + 1) * ts,
-                        (gExplosions[i].row + 1) * ts);
+                /* Inline SetRect in per-frame AABB loop (008 FR-002). */
+                expRect.left   = (short)(gExplosions[i].col * ts);
+                expRect.top    = (short)(gExplosions[i].row * ts);
+                expRect.right  = (short)(expRect.left + ts);
+                expRect.bottom = (short)(expRect.top + ts);
                 if (!(hitbox.right <= expRect.left ||
                       hitbox.left >= expRect.right ||
                       hitbox.bottom <= expRect.top ||
