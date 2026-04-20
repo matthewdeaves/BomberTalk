@@ -44,6 +44,12 @@ void Loading_Draw(WindowPtr window)
     /* Draw to offscreen work buffer, then blit */
     Renderer_BeginScreenDraw();
 
+    /* Splash background PICT (if loaded) fills the whole window; text
+     * overlays below supply a "Loading..." indicator and also serve as
+     * the fallback display when the PICT is missing from the resource
+     * fork (Renderer_DrawSplashBackground is a no-op in that case). */
+    Renderer_DrawSplashBackground();
+
     /* Cache widths on first draw (needs valid port) */
     if (!gLoadWidthsCached) {
         TextSize(24);

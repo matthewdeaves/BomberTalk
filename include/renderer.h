@@ -24,6 +24,7 @@ void Renderer_RequestRebuildBackground(void);
 void Renderer_BeginFrame(void);
 void Renderer_DrawPlayer(short playerID, short pixelX, short pixelY, short facing);
 void Renderer_DrawBomb(short col, short row, short frameIndex);
+void Renderer_DrawSplashBackground(void);
 void Renderer_DrawExplosion(short col, short row);
 
 /* Bracket all per-frame sprite drawing to batch port save/restore */

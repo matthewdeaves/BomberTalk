@@ -100,6 +100,10 @@
 #define rPictBombFrame1          141
 #define rPictBombFrame2          142
 
+/* Splash / loading-screen backgrounds (full-window PICTs). */
+#define rPictSplashColor         150  /* 480x416, 256 colours */
+#define rPictSplashSE            250  /* 240x208, 1-bit */
+
 /* Mac SE (16x16, 1-bit) -- IDs 200-255 */
 #define rPictTilesSE        200
 #define rPictPlayerSE       201

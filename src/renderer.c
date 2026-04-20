@@ -1136,6 +1136,40 @@ void Renderer_BlitToWindow(WindowPtr window)
 
 /* ==== Screen Draw Helpers ==== */
 
+/*
+ * Renderer_DrawSplashBackground -- Draw the loading-splash PICT into the
+ * currently-active port. Meant to be called between BeginScreenDraw and
+ * EndScreenDraw so the splash lands on the work buffer and gets blitted
+ * to the window by EndScreenDraw.
+ *
+ * Uses DrawPicture() directly (no GWorld) so the same code path works
+ * on Mac SE (GrafPort work buffer) and colour Macs (GWorld work buffer).
+ * The PicHandle is lazy-loaded on first call, cached for subsequent.
+ * Resource selection depends on gGame.isMacSE.
+ */
+void Renderer_DrawSplashBackground(void)
+{
+    static PicHandle splashPic = NULL;
+    static int loadAttempted = FALSE;
+    Rect dstRect;
+
+    if (!loadAttempted) {
+        short resId = gGame.isMacSE ? rPictSplashSE : rPictSplashColor;
+        splashPic = GetPicture(resId);
+        loadAttempted = TRUE;
+        if (splashPic == NULL) {
+            CLOG_WARN("Splash PICT %d not found in resource fork", resId);
+        } else {
+            CLOG_INFO("Splash PICT %d loaded", resId);
+        }
+    }
+
+    if (splashPic == NULL) return;
+
+    SetRect(&dstRect, 0, 0, gGame.playWidth, gGame.playHeight);
+    DrawPicture(splashPic, &dstRect);
+}
+
 void Renderer_BeginScreenDraw(void)
 {
     Renderer_ClearWork();
