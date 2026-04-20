@@ -96,9 +96,12 @@
 /* Bomb fuse animation frames (3 frames, pulse loop 0→1→2→1). */
 #define BOMB_ANIM_FRAMES         3
 #define BOMB_ANIM_FRAME_TICKS    18  /* ~0.3s per frame at 60 ticks/sec */
-#define rPictBombFrame0          140
+#define rPictBombFrame0          140  /* colour Macs, 32x32, indexed */
 #define rPictBombFrame1          141
 #define rPictBombFrame2          142
+#define rPictBombSEFrame0        145  /* Mac SE, 16x16, 1-bit (white = transparent) */
+#define rPictBombSEFrame1        146
+#define rPictBombSEFrame2        147
 
 /* Splash / loading-screen backgrounds (full-window PICTs). */
 #define rPictSplashColor         150  /* 480x416, 256 colours */

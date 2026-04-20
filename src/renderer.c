@@ -43,6 +43,24 @@ static RgnHandle gBombMaskRgn[BOMB_ANIM_FRAMES];
 static RgnHandle gExplosionMaskRgn = NULL;
 static RgnHandle gTitleMaskRgn = NULL;
 
+/* ---- Mac SE: 1-bit bomb sprite + flood-fill mask (per frame). ----
+ *
+ * 16x16 each. Sprite carries the source PICT pixels as a 1-bit BitMap
+ * (white = transparent, black = bomb body). Mask is the silhouette —
+ * 1 wherever the bomb is drawn, including internal white highlights
+ * — built by flood-filling "outside" white from the corners. Renderer
+ * composites with srcBic(mask) + srcOr(sprite), preserving highlights
+ * and letting the tile background show through around the bomb.
+ *
+ * Storage allocated in LoadSEBombSprites, freed in Renderer_Shutdown.
+ * A NULL baseAddr on gBombSpriteSE[i] means the PICT wasn't loaded
+ * for that frame (missing from resource fork) — the draw code falls
+ * back to the animated oval path. */
+static BitMap gBombSpriteSE[BOMB_ANIM_FRAMES];
+static BitMap gBombMaskSE[BOMB_ANIM_FRAMES];
+static Ptr    gBombSpriteSEStorage[BOMB_ANIM_FRAMES];
+static Ptr    gBombMaskSEStorage[BOMB_ANIM_FRAMES];
+
 /* ---- Mac SE: BitMap-based offscreen ---- */
 static GrafPort gBgPortSE;
 static GrafPort gWorkPortSE;
@@ -325,10 +343,13 @@ static RgnHandle CreateMaskFromGWorld(GWorldPtr gw, short width, short height)
     Ptr maskStorage;
     BitMap maskBM;
     RgnHandle rgn;
+    CTabHandle ctab;
+    RGBColor bgRgb;
     short bgIndex;
     short row, col;
     const unsigned char *srcRow;
     unsigned char *dstRow;
+    long threshSq;
 
     if (gw == NULL) return NULL;
 
@@ -338,12 +359,23 @@ static RgnHandle CreateMaskFromGWorld(GWorldPtr gw, short width, short height)
 
     pixBase = GetPixBaseAddr(pmh);
     pixRowBytes = (*pmh)->rowBytes & 0x3FFF;
+    ctab = (*pmh)->pmTable;
 
-    /* Background = top-left pixel. Any solid-bg sprite works: the old
-     * "scan ctab for white" heuristic broke for black-bg PICTs coming
-     * out of pixelcraft (the heuristic latched onto a bomb's white
-     * highlight instead of the real background). */
+    /* Read the background reference from the top-left pixel's RGB (via
+     * the ctab), not its palette index. DrawPicture colour-matches onto
+     * the device CLUT on load, and multiple distinct source colours can
+     * end up at the same device index -- so comparing indices caused
+     * the bomb's white highlight to collapse into the same slot as the
+     * transparent background on Quadra 800. Comparing RGB sidesteps
+     * that: we only mask pixels whose actual colour is close to the
+     * background colour. */
     bgIndex = ((const unsigned char *)pixBase)[0];
+    if (ctab != NULL && *ctab != NULL) {
+        bgRgb = (*ctab)->ctTable[bgIndex].rgb;
+    } else {
+        /* No ctab (unexpected for 8-bit GWorld) -- fall back to index compare. */
+        bgRgb.red = bgRgb.green = bgRgb.blue = 0xFFFF;
+    }
 
     /* Allocate 1-bit mask bitmap */
     maskRowBytes = ((width + 15) / 16) * 2;
@@ -353,12 +385,32 @@ static RgnHandle CreateMaskFromGWorld(GWorldPtr gw, short width, short height)
         return NULL;
     }
 
-    /* Scan sprite pixels: set mask bit where pixel != background */
+    /* Tolerance for "matches background". ~3% of the 16-bit range per
+     * channel, squared Euclidean distance. Generous enough to absorb
+     * colour-matching rounding, tight enough that a bomb's near-black
+     * shading (which lands on a distinct gray slot) stays opaque. */
+    threshSq = 3L * 0x0800L * 0x0800L;
+
+    /* Scan sprite pixels: set mask bit where pixel's colour differs
+     * enough from the background reference. */
     for (row = 0; row < height; row++) {
         srcRow = (const unsigned char *)pixBase + (long)row * pixRowBytes;
         dstRow = (unsigned char *)maskStorage + (long)row * maskRowBytes;
         for (col = 0; col < width; col++) {
-            if (srcRow[col] != (unsigned char)bgIndex) {
+            int opaque;
+            if (ctab != NULL && *ctab != NULL) {
+                RGBColor p = (*ctab)->ctTable[srcRow[col]].rgb;
+                long dr = (long)p.red   - (long)bgRgb.red;
+                long dg = (long)p.green - (long)bgRgb.green;
+                long db = (long)p.blue  - (long)bgRgb.blue;
+                /* Divide channel deltas to 8-bit range before squaring so
+                 * the sum fits comfortably in a signed long. */
+                dr >>= 4; dg >>= 4; db >>= 4;
+                opaque = (dr*dr + dg*dg + db*db) > (threshSq >> 8);
+            } else {
+                opaque = srcRow[col] != (unsigned char)bgIndex;
+            }
+            if (opaque) {
                 dstRow[col >> 3] |= (0x80 >> (col & 7));
             }
         }
@@ -385,6 +437,236 @@ static RgnHandle CreateMaskFromGWorld(GWorldPtr gw, short width, short height)
 
     DisposePtr(maskStorage);
     return rgn;
+}
+
+/* ==== Mac SE: 1-bit PICT sprite loading ==== */
+
+/*
+ * LoadPICTToBitMap -- Load a PICT resource into a 1-bit BitMap.
+ *
+ * Mac SE has no Color QuickDraw, so NewGWorld isn't available. Instead
+ * we set up a monochrome GrafPort backed by a caller-supplied BitMap
+ * and DrawPicture into it. White pixels (bit=0) in the resulting
+ * bitmap correspond to the PICT's transparent background (exported
+ * from pixelcraft with the "white" bg-picker setting).
+ *
+ * Returns non-zero on success. outBM fields and outStorage are
+ * populated with ownership transferred to caller (must DisposePtr
+ * the storage when done).
+ */
+/* File-scope temp port used only by LoadPICTToBitMap. Static (not stack)
+ * so that if anything downstream inadvertently captures thePort during
+ * this function, the pointer stays valid memory after the function
+ * returns -- a closed port is safer than a dangling stack reference. */
+static GrafPort gLoadPICTTempPort;
+
+static int LoadPICTToBitMap(short pictID, short width, short height,
+                            BitMap *outBM, Ptr *outStorage)
+{
+    PicHandle pic;
+    GrafPtr savePort;
+    short rowBytes;
+    Ptr storage;
+
+    pic = GetPicture(pictID);
+    if (pic == NULL) return 0;
+
+    rowBytes = ((width + 15) / 16) * 2;  /* 2-byte aligned */
+    storage = NewPtrClear((long)rowBytes * height);
+    if (storage == NULL) {
+        ReleaseResource((Handle)pic);
+        return 0;
+    }
+
+    outBM->baseAddr = storage;
+    outBM->rowBytes = rowBytes;
+    SetRect(&outBM->bounds, 0, 0, width, height);
+
+    /* Save the CURRENT port first, then open/configure our temp port.
+     * Previous bug: GetPort was called AFTER SetPort, so savePort ended
+     * up pointing at the temp port itself and SetPort(savePort) at the
+     * end was a no-op -- thePort was left pointing at a closed stack-
+     * local GrafPort, corrupting QuickDraw state for subsequent draws. */
+    GetPort(&savePort);
+
+    OpenPort(&gLoadPICTTempPort);
+    SetPort(&gLoadPICTTempPort);
+    gLoadPICTTempPort.portBits = *outBM;
+    gLoadPICTTempPort.portRect = outBM->bounds;
+    ClipRect(&outBM->bounds);
+
+    EraseRect(&outBM->bounds);   /* fill with port bg (white) first */
+    DrawPicture(pic, &outBM->bounds);
+
+    /* Restore the caller's port BEFORE closing the temp. */
+    SetPort(savePort);
+    ClosePort(&gLoadPICTTempPort);
+
+    ReleaseResource((Handle)pic);
+
+    /* Auto-detect polarity: srcOr compositing wants bit=1 for the bomb
+     * body and bit=0 for transparent. Pixelcraft can export either
+     * polarity depending on the chosen bg-picker setting. If the corner
+     * pixel (conventionally "transparent") is black (bit=1), the bitmap
+     * was rendered inverted -- XOR every byte to flip it. Corner white
+     * (bit=0) is the target polarity; leave untouched. */
+    {
+        unsigned char *bits = (unsigned char *)storage;
+        if (bits[0] & 0x80) {
+            long total = (long)rowBytes * height;
+            long k;
+            for (k = 0; k < total; k++) bits[k] = (unsigned char)(bits[k] ^ 0xFF);
+        }
+    }
+
+    *outStorage = storage;
+    return 1;
+}
+
+/*
+ * BuildBombMaskByFloodFill -- Derive a silhouette mask from a 1-bit
+ * sprite bitmap by flood-filling "outside" white from the four corners.
+ *
+ * Sprite convention: bit=1 is black (bomb body), bit=0 is white
+ * (transparent OR internal highlight). The flood fill starts at each
+ * corner and walks 4-connected white pixels — these are the "outside"
+ * transparent pixels. Anything NOT reached (internal white highlights,
+ * plus the black bomb body itself) becomes mask bit=1 = "inside the
+ * sprite silhouette, draw this tile".
+ *
+ * maskBM / maskStorage get allocated here; caller DisposePtrs.
+ * Returns non-zero on success.
+ */
+static int BuildBombMaskByFloodFill(const BitMap *sprite,
+                                    BitMap *maskBM, Ptr *maskStorage)
+{
+    short w = sprite->bounds.right - sprite->bounds.left;
+    short h = sprite->bounds.bottom - sprite->bounds.top;
+    short rowBytes = ((w + 15) / 16) * 2;
+    Ptr visited;
+    Ptr storage;
+    short stackCap = (short)(w * h);
+    short *stackX;
+    short *stackY;
+    short sp = 0;
+    short c;
+    short cx, cy;
+    short x, y;
+    short spriteRowBytes;
+    const unsigned char *spriteBits;
+    unsigned char *maskBits;
+
+    storage = NewPtrClear((long)rowBytes * h);
+    if (storage == NULL) return 0;
+    visited = NewPtrClear((long)w * h);  /* 1 byte per pixel, visited flag */
+    if (visited == NULL) { DisposePtr(storage); return 0; }
+    stackX = (short *)NewPtr((long)stackCap * sizeof(short));
+    stackY = (short *)NewPtr((long)stackCap * sizeof(short));
+    if (stackX == NULL || stackY == NULL) {
+        if (stackX) DisposePtr((Ptr)stackX);
+        if (stackY) DisposePtr((Ptr)stackY);
+        DisposePtr(visited);
+        DisposePtr(storage);
+        return 0;
+    }
+
+    spriteRowBytes = sprite->rowBytes & 0x3FFF;
+    spriteBits = (const unsigned char *)sprite->baseAddr;
+
+    /* Seed flood fill from each corner if that corner is white (bit=0). */
+    for (c = 0; c < 4; c++) {
+        switch (c) {
+            case 0: cx = 0;     cy = 0;     break;
+            case 1: cx = w - 1; cy = 0;     break;
+            case 2: cx = 0;     cy = h - 1; break;
+            default: cx = w - 1; cy = h - 1; break;
+        }
+        if (spriteBits[cy * spriteRowBytes + (cx >> 3)] & (0x80 >> (cx & 7))) {
+            continue;  /* corner is black (bomb touches corner) — skip seed */
+        }
+        if (visited[cy * w + cx]) continue;
+        stackX[sp] = cx; stackY[sp] = cy; sp++; visited[cy * w + cx] = 1;
+
+        while (sp > 0) {
+            short dx;
+            sp--;
+            x = stackX[sp]; y = stackY[sp];
+            /* 4-connected neighbours */
+            for (dx = 0; dx < 4; dx++) {
+                short nx = x, ny = y;
+                switch (dx) {
+                    case 0: nx++; break;
+                    case 1: nx--; break;
+                    case 2: ny++; break;
+                    default: ny--; break;
+                }
+                if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+                if (visited[ny * w + nx]) continue;
+                /* White (bit=0) only — black pixels are the bomb body */
+                if (spriteBits[ny * spriteRowBytes + (nx >> 3)] & (0x80 >> (nx & 7))) continue;
+                visited[ny * w + nx] = 1;
+                if (sp < stackCap) {
+                    stackX[sp] = nx; stackY[sp] = ny; sp++;
+                }
+            }
+        }
+    }
+
+    /* Mask = inverse of "visited outside". Every pixel NOT reached by
+     * the flood fill is inside the bomb silhouette — mask bit=1. */
+    maskBits = (unsigned char *)storage;
+    for (y = 0; y < h; y++) {
+        for (x = 0; x < w; x++) {
+            if (!visited[y * w + x]) {
+                maskBits[y * rowBytes + (x >> 3)] |= (0x80 >> (x & 7));
+            }
+        }
+    }
+
+    maskBM->baseAddr = storage;
+    maskBM->rowBytes = rowBytes;
+    SetRect(&maskBM->bounds, 0, 0, w, h);
+
+    DisposePtr((Ptr)stackX);
+    DisposePtr((Ptr)stackY);
+    DisposePtr(visited);
+    *maskStorage = storage;
+    return 1;
+}
+
+static void LoadSEBombSprites(void)
+{
+    short ts = gGame.tileSize;  /* 16 on Mac SE */
+    short i;
+    short ids[BOMB_ANIM_FRAMES];
+    int ok;
+    ids[0] = rPictBombSEFrame0;
+    ids[1] = rPictBombSEFrame1;
+    ids[2] = rPictBombSEFrame2;
+    for (i = 0; i < BOMB_ANIM_FRAMES; i++) {
+        gBombSpriteSE[i].baseAddr = NULL;
+        gBombMaskSE[i].baseAddr = NULL;
+        gBombSpriteSEStorage[i] = NULL;
+        gBombMaskSEStorage[i] = NULL;
+        ok = LoadPICTToBitMap(ids[i], ts, ts,
+                              &gBombSpriteSE[i], &gBombSpriteSEStorage[i]);
+        if (!ok) {
+            CLOG_WARN("SE bomb PICT %d not found -- using oval fallback for frame %d",
+                      ids[i], (int)i);
+            continue;
+        }
+        if (!BuildBombMaskByFloodFill(&gBombSpriteSE[i],
+                                      &gBombMaskSE[i], &gBombMaskSEStorage[i])) {
+            CLOG_WARN("SE bomb mask build failed for frame %d", (int)i);
+            DisposePtr(gBombSpriteSEStorage[i]);
+            gBombSpriteSEStorage[i] = NULL;
+            gBombSpriteSE[i].baseAddr = NULL;
+        }
+    }
+    CLOG_INFO("SE bomb sprites: f0=%s f1=%s f2=%s",
+              gBombSpriteSE[0].baseAddr ? "ok" : "fallback",
+              gBombSpriteSE[1].baseAddr ? "ok" : "fallback",
+              gBombSpriteSE[2].baseAddr ? "ok" : "fallback");
 }
 
 static void LoadPICTResources(void)
@@ -526,6 +808,8 @@ void Renderer_Init(WindowPtr window)
     /* Load PICT resources (fall back to rectangles if missing) */
     if (!gGame.isMacSE) {
         LoadPICTResources();
+    } else {
+        LoadSEBombSprites();
     }
 
     /* Initialize dirty rect tracking */
@@ -563,6 +847,18 @@ void Renderer_Shutdown(void)
         ClosePort(&gWorkPortSE);
         if (gBgStorageSE) { DisposePtr(gBgStorageSE); gBgStorageSE = NULL; }
         if (gWorkStorageSE) { DisposePtr(gWorkStorageSE); gWorkStorageSE = NULL; }
+        for (i = 0; i < BOMB_ANIM_FRAMES; i++) {
+            if (gBombSpriteSEStorage[i]) {
+                DisposePtr(gBombSpriteSEStorage[i]);
+                gBombSpriteSEStorage[i] = NULL;
+                gBombSpriteSE[i].baseAddr = NULL;
+            }
+            if (gBombMaskSEStorage[i]) {
+                DisposePtr(gBombMaskSEStorage[i]);
+                gBombMaskSEStorage[i] = NULL;
+                gBombMaskSE[i].baseAddr = NULL;
+            }
+        }
     } else {
         /* UnlockPixels before DisposeGWorld per Black Art (1996) Ch. 5:
          * "The GWorld's PixMapHandle should be unlocked before calling
@@ -984,7 +1280,11 @@ void Renderer_DrawBomb(short col, short row, short frameIndex)
      * bomb sitting on the same tile would only redraw on the first frame. */
     Renderer_MarkDirty(col, row);
 
-    if (!gGame.isMacSE && gPICTsLoaded && gCachedBombPM[f] != NULL) {
+    /* Bomb PICTs ship in the resource fork independently of other sprite
+     * categories -- don't gate on gPICTsLoaded (which is FALSE whenever
+     * rPictTiles is missing, even if bomb PICTs loaded fine). Per-frame
+     * NULL check on the cached PixMap is the right guard. */
+    if (!gGame.isMacSE && gCachedBombPM[f] != NULL) {
         Rect srcRect;
         SetRect(&srcRect, 0, 0, ts, ts);
 
@@ -1001,13 +1301,43 @@ void Renderer_DrawBomb(short col, short row, short frameIndex)
                 GetWorkBits(),
                 &srcRect, &dstRect, transparent, NULL);
         }
+    } else if (gGame.isMacSE && gBombSpriteSE[f].baseAddr != NULL) {
+        /* Mac SE PICT path: two-pass 1-bit composite.
+         *  1) srcBic with mask -- punches a white hole in the tile where
+         *     the bomb silhouette goes (including internal highlights).
+         *  2) srcOr with sprite -- fills the hole with the sprite's
+         *     black pixels; white pixels stay as the just-cleared hole,
+         *     so internal highlights remain white, not tile-coloured.
+         * Source: Mac Game Programming (2002) Ch. 7, and the mask-blit
+         * pattern in Sex, Lies and Video Games (1996) p.6620.          */
+        Rect srcRect;
+        SetRect(&srcRect, 0, 0, 16, 16);
+        if (!gSpriteDrawActive) {
+            SavePort();
+            SetPortWork();
+        }
+        ForeColor(blackColor);
+        BackColor(whiteColor);
+        CopyBits(&gBombMaskSE[f], GetWorkBits(),
+                 &srcRect, &dstRect, srcBic, NULL);
+        CopyBits(&gBombSpriteSE[f], GetWorkBits(),
+                 &srcRect, &dstRect, srcOr, NULL);
+        if (!gSpriteDrawActive) {
+            RestorePort();
+        }
     } else {
+        /* Fallback: animated black oval. Inset shrinks with frame index
+         * so the bomb appears to pulse (frame 0 = smallest/4px inset,
+         * frame 2 = largest). Used on Mac SE when the SE bomb PICTs are
+         * missing from the resource fork, and on colour Macs when the
+         * PICTs fail to load. */
+        short inset = 4 - f;
         if (!gSpriteDrawActive) {
             SavePort();
             SetPortWork();
         }
 
-        InsetRect(&dstRect, 4, 4);
+        InsetRect(&dstRect, inset, inset);
         ForeColor(blackColor);
         PaintOval(&dstRect);
 

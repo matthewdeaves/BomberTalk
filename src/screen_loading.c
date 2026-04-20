@@ -14,11 +14,10 @@
 static long gLoadingStartTick;
 
 /* Pre-built Pascal strings */
-static const unsigned char kLoadTitle[] = {10, 'B','o','m','b','e','r','T','a','l','k'};
-static const unsigned char kLoadSub[]   = {10, 'L','o','a','d','i','n','g','.','.','.'};
+static const unsigned char kLoadSub[] = {10, 'L','o','a','d','i','n','g','.','.','.'};
 
 /* Cached widths */
-static short gLoadTitleW = 0, gLoadSubW = 0;
+static short gLoadSubW = 0;
 static int gLoadWidthsCached = FALSE;
 
 void Loading_Init(void)
@@ -36,36 +35,38 @@ void Loading_Update(void)
 
 void Loading_Draw(WindowPtr window)
 {
-    short centerX, centerY;
+    short centerX, baseY;
+    Rect pill;
+    short halfW;
 
     centerX = gGame.playWidth / 2;
-    centerY = gGame.playHeight / 2;
+    /* "Loading..." sits near the bottom — splash already has the title
+     * artwork baked in, so an overlay title would just fight the image. */
+    baseY = gGame.playHeight - 24;
 
-    /* Draw to offscreen work buffer, then blit */
     Renderer_BeginScreenDraw();
 
-    /* Splash background PICT (if loaded) fills the whole window; text
-     * overlays below supply a "Loading..." indicator and also serve as
-     * the fallback display when the PICT is missing from the resource
-     * fork (Renderer_DrawSplashBackground is a no-op in that case). */
+    /* Splash background PICT fills the whole window; no-op if the PICT
+     * is missing from the resource fork, in which case the pill below
+     * still provides a readable "Loading..." indicator on black. */
     Renderer_DrawSplashBackground();
 
-    /* Cache widths on first draw (needs valid port) */
+    /* Cache width on first draw (needs valid port). */
+    TextSize(12);
     if (!gLoadWidthsCached) {
-        TextSize(24);
-        gLoadTitleW = StringWidth((ConstStr255Param)kLoadTitle);
-        TextSize(12);
         gLoadSubW = StringWidth((ConstStr255Param)kLoadSub);
         gLoadWidthsCached = TRUE;
     }
 
-    TextSize(24);
-    ForeColor(whiteColor);
-    MoveTo(centerX - gLoadTitleW / 2, centerY - 20);
-    DrawString((ConstStr255Param)kLoadTitle);
+    /* Black pill behind the text for readability against a colourful
+     * splash. 6px horizontal padding, 4px vertical. */
+    halfW = gLoadSubW / 2 + 6;
+    SetRect(&pill, centerX - halfW, baseY - 12, centerX + halfW, baseY + 4);
+    ForeColor(blackColor);
+    PaintRect(&pill);
 
-    TextSize(12);
-    MoveTo(centerX - gLoadSubW / 2, centerY + 20);
+    ForeColor(whiteColor);
+    MoveTo(centerX - gLoadSubW / 2, baseY);
     DrawString((ConstStr255Param)kLoadSub);
 
     Renderer_EndScreenDraw(window);

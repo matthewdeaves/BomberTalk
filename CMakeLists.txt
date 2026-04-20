@@ -86,11 +86,23 @@ set(GAME_SOURCES
     src/net.c
 )
 
-# Resource files
+# Resource files. The 68k MacTCP target (Mac SE with 4 MB RAM) uses a
+# stripped-down bombertalk_gfx_lowmem.r that omits the ~178 KB colour
+# splash PICT 150 -- it would never be loaded on a 1-bit Mac and the
+# resource fork shouldn't carry it. Other targets get the full resource
+# fork including the colour splash.
+if(BT_PLATFORM STREQUAL "68K" AND PT_PLATFORM STREQUAL "MACTCP")
+    set(BT_GFX_RSRC "resources/bombertalk_gfx_lowmem.r")
+    message(STATUS "Graphics resources: low-memory variant (no colour splash)")
+else()
+    set(BT_GFX_RSRC "resources/bombertalk_gfx.r")
+    message(STATUS "Graphics resources: full variant")
+endif()
+
 set(GAME_RESOURCES
     resources/bombertalk.r
     resources/bombertalk_size.r
-    resources/bombertalk_gfx.r
+    ${BT_GFX_RSRC}
 )
 
 # Build the application
