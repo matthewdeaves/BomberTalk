@@ -180,16 +180,6 @@ void TileMap_SetTile(short col, short row, unsigned char type)
     }
 }
 
-int TileMap_IsSolid(short col, short row)
-{
-    unsigned char tile;
-    if (col < 0 || col >= gMap.cols || row < 0 || row >= gMap.rows) {
-        return TRUE;
-    }
-    tile = gMap.tiles[row][col];
-    return (tile == TILE_WALL || tile == TILE_BLOCK);
-}
-
 short TileMap_GetCols(void)
 {
     return gMap.cols;

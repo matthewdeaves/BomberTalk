@@ -115,6 +115,15 @@ Player *Player_GetLocal(void)
 void Player_SetPosition(short playerID, short pixelX, short pixelY, short facing)
 {
     Player *p;
+    /* Edge-trigger debug log (008 FR-004): log only on facing change or
+     * target moved >=1 tile from last-logged target. Previous code fired
+     * every MSG_POSITION packet (~every moving-remote-player frame), which
+     * flooded the PeerTalk debug-broadcast UDP channel on color Macs. */
+    static short sLastPX[MAX_PLAYERS] = {-1, -1, -1, -1};
+    static short sLastPY[MAX_PLAYERS] = {-1, -1, -1, -1};
+    static short sLastFacing[MAX_PLAYERS] = {-1, -1, -1, -1};
+    short ts;
+    short dxTile, dyTile;
 
     if (playerID < 0 || playerID >= MAX_PLAYERS) return;
 
@@ -123,8 +132,21 @@ void Player_SetPosition(short playerID, short pixelX, short pixelY, short facing
     p->targetPixelY = pixelY;
     p->facing = facing;
     /* Grid derived when interpolation reaches target */
-    CLOG_DEBUG("P%d target pos px=(%d,%d) f=%d",
-               playerID, pixelX, pixelY, facing);
+
+    ts = gGame.tileSize;
+    if (ts <= 0) ts = 1;
+    dxTile = (short)((pixelX - sLastPX[playerID]) / ts);
+    dyTile = (short)((pixelY - sLastPY[playerID]) / ts);
+    if (dxTile < 0) dxTile = (short)-dxTile;
+    if (dyTile < 0) dyTile = (short)-dyTile;
+    if (sLastFacing[playerID] != facing ||
+        dxTile >= 1 || dyTile >= 1) {
+        CLOG_DEBUG("P%d target pos px=(%d,%d) f=%d",
+                   playerID, pixelX, pixelY, facing);
+        sLastPX[playerID] = pixelX;
+        sLastPY[playerID] = pixelY;
+        sLastFacing[playerID] = facing;
+    }
 }
 
 /* ---- AABB collision helpers ---- */
@@ -132,13 +154,18 @@ void Player_SetPosition(short playerID, short pixelX, short pixelY, short facing
 /*
  * CheckTileSolid -- Returns TRUE if tile at (col,row) is solid for this player.
  * Handles bomb pass-through: skip the bomb the player is walking off of.
+ *
+ * Callers MUST pass (col,row) already clamped to the valid map range; this
+ * function uses unchecked TILEMAP_TILE / BOMB_GRID_CELL macro reads for
+ * hot-loop speed (008 FR-001). CollideAxis is the sole caller today and
+ * clamps via minCol/maxCol/minRow/maxRow before iterating.
  */
 static int CheckTileSolid(const Player *p, short col, short row,
                           const TileMap *map)
 {
     unsigned char t = TILEMAP_TILE(map, col, row);
     if (t == TILE_WALL || t == TILE_BLOCK) return TRUE;
-    if (Bomb_ExistsAt(col, row)) {
+    if (BOMB_GRID_CELL(col, row)) {
         /* Check pass-through */
         if (p->passThroughBombIdx >= 0 && p->passThroughBombIdx < MAX_BOMBS) {
             const Bomb *passB = &gGame.bombs[p->passThroughBombIdx];
@@ -168,6 +195,10 @@ static void CollideAxis(Player *p, short dx, short dy)
     short minCol, maxCol, minRow, maxRow;
     short c, r;
     const TileMap *map = TileMap_Get();
+    /* Cache map bounds once per call (008 FR-001, Tricks p.802-805):
+     * reusing locals avoids per-tile function-call dispatch in the inner loop. */
+    short mapCols = TileMap_GetCols();
+    short mapRows = TileMap_GetRows();
 
     newPX = (short)(p->pixelX + dx);
     newPY = (short)(p->pixelY + dy);
@@ -201,8 +232,8 @@ static void CollideAxis(Player *p, short dx, short dy)
     /* Clamp tile indices */
     if (minCol < 0) minCol = 0;
     if (minRow < 0) minRow = 0;
-    if (maxCol >= TileMap_GetCols()) maxCol = (short)(TileMap_GetCols() - 1);
-    if (maxRow >= TileMap_GetRows()) maxRow = (short)(TileMap_GetRows() - 1);
+    if (maxCol >= mapCols) maxCol = (short)(mapCols - 1);
+    if (maxRow >= mapRows) maxRow = (short)(mapRows - 1);
 
     /* Check for solid tiles */
     for (r = minRow; r <= maxRow; r++) {
@@ -465,9 +496,22 @@ void Player_Update(short playerID)
     /* Update bomb pass-through state */
     UpdatePassThrough(p);
 
+    /* Edge-trigger move log (008 FR-004): fire only on grid-cell change
+     * or facing change. Previous code logged every frame of smooth
+     * sub-tile movement, flooding the PeerTalk debug-broadcast channel. */
     if (p->pixelX != oldPX || p->pixelY != oldPY) {
-        CLOG_DEBUG("P%d move px=(%d,%d)->(%d,%d) grid=(%d,%d)",
-                   playerID, oldPX, oldPY, p->pixelX, p->pixelY,
-                   p->gridCol, p->gridRow);
+        static short sLastCol[MAX_PLAYERS] = {-1, -1, -1, -1};
+        static short sLastRow[MAX_PLAYERS] = {-1, -1, -1, -1};
+        static short sLastFacing[MAX_PLAYERS] = {-1, -1, -1, -1};
+        if (sLastCol[playerID] != p->gridCol ||
+            sLastRow[playerID] != p->gridRow ||
+            sLastFacing[playerID] != p->facing) {
+            CLOG_DEBUG("P%d move px=(%d,%d)->(%d,%d) grid=(%d,%d) f=%d",
+                       playerID, oldPX, oldPY, p->pixelX, p->pixelY,
+                       p->gridCol, p->gridRow, p->facing);
+            sLastCol[playerID] = p->gridCol;
+            sLastRow[playerID] = p->gridRow;
+            sLastFacing[playerID] = p->facing;
+        }
     }
 }
