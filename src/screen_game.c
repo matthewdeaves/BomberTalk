@@ -313,10 +313,18 @@ void Game_Draw(WindowPtr window)
     /* Batch port save/restore for all sprite drawing (006-renderer-optimization) */
     Renderer_BeginSpriteDraw();
 
-    /* Draw bombs */
-    for (i = 0; i < MAX_BOMBS; i++) {
-        if (gGame.bombs[i].active) {
-            Renderer_DrawBomb(gGame.bombs[i].gridCol, gGame.bombs[i].gridRow);
+    /* Draw bombs. Pulse-loop frame from TickCount (triangle 0→1→2→1).
+     * All bombs share the same animation phase; visually a synchronised
+     * flicker which reads as "fuses crackling". */
+    {
+        short bombFrame;
+        short cyclePos = (short)((TickCount() / BOMB_ANIM_FRAME_TICKS) & 0x0003);
+        if (cyclePos == 3) cyclePos = 1;
+        bombFrame = cyclePos;
+        for (i = 0; i < MAX_BOMBS; i++) {
+            if (gGame.bombs[i].active) {
+                Renderer_DrawBomb(gGame.bombs[i].gridCol, gGame.bombs[i].gridRow, bombFrame);
+            }
         }
     }
 

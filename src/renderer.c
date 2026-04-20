@@ -33,13 +33,13 @@ static GWorldPtr gBackground = NULL;
 static GWorldPtr gWorkBuffer = NULL;
 static GWorldPtr gTileSheet = NULL;
 static GWorldPtr gPlayerSprites[MAX_PLAYERS];
-static GWorldPtr gBombSprite = NULL;
+static GWorldPtr gBombSprites[BOMB_ANIM_FRAMES];
 static GWorldPtr gExplosionSprite = NULL;
 static GWorldPtr gTitleSprite = NULL;
 
 /* ---- Sprite mask regions for srcCopy blitting (006-renderer-optimization) ---- */
 static RgnHandle gPlayerMaskRgn[MAX_PLAYERS];
-static RgnHandle gBombMaskRgn = NULL;
+static RgnHandle gBombMaskRgn[BOMB_ANIM_FRAMES];
 static RgnHandle gExplosionMaskRgn = NULL;
 static RgnHandle gTitleMaskRgn = NULL;
 
@@ -80,7 +80,7 @@ static const RGBColor kTileDarkBrown = {0x7700, 0x4400, 0x2200};
 
 /* ---- Cached PixMap pointers (T013) ---- */
 static BitMap *gCachedPlayerPM[MAX_PLAYERS];
-static BitMap *gCachedBombPM = NULL;
+static BitMap *gCachedBombPM[BOMB_ANIM_FRAMES];
 static BitMap *gCachedExplosionPM = NULL;
 
 /* ---- Deferred background rebuild flag ---- */
@@ -147,9 +147,13 @@ static void LockAllSprites(void)
             gCachedPlayerPM[i] = NULL;
         }
     }
-    if (gBombSprite != NULL) {
-        LockPixels(GetGWorldPixMap(gBombSprite));
-        gCachedBombPM = (BitMap *)*GetGWorldPixMap(gBombSprite);
+    for (i = 0; i < BOMB_ANIM_FRAMES; i++) {
+        if (gBombSprites[i] != NULL) {
+            LockPixels(GetGWorldPixMap(gBombSprites[i]));
+            gCachedBombPM[i] = (BitMap *)*GetGWorldPixMap(gBombSprites[i]);
+        } else {
+            gCachedBombPM[i] = NULL;
+        }
     }
     if (gExplosionSprite != NULL) {
         LockPixels(GetGWorldPixMap(gExplosionSprite));
@@ -168,10 +172,12 @@ static void UnlockAllSprites(void)
         }
         gCachedPlayerPM[i] = NULL;
     }
-    if (gBombSprite != NULL) {
-        UnlockPixels(GetGWorldPixMap(gBombSprite));
+    for (i = 0; i < BOMB_ANIM_FRAMES; i++) {
+        if (gBombSprites[i] != NULL) {
+            UnlockPixels(GetGWorldPixMap(gBombSprites[i]));
+        }
+        gCachedBombPM[i] = NULL;
     }
-    gCachedBombPM = NULL;
     if (gExplosionSprite != NULL) {
         UnlockPixels(GetGWorldPixMap(gExplosionSprite));
     }
@@ -408,7 +414,15 @@ static void LoadPICTResources(void)
     gPlayerSprites[1] = LoadPICTToGWorld(rPictPlayerP1, ts, ts);
     gPlayerSprites[2] = LoadPICTToGWorld(rPictPlayerP2, ts, ts);
     gPlayerSprites[3] = LoadPICTToGWorld(rPictPlayerP3, ts, ts);
-    gBombSprite = LoadPICTToGWorld(rPictBomb, ts, ts);
+    {
+        short bombIds[BOMB_ANIM_FRAMES];
+        bombIds[0] = rPictBombFrame0;
+        bombIds[1] = rPictBombFrame1;
+        bombIds[2] = rPictBombFrame2;
+        for (i = 0; i < BOMB_ANIM_FRAMES; i++) {
+            gBombSprites[i] = LoadPICTToGWorld(bombIds[i], ts, ts);
+        }
+    }
     gExplosionSprite = LoadPICTToGWorld(rPictExplosion, ts, ts);
     gTitleSprite = LoadPICTToGWorld(rPictTitle, 320, 128);
 
@@ -424,15 +438,19 @@ static void LoadPICTResources(void)
     for (i = 0; i < MAX_PLAYERS; i++) {
         gPlayerMaskRgn[i] = CreateMaskFromGWorld(gPlayerSprites[i], ts, ts);
     }
-    gBombMaskRgn = CreateMaskFromGWorld(gBombSprite, ts, ts);
+    for (i = 0; i < BOMB_ANIM_FRAMES; i++) {
+        gBombMaskRgn[i] = CreateMaskFromGWorld(gBombSprites[i], ts, ts);
+    }
     gExplosionMaskRgn = CreateMaskFromGWorld(gExplosionSprite, ts, ts);
     gTitleMaskRgn = CreateMaskFromGWorld(gTitleSprite, 320, 128);
-    CLOG_INFO("Mask regions: P0=%s P1=%s P2=%s P3=%s bomb=%s expl=%s title=%s",
+    CLOG_INFO("Mask regions: P0=%s P1=%s P2=%s P3=%s bombF0=%s bombF1=%s bombF2=%s expl=%s title=%s",
               gPlayerMaskRgn[0] ? "ok" : "FAIL",
               gPlayerMaskRgn[1] ? "ok" : "FAIL",
               gPlayerMaskRgn[2] ? "ok" : "FAIL",
               gPlayerMaskRgn[3] ? "ok" : "FAIL",
-              gBombMaskRgn ? "ok" : "FAIL",
+              gBombMaskRgn[0] ? "ok" : "FAIL",
+              gBombMaskRgn[1] ? "ok" : "FAIL",
+              gBombMaskRgn[2] ? "ok" : "FAIL",
               gExplosionMaskRgn ? "ok" : "FAIL",
               gTitleMaskRgn ? "ok" : "FAIL");
 }
@@ -596,7 +614,9 @@ void Renderer_Shutdown(void)
             gPlayerMaskRgn[i] = NULL;
         }
     }
-    if (gBombMaskRgn) { DisposeRgn(gBombMaskRgn); gBombMaskRgn = NULL; }
+    for (i = 0; i < BOMB_ANIM_FRAMES; i++) {
+        if (gBombMaskRgn[i]) { DisposeRgn(gBombMaskRgn[i]); gBombMaskRgn[i] = NULL; }
+    }
     if (gExplosionMaskRgn) { DisposeRgn(gExplosionMaskRgn); gExplosionMaskRgn = NULL; }
     if (gTitleMaskRgn) { DisposeRgn(gTitleMaskRgn); gTitleMaskRgn = NULL; }
 
@@ -618,10 +638,12 @@ void Renderer_Shutdown(void)
         }
     }
 
-    if (gBombSprite) {
-        UnlockPixels(GetGWorldPixMap(gBombSprite));
-        DisposeGWorld(gBombSprite);
-        gBombSprite = NULL;
+    for (i = 0; i < BOMB_ANIM_FRAMES; i++) {
+        if (gBombSprites[i]) {
+            UnlockPixels(GetGWorldPixMap(gBombSprites[i]));
+            DisposeGWorld(gBombSprites[i]);
+            gBombSprites[i] = NULL;
+        }
     }
     if (gExplosionSprite) {
         UnlockPixels(GetGWorldPixMap(gExplosionSprite));
@@ -956,27 +978,37 @@ void Renderer_DrawPlayer(short playerID, short pixelX, short pixelY, short facin
     }
 }
 
-void Renderer_DrawBomb(short col, short row)
+void Renderer_DrawBomb(short col, short row, short frameIndex)
 {
     Rect dstRect;
     short ts = gGame.tileSize;
+    short f;
+
+    if (frameIndex < 0) f = 0;
+    else if (frameIndex >= BOMB_ANIM_FRAMES) f = BOMB_ANIM_FRAMES - 1;
+    else f = frameIndex;
 
     SetRect(&dstRect, col * ts, row * ts, (col + 1) * ts, (row + 1) * ts);
 
-    if (!gGame.isMacSE && gPICTsLoaded && gCachedBombPM != NULL) {
+    /* Mark tile dirty so next frame's BeginFrame re-copies bg here before
+     * we draw the possibly-different frame. Without this, an animating
+     * bomb sitting on the same tile would only redraw on the first frame. */
+    Renderer_MarkDirty(col, row);
+
+    if (!gGame.isMacSE && gPICTsLoaded && gCachedBombPM[f] != NULL) {
         Rect srcRect;
         SetRect(&srcRect, 0, 0, ts, ts);
 
-        if (gBombMaskRgn != NULL) {
-            OffsetRgn(gBombMaskRgn, dstRect.left, dstRect.top);
+        if (gBombMaskRgn[f] != NULL) {
+            OffsetRgn(gBombMaskRgn[f], dstRect.left, dstRect.top);
             CopyBits(
-                gCachedBombPM,
+                gCachedBombPM[f],
                 GetWorkBits(),
-                &srcRect, &dstRect, srcCopy, gBombMaskRgn);
-            OffsetRgn(gBombMaskRgn, -dstRect.left, -dstRect.top);
+                &srcRect, &dstRect, srcCopy, gBombMaskRgn[f]);
+            OffsetRgn(gBombMaskRgn[f], -dstRect.left, -dstRect.top);
         } else {
             CopyBits(
-                gCachedBombPM,
+                gCachedBombPM[f],
                 GetWorkBits(),
                 &srcRect, &dstRect, transparent, NULL);
         }

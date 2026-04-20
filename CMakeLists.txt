@@ -90,6 +90,7 @@ set(GAME_SOURCES
 set(GAME_RESOURCES
     resources/bombertalk.r
     resources/bombertalk_size.r
+    resources/bombertalk_gfx.r
 )
 
 # Build the application

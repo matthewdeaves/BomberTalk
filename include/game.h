@@ -86,12 +86,19 @@
 /* Color Macs (32x32, 8-bit) -- IDs 128-199 */
 #define rPictTiles          128
 #define rPictPlayerP0       129
-#define rPictBomb           130
+#define rPictBomb           130  /* Legacy single-frame; use rPictBombFrame0..2 for animation */
 #define rPictExplosion      131
 #define rPictTitle          132
 #define rPictPlayerP1       133
 #define rPictPlayerP2       134
 #define rPictPlayerP3       135
+
+/* Bomb fuse animation frames (3 frames, pulse loop 0→1→2→1). */
+#define BOMB_ANIM_FRAMES         3
+#define BOMB_ANIM_FRAME_TICKS    18  /* ~0.3s per frame at 60 ticks/sec */
+#define rPictBombFrame0          140
+#define rPictBombFrame1          141
+#define rPictBombFrame2          142
 
 /* Mac SE (16x16, 1-bit) -- IDs 200-255 */
 #define rPictTilesSE        200
