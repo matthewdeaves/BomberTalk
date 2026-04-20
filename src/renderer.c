@@ -325,7 +325,6 @@ static RgnHandle CreateMaskFromGWorld(GWorldPtr gw, short width, short height)
     Ptr maskStorage;
     BitMap maskBM;
     RgnHandle rgn;
-    CTabHandle ctab;
     short bgIndex;
     short row, col;
     const unsigned char *srcRow;
@@ -340,21 +339,11 @@ static RgnHandle CreateMaskFromGWorld(GWorldPtr gw, short width, short height)
     pixBase = GetPixBaseAddr(pmh);
     pixRowBytes = (*pmh)->rowBytes & 0x3FFF;
 
-    /* Find the white (background) pixel index from the color table */
-    ctab = (*pmh)->pmTable;
-    bgIndex = 0;
-    if (ctab != NULL) {
-        short numEntries, i;
-        numEntries = (*ctab)->ctSize + 1;
-        for (i = 0; i < numEntries; i++) {
-            if ((*ctab)->ctTable[i].rgb.red >= 0xFF00 &&
-                (*ctab)->ctTable[i].rgb.green >= 0xFF00 &&
-                (*ctab)->ctTable[i].rgb.blue >= 0xFF00) {
-                bgIndex = (short)((*ctab)->ctTable[i].value & 0xFF);
-                break;
-            }
-        }
-    }
+    /* Background = top-left pixel. Any solid-bg sprite works: the old
+     * "scan ctab for white" heuristic broke for black-bg PICTs coming
+     * out of pixelcraft (the heuristic latched onto a bomb's white
+     * highlight instead of the real background). */
+    bgIndex = ((const unsigned char *)pixBase)[0];
 
     /* Allocate 1-bit mask bitmap */
     maskRowBytes = ((width + 15) / 16) * 2;
