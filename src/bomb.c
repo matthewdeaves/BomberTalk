@@ -176,12 +176,9 @@ static void ExplodeBomb(Bomb *b, int broadcast)
         }
     }
 
-    /* Return bomb to owner.
-     * ownerID is unsigned char so >= 0 is always true today, but kept
-     * as defensive bounds check in case the type changes later. */
     {
         short ownerIdx = b->ownerID;
-        if (ownerIdx >= 0 && ownerIdx < MAX_PLAYERS) {
+        if (ownerIdx < MAX_PLAYERS) {
             gGame.players[ownerIdx].bombsAvailable++;
         }
     }

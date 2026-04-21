@@ -101,6 +101,14 @@ static BitMap *gCachedPlayerPM[MAX_PLAYERS];
 static BitMap *gCachedBombPM[BOMB_ANIM_FRAMES];
 static BitMap *gCachedExplosionPM = NULL;
 
+/* ---- Bomb PICT resource ID tables ---- */
+static const short kBombColorIds[BOMB_ANIM_FRAMES] = {
+    rPictBombFrame0, rPictBombFrame1, rPictBombFrame2
+};
+static const short kBombSEIds[BOMB_ANIM_FRAMES] = {
+    rPictBombSEFrame0, rPictBombSEFrame1, rPictBombSEFrame2
+};
+
 /* ---- Deferred background rebuild flag ---- */
 static int gNeedRebuildBg = FALSE;
 
@@ -348,8 +356,8 @@ static RgnHandle CreateMaskFromGWorld(GWorldPtr gw, short width, short height)
     short bgIndex;
     short row, col;
     const unsigned char *srcRow;
-    unsigned char *dstRow;
     long threshSq;
+    int hasCtab;
 
     if (gw == NULL) return NULL;
 
@@ -371,6 +379,7 @@ static RgnHandle CreateMaskFromGWorld(GWorldPtr gw, short width, short height)
      * background colour. */
     bgIndex = ((const unsigned char *)pixBase)[0];
     if (ctab != NULL && *ctab != NULL) {
+        if (bgIndex > (*ctab)->ctSize) bgIndex = 0;
         bgRgb = (*ctab)->ctTable[bgIndex].rgb;
     } else {
         /* No ctab (unexpected for 8-bit GWorld) -- fall back to index compare. */
@@ -390,28 +399,32 @@ static RgnHandle CreateMaskFromGWorld(GWorldPtr gw, short width, short height)
      * colour-matching rounding, tight enough that a bomb's near-black
      * shading (which lands on a distinct gray slot) stays opaque. */
     threshSq = 3L * 0x0800L * 0x0800L;
+    hasCtab = (ctab != NULL && *ctab != NULL);
 
-    /* Scan sprite pixels: set mask bit where pixel's colour differs
-     * enough from the background reference. */
     for (row = 0; row < height; row++) {
+        unsigned char *dstRow;
         srcRow = (const unsigned char *)pixBase + (long)row * pixRowBytes;
         dstRow = (unsigned char *)maskStorage + (long)row * maskRowBytes;
-        for (col = 0; col < width; col++) {
-            int opaque;
-            if (ctab != NULL && *ctab != NULL) {
-                RGBColor p = (*ctab)->ctTable[srcRow[col]].rgb;
-                long dr = (long)p.red   - (long)bgRgb.red;
-                long dg = (long)p.green - (long)bgRgb.green;
-                long db = (long)p.blue  - (long)bgRgb.blue;
-                /* Divide channel deltas to 8-bit range before squaring so
-                 * the sum fits comfortably in a signed long. */
+        if (hasCtab) {
+            for (col = 0; col < width; col++) {
+                short pIdx = srcRow[col];
+                RGBColor p;
+                long dr, dg, db;
+                if (pIdx > (*ctab)->ctSize) pIdx = 0;
+                p = (*ctab)->ctTable[pIdx].rgb;
+                dr = (long)p.red   - (long)bgRgb.red;
+                dg = (long)p.green - (long)bgRgb.green;
+                db = (long)p.blue  - (long)bgRgb.blue;
                 dr >>= 4; dg >>= 4; db >>= 4;
-                opaque = (dr*dr + dg*dg + db*db) > (threshSq >> 8);
-            } else {
-                opaque = srcRow[col] != (unsigned char)bgIndex;
+                if ((dr*dr + dg*dg + db*db) > (threshSq >> 8)) {
+                    dstRow[col >> 3] |= (0x80 >> (col & 7));
+                }
             }
-            if (opaque) {
-                dstRow[col >> 3] |= (0x80 >> (col & 7));
+        } else {
+            for (col = 0; col < width; col++) {
+                if (srcRow[col] != (unsigned char)bgIndex) {
+                    dstRow[col >> 3] |= (0x80 >> (col & 7));
+                }
             }
         }
     }
@@ -543,11 +556,7 @@ static int BuildBombMaskByFloodFill(const BitMap *sprite,
     short w = sprite->bounds.right - sprite->bounds.left;
     short h = sprite->bounds.bottom - sprite->bounds.top;
     short rowBytes = ((w + 15) / 16) * 2;
-    Ptr visited;
     Ptr storage;
-    short stackCap = (short)(w * h);
-    short *stackX;
-    short *stackY;
     short sp = 0;
     short c;
     short cx, cy;
@@ -555,25 +564,23 @@ static int BuildBombMaskByFloodFill(const BitMap *sprite,
     short spriteRowBytes;
     const unsigned char *spriteBits;
     unsigned char *maskBits;
+    /* Stack arrays sized for TILE_SIZE_LARGE (32x32 = 1024 pixels max).
+     * Eliminates 6 Memory Manager traps per frame and avoids heap
+     * fragmentation on Mac SE. See Black Art (1996) Ch.3. */
+    unsigned char visited[TILE_SIZE_LARGE * TILE_SIZE_LARGE];
+    short stackX[TILE_SIZE_LARGE * TILE_SIZE_LARGE];
+    short stackY[TILE_SIZE_LARGE * TILE_SIZE_LARGE];
+    short stackCap = TILE_SIZE_LARGE * TILE_SIZE_LARGE;
+
+    if (w > TILE_SIZE_LARGE || h > TILE_SIZE_LARGE) return 0;
 
     storage = NewPtrClear((long)rowBytes * h);
     if (storage == NULL) return 0;
-    visited = NewPtrClear((long)w * h);  /* 1 byte per pixel, visited flag */
-    if (visited == NULL) { DisposePtr(storage); return 0; }
-    stackX = (short *)NewPtr((long)stackCap * sizeof(short));
-    stackY = (short *)NewPtr((long)stackCap * sizeof(short));
-    if (stackX == NULL || stackY == NULL) {
-        if (stackX) DisposePtr((Ptr)stackX);
-        if (stackY) DisposePtr((Ptr)stackY);
-        DisposePtr(visited);
-        DisposePtr(storage);
-        return 0;
-    }
+    memset(visited, 0, (size_t)(w * h));
 
     spriteRowBytes = sprite->rowBytes & 0x3FFF;
     spriteBits = (const unsigned char *)sprite->baseAddr;
 
-    /* Seed flood fill from each corner if that corner is white (bit=0). */
     for (c = 0; c < 4; c++) {
         switch (c) {
             case 0: cx = 0;     cy = 0;     break;
@@ -582,7 +589,7 @@ static int BuildBombMaskByFloodFill(const BitMap *sprite,
             default: cx = w - 1; cy = h - 1; break;
         }
         if (spriteBits[cy * spriteRowBytes + (cx >> 3)] & (0x80 >> (cx & 7))) {
-            continue;  /* corner is black (bomb touches corner) — skip seed */
+            continue;
         }
         if (visited[cy * w + cx]) continue;
         stackX[sp] = cx; stackY[sp] = cy; sp++; visited[cy * w + cx] = 1;
@@ -591,7 +598,6 @@ static int BuildBombMaskByFloodFill(const BitMap *sprite,
             short dx;
             sp--;
             x = stackX[sp]; y = stackY[sp];
-            /* 4-connected neighbours */
             for (dx = 0; dx < 4; dx++) {
                 short nx = x, ny = y;
                 switch (dx) {
@@ -602,7 +608,6 @@ static int BuildBombMaskByFloodFill(const BitMap *sprite,
                 }
                 if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
                 if (visited[ny * w + nx]) continue;
-                /* White (bit=0) only — black pixels are the bomb body */
                 if (spriteBits[ny * spriteRowBytes + (nx >> 3)] & (0x80 >> (nx & 7))) continue;
                 visited[ny * w + nx] = 1;
                 if (sp < stackCap) {
@@ -612,8 +617,6 @@ static int BuildBombMaskByFloodFill(const BitMap *sprite,
         }
     }
 
-    /* Mask = inverse of "visited outside". Every pixel NOT reached by
-     * the flood fill is inside the bomb silhouette — mask bit=1. */
     maskBits = (unsigned char *)storage;
     for (y = 0; y < h; y++) {
         for (x = 0; x < w; x++) {
@@ -627,9 +630,6 @@ static int BuildBombMaskByFloodFill(const BitMap *sprite,
     maskBM->rowBytes = rowBytes;
     SetRect(&maskBM->bounds, 0, 0, w, h);
 
-    DisposePtr((Ptr)stackX);
-    DisposePtr((Ptr)stackY);
-    DisposePtr(visited);
     *maskStorage = storage;
     return 1;
 }
@@ -638,21 +638,17 @@ static void LoadSEBombSprites(void)
 {
     short ts = gGame.tileSize;  /* 16 on Mac SE */
     short i;
-    short ids[BOMB_ANIM_FRAMES];
-    int ok;
-    ids[0] = rPictBombSEFrame0;
-    ids[1] = rPictBombSEFrame1;
-    ids[2] = rPictBombSEFrame2;
     for (i = 0; i < BOMB_ANIM_FRAMES; i++) {
+        int ok;
         gBombSpriteSE[i].baseAddr = NULL;
         gBombMaskSE[i].baseAddr = NULL;
         gBombSpriteSEStorage[i] = NULL;
         gBombMaskSEStorage[i] = NULL;
-        ok = LoadPICTToBitMap(ids[i], ts, ts,
+        ok = LoadPICTToBitMap(kBombSEIds[i], ts, ts,
                               &gBombSpriteSE[i], &gBombSpriteSEStorage[i]);
         if (!ok) {
             CLOG_WARN("SE bomb PICT %d not found -- using oval fallback for frame %d",
-                      ids[i], (int)i);
+                      kBombSEIds[i], (int)i);
             continue;
         }
         if (!BuildBombMaskByFloodFill(&gBombSpriteSE[i],
@@ -685,14 +681,8 @@ static void LoadPICTResources(void)
     gPlayerSprites[1] = LoadPICTToGWorld(rPictPlayerP1, ts, ts);
     gPlayerSprites[2] = LoadPICTToGWorld(rPictPlayerP2, ts, ts);
     gPlayerSprites[3] = LoadPICTToGWorld(rPictPlayerP3, ts, ts);
-    {
-        short bombIds[BOMB_ANIM_FRAMES];
-        bombIds[0] = rPictBombFrame0;
-        bombIds[1] = rPictBombFrame1;
-        bombIds[2] = rPictBombFrame2;
-        for (i = 0; i < BOMB_ANIM_FRAMES; i++) {
-            gBombSprites[i] = LoadPICTToGWorld(bombIds[i], ts, ts);
-        }
+    for (i = 0; i < BOMB_ANIM_FRAMES; i++) {
+        gBombSprites[i] = LoadPICTToGWorld(kBombColorIds[i], ts, ts);
     }
     gExplosionSprite = LoadPICTToGWorld(rPictExplosion, ts, ts);
     gTitleSprite = LoadPICTToGWorld(rPictTitle, 320, 128);
@@ -1311,13 +1301,11 @@ void Renderer_DrawBomb(short col, short row, short frameIndex)
          * Source: Mac Game Programming (2002) Ch. 7, and the mask-blit
          * pattern in Sex, Lies and Video Games (1996) p.6620.          */
         Rect srcRect;
-        SetRect(&srcRect, 0, 0, 16, 16);
+        SetRect(&srcRect, 0, 0, ts, ts);
         if (!gSpriteDrawActive) {
             SavePort();
             SetPortWork();
         }
-        ForeColor(blackColor);
-        BackColor(whiteColor);
         CopyBits(&gBombMaskSE[f], GetWorkBits(),
                  &srcRect, &dstRect, srcBic, NULL);
         CopyBits(&gBombSpriteSE[f], GetWorkBits(),
@@ -1498,6 +1486,9 @@ void Renderer_DrawSplashBackground(void)
 
     SetRect(&dstRect, 0, 0, gGame.playWidth, gGame.playHeight);
     DrawPicture(splashPic, &dstRect);
+
+    ReleaseResource((Handle)splashPic);
+    splashPic = NULL;
 }
 
 void Renderer_BeginScreenDraw(void)
