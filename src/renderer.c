@@ -109,6 +109,10 @@ static const short kBombSEIds[BOMB_ANIM_FRAMES] = {
     rPictBombSEFrame0, rPictBombSEFrame1, rPictBombSEFrame2
 };
 
+/* ---- Splash PICT state ---- */
+static PicHandle gSplashPic = NULL;
+static int gSplashLoadAttempted = FALSE;
+
 /* ---- Deferred background rebuild flag ---- */
 static int gNeedRebuildBg = FALSE;
 
@@ -1467,28 +1471,32 @@ void Renderer_BlitToWindow(WindowPtr window)
  */
 void Renderer_DrawSplashBackground(void)
 {
-    static PicHandle splashPic = NULL;
-    static int loadAttempted = FALSE;
     Rect dstRect;
 
-    if (!loadAttempted) {
+    if (!gSplashLoadAttempted) {
         short resId = gGame.isMacSE ? rPictSplashSE : rPictSplashColor;
-        splashPic = GetPicture(resId);
-        loadAttempted = TRUE;
-        if (splashPic == NULL) {
+        gSplashPic = GetPicture(resId);
+        gSplashLoadAttempted = TRUE;
+        if (gSplashPic == NULL) {
             CLOG_WARN("Splash PICT %d not found in resource fork", resId);
         } else {
             CLOG_INFO("Splash PICT %d loaded", resId);
         }
     }
 
-    if (splashPic == NULL) return;
+    if (gSplashPic == NULL) return;
 
     SetRect(&dstRect, 0, 0, gGame.playWidth, gGame.playHeight);
-    DrawPicture(splashPic, &dstRect);
+    DrawPicture(gSplashPic, &dstRect);
+}
 
-    ReleaseResource((Handle)splashPic);
-    splashPic = NULL;
+void Renderer_ReleaseSplash(void)
+{
+    if (gSplashPic != NULL) {
+        ReleaseResource((Handle)gSplashPic);
+        gSplashPic = NULL;
+        CLOG_INFO("Splash PICT released");
+    }
 }
 
 void Renderer_BeginScreenDraw(void)

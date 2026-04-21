@@ -29,6 +29,7 @@ void Loading_Init(void)
 void Loading_Update(void)
 {
     if (TickCount() - gLoadingStartTick >= 120) {
+        Renderer_ReleaseSplash();
         Screens_TransitionTo(SCREEN_MENU);
     }
 }
