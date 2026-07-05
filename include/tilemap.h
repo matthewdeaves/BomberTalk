@@ -22,8 +22,8 @@ int TileMap_SetState(short cols, short rows, const unsigned char *tiles);
  * TILEMAP_TILE(map,col,row) macro directly in bounds-checked hot paths. */
 short TileMap_GetCols(void);
 short TileMap_GetRows(void);
-short TileMap_GetSpawnCol(short index);
-short TileMap_GetSpawnRow(short index);
+short TileMap_GetSpawnCol(short idx);
+short TileMap_GetSpawnRow(short idx);
 /* Access the global tilemap */
 TileMap *TileMap_Get(void);
 

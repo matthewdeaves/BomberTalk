@@ -627,7 +627,7 @@ int Net_GetDiscoveredPeerCount(void)
     return discovered;
 }
 
-const char *Net_GetDiscoveredPeerName(int index)
+const char *Net_GetDiscoveredPeerName(int idx)
 {
     int count, i, seen;
     PT_Peer *peer;
@@ -640,19 +640,19 @@ const char *Net_GetDiscoveredPeerName(int index)
     for (i = 0; i < count; i++) {
         peer = PT_GetPeer(gPTCtx, i);
         if (peer && PT_GetPeerState(peer) != PT_PEER_DISCONNECTED) {
-            if (seen == index) return PT_PeerName(peer);
+            if (seen == idx) return PT_PeerName(peer);
             seen++;
         }
     }
     return "";
 }
 
-const char *Net_GetDiscoveredPeerAddress(int index)
+const char *Net_GetDiscoveredPeerAddress(int idx)
 {
     PT_Peer *peer;
     if (!gPTCtx) return "";
 
-    peer = PT_GetPeer(gPTCtx, index);
+    peer = PT_GetPeer(gPTCtx, idx);
     if (peer) return PT_PeerAddress(peer);
     return "";
 }

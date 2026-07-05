@@ -192,15 +192,15 @@ short TileMap_GetRows(void)
     return gMap.rows;
 }
 
-short TileMap_GetSpawnCol(short index)
+short TileMap_GetSpawnCol(short idx)
 {
-    if (index < 0 || index >= gMap.spawnCount) return 1;
-    return gMap.spawnCols[index];
+    if (idx < 0 || idx >= gMap.spawnCount) return 1;
+    return gMap.spawnCols[idx];
 }
 
-short TileMap_GetSpawnRow(short index)
+short TileMap_GetSpawnRow(short idx)
 {
-    if (index < 0 || index >= gMap.spawnCount) return 1;
-    return gMap.spawnRows[index];
+    if (idx < 0 || idx >= gMap.spawnCount) return 1;
+    return gMap.spawnRows[idx];
 }
 
