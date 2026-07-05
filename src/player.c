@@ -17,6 +17,7 @@
 #include "tilemap.h"
 #include "bomb.h"
 #include "renderer.h"
+#include "movement.h"
 #include <clog.h>
 
 /* ---- Grid derivation from pixel center ---- */
@@ -459,16 +460,15 @@ void Player_Update(short playerID)
         return;
     }
 
-    /* Fractional accumulator: resolution-independent speed (R1) */
+    /* Fractional accumulator: resolution-independent speed (R1).
+     * Math extracted to movement.c (Move_AccumStep), host unit tested. */
     if (dirX != 0) {
-        p->accumX = (short)(p->accumX + ts * gGame.deltaTicks);
-        movePixels = (short)(p->accumX / ticksPerTile);
-        p->accumX = (short)(p->accumX % ticksPerTile);
+        movePixels = Move_AccumStep(p->accumX, ts, gGame.deltaTicks,
+                                    ticksPerTile, &p->accumX);
         p->accumY = 0;
     } else {
-        p->accumY = (short)(p->accumY + ts * gGame.deltaTicks);
-        movePixels = (short)(p->accumY / ticksPerTile);
-        p->accumY = (short)(p->accumY % ticksPerTile);
+        movePixels = Move_AccumStep(p->accumY, ts, gGame.deltaTicks,
+                                    ticksPerTile, &p->accumY);
         p->accumX = 0;
     }
 

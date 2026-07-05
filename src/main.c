@@ -47,6 +47,17 @@ static long     gFPSLastTick = 0;
  */
 static void InitToolbox(void)
 {
+#ifdef BT_CARBON
+    /* Carbon on OS X: the Toolbox is already initialized by the time main()
+     * runs — no InitGraf/InitWindows/qd globals. Just transform this plain
+     * Mach-O into a foreground UI process so it can own windows and the
+     * menu bar (011-macosx-sdl2). */
+    ProcessSerialNumber psn;
+    psn.highLongOfPSN = 0;
+    psn.lowLongOfPSN = kCurrentProcess;
+    TransformProcessType(&psn, kProcessTransformToForegroundApplication);
+    SetFrontProcess(&psn);
+#else
     MaxApplZone();
     MoreMasters();
     MoreMasters();
@@ -63,7 +74,69 @@ static void InitToolbox(void)
     InitCursor();
 
     qd.randSeed = TickCount();
+#endif
 }
+
+/*
+ * BT_GetScreenBounds -- Main-screen bounds, portably.
+ *
+ * Classic: qd.screenBits.bounds. Carbon: qd globals are gone, so read the
+ * screen BitMap via the accessor (011-macosx-sdl2).
+ */
+static void BT_GetScreenBounds(Rect *out)
+{
+#ifdef BT_CARBON
+    BitMap sb;
+    GetQDGlobalsScreenBits(&sb);
+    *out = sb.bounds;
+#else
+    *out = qd.screenBits.bounds;
+#endif
+}
+
+#ifdef BT_CARBON
+/*
+ * BT_OpenBundleResources -- Add the app bundle's PICT resources to the
+ * Resource Manager chain (011-macosx-sdl2).
+ *
+ * A Mach-O app has no resource fork, so GetPicture() finds nothing and the
+ * renderer falls back to colored shapes. We ship the classic PICTs (bomb
+ * animation frames + colour splash) as a data-fork resource file at
+ * Contents/Resources/BomberTalk.rsrc (built by Rez in tools/build-macosx.sh)
+ * and open it here, before Renderer_Init runs LoadPICTResources. Missing or
+ * unopenable resources are non-fatal — the fallback path still works
+ * (Constitution VI). Run either as the .app or as the inner binary; CFBundle
+ * locates the enclosing bundle from the executable path.
+ */
+static void BT_OpenBundleResources(void)
+{
+    CFBundleRef bundle;
+    CFURLRef    url;
+    FSRef       ref;
+
+    bundle = CFBundleGetMainBundle();
+    if (bundle == NULL) { CLOG_WARN("No main bundle; PICT resources skipped"); return; }
+
+    url = CFBundleCopyResourceURL(bundle, CFSTR("BomberTalk"), CFSTR("rsrc"), NULL);
+    if (url == NULL) { CLOG_WARN("BomberTalk.rsrc not in bundle; using fallback graphics"); return; }
+
+    if (CFURLGetFSRef(url, &ref)) {
+        HFSUniStr255    dataForkName;
+        ResFileRefNum   refNum;
+        OSErr           err;
+
+        FSGetDataForkName(&dataForkName);
+        err = FSOpenResourceFile(&ref, dataForkName.length, dataForkName.unicode,
+                                 fsRdPerm, &refNum);
+        if (err != noErr) {
+            CLOG_WARN("FSOpenResourceFile(BomberTalk.rsrc) failed: %d", (int)err);
+        } else {
+            CLOG_INFO("Opened bundle PICT resources (refNum %d)", (int)refNum);
+        }
+    }
+    CFRelease(url);
+}
+#endif
 
 /*
  * SetupMenus -- Apple menu + File menu with Quit
@@ -93,7 +166,7 @@ static void DetectScreenSize(void)
 {
     Rect screenRect;
 
-    screenRect = qd.screenBits.bounds;
+    BT_GetScreenBounds(&screenRect);
 
     if (screenRect.right - screenRect.left <= 512) {
         gGame.isMacSE = TRUE;
@@ -118,7 +191,7 @@ static void CreateGameWindow(void)
     short screenW, screenH;
     short winLeft, winTop;
 
-    screenRect = qd.screenBits.bounds;
+    BT_GetScreenBounds(&screenRect);
     screenW = screenRect.right - screenRect.left;
     screenH = screenRect.bottom - screenRect.top;
 
@@ -128,12 +201,15 @@ static void CreateGameWindow(void)
     SetRect(&bounds, winLeft, winTop,
             winLeft + gGame.playWidth, winTop + gGame.playHeight);
 
+#ifndef BT_CARBON
     if (gGame.isMacSE) {
         /* Mac SE: no Color QuickDraw, use NewWindow */
         gGame.window = NewWindow(
             0L, &bounds, "\pBomberTalk", TRUE,
             noGrowDocProc, (WindowPtr)-1L, FALSE, 0L);
-    } else {
+    } else
+#endif
+    {
         gGame.window = (WindowPtr)NewCWindow(
             0L, &bounds, "\pBomberTalk", TRUE,
             noGrowDocProc, (WindowPtr)-1L, FALSE, 0L);
@@ -145,7 +221,7 @@ static void CreateGameWindow(void)
         ExitToShell();
     }
 
-    SetPort(gGame.window);
+    BT_SetWindowPort(gGame.window);
 }
 
 /*
@@ -185,8 +261,11 @@ static void HandleEvent(EventRecord *event)
             HandleMenuChoice(MenuSelect(event->where));
             break;
         case inDrag:
-            DragWindow(whichWindow, event->where,
-                       &qd.screenBits.bounds);
+            {
+                Rect dragBounds;
+                BT_GetScreenBounds(&dragBounds);
+                DragWindow(whichWindow, event->where, &dragBounds);
+            }
             break;
         case inContent:
             if (whichWindow != FrontWindow())
@@ -224,11 +303,24 @@ static void MainLoop(void)
     EventRecord event;
     long currentTick;
     long elapsed;
+    /* WaitNextEvent sleep. KI-007: on OS X the loop runs on a preemptive
+     * kernel, so a sleep=0 WaitNextEvent pins a CPU core (the G5's fans
+     * spin up). Yield ~1 tick per iteration there. FRAME_TICKS is 2, so the
+     * 30 fps cap is unchanged -- the frame gate still fires on the 2-tick
+     * boundary and deltaTicks absorbs the <=1 tick jitter -- and Net_Poll
+     * still runs ~60x/sec, ample for this game. The Classic Macs keep
+     * sleep=0 (Constitution VII): those CPUs have nothing to yield to and
+     * need every cycle. */
+#ifdef BT_CARBON
+    const long kEventSleep = 1L;
+#else
+    const long kEventSleep = EVENT_TICKS;
+#endif
 
     gLastFrameTick = TickCount();
 
     while (!gQuitting) {
-        if (WaitNextEvent(everyEvent, &event, EVENT_TICKS, NULL)) {
+        if (WaitNextEvent(everyEvent, &event, kEventSleep, NULL)) {
             HandleEvent(&event);
         }
 
@@ -347,6 +439,12 @@ int main(void)
 #endif
 
     CLOG_INFO("BomberTalk starting");
+
+#ifdef BT_CARBON
+    /* OS X: pull PICT resources out of the app bundle into the resource
+     * chain before anything loads pictures (011-macosx-sdl2). */
+    BT_OpenBundleResources();
+#endif
 
     /* Load tilemap early so dimensions are known for window/buffer sizing */
     TileMap_Init();

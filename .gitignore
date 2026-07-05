@@ -2,6 +2,8 @@ build-68k/
 build-68k-ot/
 build-ppc-ot/
 build-ppc-mactcp/
+build-macosx/
+build-*-baseline/
 build/
 *.o
 *.a

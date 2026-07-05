@@ -12,6 +12,7 @@
 #include "bomb.h"
 #include "tilemap.h"
 #include "renderer.h"
+#include "netcoord.h"
 #include <peertalk.h>
 #include <clog.h>
 #include <string.h>
@@ -62,6 +63,16 @@ static void on_disconnected(PT_Peer *peer, PT_DisconnectReason reason,
                 /* Mark tiles dirty BEFORE deactivation (T028) */
                 Player_MarkDirtyTiles(i);
                 gGame.players[i].active = FALSE;
+                /* KI-006: snap the interpolation target onto the current
+                 * position. The reactivation heuristic in Game_Update
+                 * revives any inactive remote whose target diverges from
+                 * its pixel position -- a quit peer caught mid-interpolation
+                 * would otherwise be resurrected every frame, so the
+                 * survivor's alive-count never drops and the game never
+                 * ends. A genuine rejoin sends fresh positions, which move
+                 * the target again and reactivate normally. */
+                gGame.players[i].targetPixelX = gGame.players[i].pixelX;
+                gGame.players[i].targetPixelY = gGame.players[i].pixelY;
                 CLOG_INFO("P%d marked inactive (disconnect)", i);
             }
             gGame.players[i].peer = NULL;
@@ -102,8 +113,8 @@ static void on_position(PT_Peer *peer, const void *data, size_t len,
         /* Convert tile-independent network coords back to local pixel coords.
          * Network coords use 256 units per tile, so multiply by local tileSize
          * and divide by 256 to get pixel position in our coordinate space. */
-        localPX = (short)(((long)msg.pixelX * ts) >> 8);
-        localPY = (short)(((long)msg.pixelY * ts) >> 8);
+        localPX = NetCoord_ToLocal(msg.pixelX, ts);
+        localPY = NetCoord_ToLocal(msg.pixelY, ts);
 
         /* Mark old position dirty (multi-tile aware) */
         Player_MarkDirtyTiles(msg.playerID);
@@ -384,10 +395,8 @@ void Net_SendPosition(short pixelX, short pixelY, short facing)
      * added, update this shift table (and verify it's power of 2).
      * 16px: 256/16 = 16 = 1<<4.  32px: 256/32 = 8 = 1<<3.
      * Saves ~200 cycles per send on 68k (avoids __divsi3 soft divide).
-     * Receive side (on_position) uses multiply+shift which works for
-     * any tile size — only the send path needs this optimization since
-     * it runs every frame the local player moves. */
-    short shift = (ts == 16) ? 4 : 3;
+     * The conversion now lives in netcoord.c (host unit tested); it keeps
+     * the shift optimization. */
     if (!gPTCtx) return;
 
     msg.playerID = (unsigned char)gGame.localPlayerID;
@@ -395,8 +404,8 @@ void Net_SendPosition(short pixelX, short pixelY, short facing)
     /* Convert to tile-independent network coords (256 units = 1 tile).
      * This allows machines with different tile sizes (16px SE vs 32px PPC)
      * to agree on player positions. */
-    msg.pixelX = (short)((long)pixelX << shift);
-    msg.pixelY = (short)((long)pixelY << shift);
+    msg.pixelX = NetCoord_ToWire(pixelX, ts);
+    msg.pixelY = NetCoord_ToWire(pixelY, ts);
     msg.pad[0] = 0;
     msg.pad[1] = 0;
 

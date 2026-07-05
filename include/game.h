@@ -9,7 +9,17 @@
 #ifndef GAME_H
 #define GAME_H
 
-/* Classic Mac headers via Retro68 universal headers */
+/* Mac Toolbox headers.
+ *
+ * On the Classic Mac builds (Retro68/RetroPPC) these are the Universal
+ * Interfaces, included individually. On the OS X Carbon build (BT_CARBON,
+ * see tools/build-macosx.sh) the same managers live under the single
+ * <Carbon/Carbon.h> umbrella — the individual headers are not on the
+ * include path there. Color QuickDraw, GWorld, Windows, Events, Menus,
+ * Resources, etc. are all present via Carbon (011-macosx-sdl2). */
+#ifdef BT_CARBON
+#include <Carbon/Carbon.h>
+#else
 #include <Quickdraw.h>
 #include <Windows.h>
 #include <Events.h>
@@ -22,6 +32,24 @@
 #include <ToolUtils.h>
 #include <OSUtils.h>
 #include <Sound.h>
+#endif
+
+/* Carbon compatibility shims (011-macosx-sdl2).
+ *
+ * On Classic Mac a WindowPtr IS a GrafPtr and a GrafPort's fields are
+ * directly accessible. Under Carbon both WindowRef and GrafPort are opaque,
+ * so port access must go through accessor functions. These macros keep the
+ * shared renderer/main code identical on both — the classic path expands to
+ * the old struct punning, the Carbon path to the accessors. */
+#ifdef BT_CARBON
+#define BT_SetWindowPort(w)       SetPortWindowPort(w)
+#define BT_WindowCopyBitsBits(w)  GetPortBitMapForCopyBits(GetWindowPort(w))
+#define BT_WindowCGrafPort(w)     GetWindowPort(w)
+#else
+#define BT_SetWindowPort(w)       SetPort(w)
+#define BT_WindowCopyBitsBits(w)  (&(w)->portBits)
+#define BT_WindowCGrafPort(w)     ((CGrafPtr)(w))
+#endif
 
 /* ---- Protocol Version ---- */
 #define BT_PROTOCOL_VERSION 5
