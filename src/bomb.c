@@ -7,6 +7,7 @@
 #include "tilemap.h"
 #include "net.h"
 #include "renderer.h"
+#include "raycast.h"
 #include <clog.h>
 #include <string.h>
 
@@ -105,29 +106,30 @@ static void ExplodeBomb(Bomb *b, int broadcast)
     AddExplosion(b->gridCol, b->gridRow);
     Renderer_MarkDirty(b->gridCol, b->gridRow);
 
-    /* Four directions */
+    /* Four directions. Reach rule lives in the host-tested raycast.c; this
+     * loop re-walks the covered tiles for presentation + block destruction. */
     for (dir = 0; dir < 4; dir++) {
-        for (dist = 1; dist <= b->range; dist++) {
+        int hitBlock = FALSE;
+        short reach = Ray_Reach(b->gridCol, b->gridRow,
+                                kExplodeDCol[dir], kExplodeDRow[dir],
+                                b->range, TileMap_GetCols(), TileMap_GetRows(),
+                                &map->tiles[0][0], &hitBlock);
+
+        for (dist = 1; dist <= reach; dist++) {
             col = b->gridCol + kExplodeDCol[dir] * dist;
             row = b->gridRow + kExplodeDRow[dir] * dist;
-
-            /* Stop at walls */
-            if (col < 0 || col >= TileMap_GetCols() ||
-                row < 0 || row >= TileMap_GetRows()) break;
-
-            if (TILEMAP_TILE(map, col, row) == TILE_WALL) break;
-
             AddExplosion(col, row);
             Renderer_MarkDirty(col, row);
+        }
 
-            /* Destroy blocks and stop */
-            if (TILEMAP_TILE(map, col, row) == TILE_BLOCK) {
-                CLOG_DEBUG("Block destroyed at (%d,%d)", col, row);
-                TileMap_SetTile(col, row, TILE_FLOOR);
-                if (broadcast) Net_SendBlockDestroyed(col, row);
-                blocksDestroyed = TRUE;
-                break;
-            }
+        /* Destroy the block the ray stopped on (the tile at `reach`). */
+        if (hitBlock) {
+            col = b->gridCol + kExplodeDCol[dir] * reach;
+            row = b->gridRow + kExplodeDRow[dir] * reach;
+            CLOG_DEBUG("Block destroyed at (%d,%d)", col, row);
+            TileMap_SetTile(col, row, TILE_FLOOR);
+            if (broadcast) Net_SendBlockDestroyed(col, row);
+            blocksDestroyed = TRUE;
         }
     }
 

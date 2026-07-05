@@ -48,9 +48,23 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE=$RETRO68_TOOLCHAIN/powerpc-apple-macos/cmake/ret
 
 # Using local checkouts (optional, overrides FetchContent):
 #   -DPEERTALK_DIR=~/peertalk -DCLOG_DIR=~/clog
+
+# SDL2 / POSIX (build-sdl/) -- modern desktop + Apple Silicon (011-macosx-sdl2)
+# Native gcc/clang, no cross toolchain. Needs libsdl2-dev + pkg-config and
+# peertalk/clog checkouts (defaults ../peertalk, ../clog). Runs on Linux (a
+# faithful little-endian proxy for the M5) and modern macOS.
+PEERTALK_DIR=~/peertalk CLOG_DIR=~/clog bash tools/build-sdl.sh   # -> build-sdl/BomberTalk
 ```
 
-After changes, always build and verify all three targets compile clean before committing.
+After changes, always build and verify all three classic targets compile clean before committing.
+
+The **SDL2 build** (`BT_POSIX`) reuses the entire shared game core + `net.c`; only the
+renderer/input/main-loop/time backends are swapped (`renderer_sdl.c`, `input_sdl.c`,
+`main_posix.c`, `platform_posix.c`) plus a small QuickDraw text/rect shim (`mac_shim.c`,
+`include/mac_shim.h`, `src/font8x8.h`) so `screen_*.c` stay identical. It is byte-order
+correct against big-endian classic Macs via `net_wire.c`. Headless smoke: `SDL_VIDEODRIVER=dummy
+BT_SCREENSHOT=out.bmp ./build-sdl/BomberTalk` saves the menu frame; `tools/sdl_probe.c` dumps a
+gameplay board frame.
 
 ## Hardware Deployment
 
@@ -92,7 +106,7 @@ while (!gQuitting) {
 - **Network coordinate normalization**: MsgPosition carries tile-independent fixed-point coords (256 units = 1 tile). Send: `netX = (pixelX << 8) / tileSize`. Receive: `pixelX = (netX * tileSize) >> 8`. This allows 16px-tile Mac SE and 32px-tile PPC to agree on positions. Without this, raw pixel coords cause false explosion kills (wrong grid mapping) and crashes (out-of-bounds grid indices on smaller-tiled machines).
 - **Network authority (005)**: Bomb owner broadcasts `MSG_BOMB_EXPLODE` and `MSG_BLOCK_DESTROYED`; non-owners explode locally without sending. Lowest-rank connected player broadcasts `MSG_GAME_OVER`; non-authority uses 120-tick failsafe timeout (TickCount-based, 007). Force-explode mechanism unchanged as sync safety net.
 - **Game-over grace period (005, 007)**: 90-tick delay (`DISCONNECT_GRACE_TICKS`) between game-over and TCP teardown via TickCount() wall-clock timing. Allows slow machines to receive MSG_GAME_OVER before connections close.
-- **Mesh stagger (005, 007)**: After MSG_GAME_START, receivers delay first TCP connect by `rank * MESH_STAGGER_PER_RANK` (30 ticks/rank) via TickCount() wall-clock timing. Rank 0 connects immediately. Existing 2-second retry unchanged.
+- **Auto-mesh (011)**: PeerTalk owns full-mesh formation. `Net_Init` calls `PT_EnableAutoMesh(ctx, 1)`; PeerTalk then keeps a TCP connection open to every discovered peer, dialing only the pairs this node is the designated initiator for (`PT_ShouldInitiate` — lower IP dials, higher listens), and re-dialing after any drop. This is race-free by construction (each pair dialed from one side) and self-healing. The lobby no longer dials, staggers, or retries: by the time a player presses Start the mesh is already up, and `MSG_GAME_START` launches over it. Replaces the old app-side rank stagger / 2s retry / manual `Net_ConnectToAllPeers` (removed). `Lobby_Update` just waits until `connectedCount >= expected-1` (with `MESH_FORM_TIMEOUT_TICKS=900` fallback), then enters.
 - Network sync: `MSG_BOMB_EXPLODE` forces remote machines to explode immediately if their local fuse hasn't expired yet
 
 ### Screen State Machine (`screens.c`)
@@ -147,7 +161,7 @@ Two offscreen buffers: **background** (static tilemap) and **work** (per-frame c
 Thin wrapper around PeerTalk SDK. All network I/O is callback-driven via `PT_Poll()`.
 
 - **Discovery**: UDP broadcast, peers appear in lobby
-- **Connection**: TCP mesh — any player can initiate, tiebreaker handles simultaneous connects
+- **Connection**: Full TCP mesh formed automatically by PeerTalk (`PT_EnableAutoMesh`). Each pair dialed from one side only (lower IP dials), so no simultaneous-connect race; self-heals after drops. App never calls `PT_Connect` directly.
 - **Player IDs**: Deterministic via `PT_GetPeerRank()` (lowest IP = rank 0). No host concept.
 - **Messages**: 7 types registered at init. `PT_FAST` (UDP) for positions, `PT_RELIABLE` (TCP) for game events.
 - **TCP Keepalive**: PeerTalk sends automatic keepalive frames (type 254) every 20s to prevent TCP timeout during gameplay. Positions go via UDP, so without keepalive the TCP connection starves if no game events (bombs, kills) happen for 60s.
@@ -197,11 +211,13 @@ Single `GameState gGame` struct holds all game state. Key fields:
 
 **OT linker**: PPC OT builds link `OpenTransportAppPPC` + `OpenTransportLib` + `OpenTptInternetLib`. PeerTalk links them PRIVATE, so BomberTalk must link them too (static lib deps don't propagate).
 
-**Big-endian**: Both 68k and PPC are big-endian. Network message structs need no byte swapping on Classic Mac. Will need conversion if POSIX build is added later.
+**Big-endian**: Both 68k and PPC are big-endian, so the classic Macs historically sent raw message structs with no byte swapping. The wire byte order is now explicit in `net_wire.c` (big-endian; 011 D3) — `NetWire_Pack/UnpackPosition` handle `MsgPosition`'s two shorts (all other messages are single bytes). It is byte-identical to the raw-struct send on big-endian hosts, so no protocol bump, but a little-endian host (the Intel/Apple-Silicon `.app` slice, a future M5) now interoperates correctly. New multi-byte fields MUST go through net_wire, not raw struct send.
 
 **Mac SE performance**: Lobby ~3fps, gameplay 10-19fps (measured 2026-04-10). Minimize Toolbox trap calls in hot paths. Cache `StringWidth()`, avoid per-tile `SavePort`/`LockPixels`. Movement cooldown must fall through on expiry (not waste a frame), and direction input must use accumulated edges — at 3-10fps a quick tap can complete entirely between frames.
 
 **CopyBits alignment for sub-tile sprites**: Sub-tile sprite positions will be misaligned for CopyBits (up to ~2x penalty per Sex Lies p.148). Accepted: Mac SE uses PaintRect (no penalty), PPC uses transparent mode (already slower). If PPC FPS drops measurably, consider pre-shifted sprite GWorlds (4 copies per sprite) as mitigation.
+
+**SDL2 build seam (`BT_POSIX`)**: game.h has three branches — classic (individual Toolbox headers), `BT_CARBON` (`<Carbon/Carbon.h>`), and `BT_POSIX` (`include/mac_shim.h`, no Toolbox at all). The shared core touches only a tiny Toolbox slice off the renderer: `TickCount` + a QuickDraw text/rect subset the screens call between `Renderer_BeginScreenDraw`/`EndScreenDraw`. `mac_shim.h` supplies the value types (Rect/Point/RGBColor/Str255/WindowPtr) and declares that subset; `mac_shim.c` draws it into the SDL work surface via an embedded 8x8 font. New multi-byte-emitting shared code must add nothing Toolbox-y outside this seam, or the SDL build breaks. `sdl_backend.h` carries SDL types between `mac_shim.c` and `renderer_sdl.c` only — never include it from shared code.
 
 **BOMBERTALK_DEBUG**: CMake option (default ON). When OFF, adds `-DCLOG_STRIP` causing all `CLOG_*` macros to expand to `((void)0)`. clog library still linked (PeerTalk depends on it). Guard `clog_init`/`clog_set_file`/`clog_set_network_sink`/`clog_shutdown` with `#ifndef CLOG_STRIP`.
 
@@ -230,8 +246,11 @@ Six classic Mac game programming books in `books/` — consult before implementi
 - N/A. All game state is in-memory; tilemap comes from `kLevel1` static data or `'TMAP'` resource 128. (008-perf-hotpath)
 - C89/C90 (Retro68/RetroPPC cross-compiler) + Classic Mac Toolbox (QuickDraw, QDOffscreen, Resource Manager, Memory Manager), PeerTalk SDK v1.11.2, clog v1.4.1 (010-renderer-review-cleanup)
 - N/A (all state in memory; resources from resource fork) (010-renderer-review-cleanup)
+- C89/C90 for shared core (`-std=c89 -Wall -Wextra`); platform backends target C89 where practical (SDL2 and Carbon are C-callable). + PeerTalk SDK v1.12.1 (POSIX/BSD backend), clog v1.4.1, SDL2 (modern target only), Carbon + QuickDraw (OS X 10.3–10.7 target only), Classic Mac Toolbox (existing classic targets). (011-macosx-sdl2)
+- N/A — all state in memory; tilemap from `kLevel1` or `'TMAP'` resource 128 (classic) / equivalent embedded data (POSIX). (011-macosx-sdl2)
 
 ## Recent Changes
+- 011-macosx-sdl2 (auto-mesh): Moved full-mesh formation out of the app and into PeerTalk. New SDK call `PT_EnableAutoMesh(ctx, enable)` (peertalk `pt_core.c` `pt_mesh_dial_sweep`, gated on a `PT_MESH_RETRY_INTERVAL=2s` timer + per-peer `connect_start` so an in-flight dial is never repeated): when enabled, PeerTalk keeps a TCP connection to every discovered peer, dialing only the pairs where `local_ip < peer_ip` (`PT_ShouldInitiate`) so each pair is dialed from exactly one side — the simultaneous-connect race cannot arise and the mesh self-heals after drops. BomberTalk: `Net_Init` enables auto-mesh; removed `Net_ConnectToAllPeers` and `Net_GetLocalRank` (net.c/net.h), the on_game_start manual dial, the whole `screen_lobby.c` stagger/retry/timeout/initiator-receiver state machine (now `gStartRequested`/`gMeshWaitStart` + wait-for-`connectedCount >= expected-1` with `MESH_FORM_TIMEOUT_TICKS=900` fallback), the `MESH_STAGGER_PER_RANK` constant and `GameState.meshStaggerStart` field. Fixes the 011 cross-era regression where the OT↔MacTCP link never formed (G5 saw 3 players, OT+MacTCP saw 2) because the lobby only dialed in narrow windows. Peertalk `test_seam` +8 checks (auto-mesh sweep: dial-direction, retry throttle, in-flight/connected skip, self-heal) = 120. No protocol bump — topology/timing only. The rule: **PeerTalk owns who-is-connected-to-whom; the app owns when-to-play and who-is-who.**
 - 008-perf-hotpath: Book-grounded and cppcheck-verified hot-path optimizations. (FR-001) Cache TileMap_GetCols/Rows locals in CollideAxis and inline Bomb_ExistsAt into BOMB_GRID_CELL(col,row) macro read in CheckTileSolid — removes per-tile function-call dispatch (Tricks of the Gurus p.802-805 Mac SE benchmark: macro ~6x faster than function call). New bomb.h public: `extern unsigned char gBombGrid[][]` + BOMB_GRID_CELL macro. (FR-002) Inline SetRect in the two per-frame AABB kill-check loops in bomb.c (ExplodeBomb's kill check and Bomb_Update's walk-into-explosion check) — direct Rect field writes avoid Toolbox trap dispatch (Tricks p.41867 Mac SE: SetPt trap 926 ticks / 300k calls vs macro 77 ticks, 12x faster). (FR-003) Drop the redundant entry ForeColor(blackColor)/BackColor(whiteColor) asserts in Renderer_DrawPlayer's Mac SE fallback body path — Renderer_BeginSpriteDraw already establishes them once per frame. Trailing ForeColor(blackColor) retained to reset for next player. ~8 traps/frame saved on SE. (FR-004) Edge-trigger Player_Update and Player_SetPosition CLOG_DEBUG output — fire only on grid-cell, target-tile, or facing change instead of every frame. Eliminates per-frame UDP debug-broadcast flood on color Macs. (FR-005) Remove unused TileMap_IsSolid from header and source (cppcheck-confirmed unused). (FR-006) Remove statically-unreachable `if (gGame.isMacSE)` branch in LoadPICTResources plus its dead ternary in mask-region construction — caller guards on !gGame.isMacSE. Comment left pointing to rPict*SE IDs in game.h for future SE PICT support. (FR-007) Swap FreeMem() for PurgeSpace() in low-heap checks — obtainable memory including purgeable blocks per Inside Macintosh IV p.7680. Bonus cleanup: Bomb_ExistsAt removed (last caller switched to BOMB_GRID_CELL macro). Rejected (books contradict): CopyMask swap — Tricks p.6239 "stay away from CopyMask". Withdrawn after re-analysis: TileMap_Init memset removal — loop only covers active [rows × cols] sub-region of the [25][31] array, so memset is load-bearing. No protocol version bump — local optimizations only.
 - 007-timer-fixes: Convert four network/coordination timers from deltaTicks decrement to TickCount() wall-clock timing (fixes KI-001 through KI-005). Grace period (disconnectGraceStart), failsafe (gameOverFailsafeStart), timeout (gameOverTimeoutStart), and mesh stagger (meshStaggerStart) now use `TickCount() - startTick >= threshold` pattern matching existing lobby timers. Fixes timer drift caused by deltaTicks cap at 10 on slow machines (Mac SE at <6fps). Bomb fuse-expiry log downgraded from CLOG_INFO to CLOG_DEBUG. GameState fields renamed from *Timer (short) to *Start (unsigned long). No protocol version bump — local timing only.
 - 006-renderer-optimization: Five renderer performance optimizations from book research. (1) Sprite draw bracket: Renderer_BeginSpriteDraw/EndSpriteDraw batches SavePort/SetPortWork/RestorePort to once per frame instead of per-sprite (~30 fewer traps/frame on SE). (2) Color state at init: ForeColor/BackColor set once at Renderer_Init + post-RebuildBackground, removed from BeginFrame (~5 fewer traps/frame). (3) Mask region sprite blitting: pre-computed RgnHandle per sprite via CreateMaskFromGWorld/BitMapToRegion, CopyBits uses srcCopy+maskRgn instead of transparent mode (2-3x faster per Sex Lies benchmarks). Falls back to transparent if mask creation fails. (4) Batched tile drawing: RebuildBackground draws tiles in passes by type (one ForeColor per type) instead of per-tile, reducing ForeColor calls from O(tiles) to O(tile_types). (5) TILEMAP_TILE macro: direct array access in bomb raycast and player collision hot paths, bypassing TileMap_GetTile function call overhead. New renderer.h API: Renderer_BeginSpriteDraw/EndSpriteDraw. New tilemap.h macro: TILEMAP_TILE(map, col, row). New renderer.c statics: gSpriteDrawActive, gPlayerMaskRgn[], gBombMaskRgn, gExplosionMaskRgn, gTitleMaskRgn, CreateMaskFromGWorld(). Modified player.c: CheckTileSolid takes const TileMap *map parameter.

@@ -12,6 +12,8 @@
 #include "bomb.h"
 #include "tilemap.h"
 #include "renderer.h"
+#include "netcoord.h"
+#include "net_wire.h"
 #include <peertalk.h>
 #include <clog.h>
 #include <string.h>
@@ -19,6 +21,10 @@
 static PT_Context *gPTCtx = NULL;
 static short gExpectedPlayers = 0;
 static int gVersionMismatch = FALSE;
+
+/* Join-in-progress map sync (011-macosx-sdl2, Phase 2) */
+static PT_Peer *Net_GetPeerByRank(int rank);
+static void Net_SendMapStateTo(PT_Peer *peer);
 
 /* ---- Callbacks ---- */
 
@@ -62,6 +68,16 @@ static void on_disconnected(PT_Peer *peer, PT_DisconnectReason reason,
                 /* Mark tiles dirty BEFORE deactivation (T028) */
                 Player_MarkDirtyTiles(i);
                 gGame.players[i].active = FALSE;
+                /* KI-006: snap the interpolation target onto the current
+                 * position. The reactivation heuristic in Game_Update
+                 * revives any inactive remote whose target diverges from
+                 * its pixel position -- a quit peer caught mid-interpolation
+                 * would otherwise be resurrected every frame, so the
+                 * survivor's alive-count never drops and the game never
+                 * ends. A genuine rejoin sends fresh positions, which move
+                 * the target again and reactivate normally. */
+                gGame.players[i].targetPixelX = gGame.players[i].pixelX;
+                gGame.players[i].targetPixelY = gGame.players[i].pixelY;
                 CLOG_INFO("P%d marked inactive (disconnect)", i);
             }
             gGame.players[i].peer = NULL;
@@ -91,19 +107,53 @@ static void on_position(PT_Peer *peer, const void *data, size_t len,
     (void)peer;
     (void)user_data;
 
-    if (len < sizeof(MsgPosition)) return;
-    /* Copy to aligned local — PeerTalk may deliver data at odd addresses,
-     * causing 68000 address errors when accessing short fields directly */
-    memcpy(&msg, data, sizeof(MsgPosition));
+    if (len < NETWIRE_POSITION_LEN) return;
+    /* Decode the big-endian wire form into an aligned local. net_wire reads
+     * the multi-byte fields byte-by-byte, so there is no unaligned short
+     * access (PeerTalk may deliver data at odd addresses, which would fault
+     * a 68000) and the byte order is explicit rather than host-dependent —
+     * a little-endian client (the Intel/Apple-Silicon .app slice) reads the
+     * same positions as the big-endian classic Macs. (011 D3) */
+    NetWire_UnpackPosition((const unsigned char *)data, &msg.playerID,
+                           &msg.facing, &msg.pixelX, &msg.pixelY);
 
     if (msg.playerID < MAX_PLAYERS &&
-        msg.playerID < (unsigned char)gGame.numPlayers &&
         msg.playerID != (unsigned char)gGame.localPlayerID) {
+        /* Join-in-progress: a position from a slot we are not yet tracking
+         * means that player is in the game, filling a free spawn corner.
+         * Seat it (Player_Init activates it and places it at its corner) and
+         * grow the roster. Four corners => up to MAX_PLAYERS; a player can
+         * join a game already running. This gates on the slot being inactive,
+         * so it never disturbs players already in the game, and it only fires
+         * in-game so lobby position chatter is unaffected. The KI-006 target
+         * snapping still holds: Player_Init sets target == pixel. (011) */
+        if (gGame.currentScreen == SCREEN_GAME &&
+            !gGame.players[msg.playerID].active) {
+            if (msg.playerID >= (unsigned char)gGame.numPlayers) {
+                gGame.numPlayers = (short)(msg.playerID + 1);
+            }
+            Player_Init((short)msg.playerID,
+                        TileMap_GetSpawnCol((short)msg.playerID),
+                        TileMap_GetSpawnRow((short)msg.playerID));
+            CLOG_INFO("P%d joined game in progress (numPlayers now %d)",
+                      msg.playerID, gGame.numPlayers);
+
+            /* Send our current (in-progress) map to the joiner so it inherits
+             * already-destroyed blocks. Directed to the joiner only, so a
+             * fresh map can never overwrite an existing player's. Every
+             * seating peer sends; the joiner applies the first that differs
+             * (Phase 2). */
+            {
+                PT_Peer *jp = Net_GetPeerByRank((int)msg.playerID);
+                if (jp != NULL) Net_SendMapStateTo(jp);
+            }
+        }
+
         /* Convert tile-independent network coords back to local pixel coords.
          * Network coords use 256 units per tile, so multiply by local tileSize
          * and divide by 256 to get pixel position in our coordinate space. */
-        localPX = (short)(((long)msg.pixelX * ts) >> 8);
-        localPY = (short)(((long)msg.pixelY * ts) >> 8);
+        localPX = NetCoord_ToLocal(msg.pixelX, ts);
+        localPY = NetCoord_ToLocal(msg.pixelY, ts);
 
         /* Mark old position dirty (multi-tile aware) */
         Player_MarkDirtyTiles(msg.playerID);
@@ -217,9 +267,7 @@ static void on_game_start(PT_Peer *peer, const void *data, size_t len,
     gExpectedPlayers = (short)msg->numPlayers;
 
     CLOG_INFO("Game start received, expecting %d players", gExpectedPlayers);
-
-    /* Connect to any discovered peers we haven't connected to yet (mesh) */
-    Net_ConnectToAllPeers();
+    /* No manual dialing: PeerTalk auto-mesh already holds the connections. */
 }
 
 static void on_game_over(PT_Peer *peer, const void *data, size_t len,
@@ -255,6 +303,87 @@ static void on_game_over(PT_Peer *peer, const void *data, size_t len,
     /* Cancel failsafe timer if active — authority's message arrived (005) */
     gGame.localGameOverDetected = FALSE;
     gGame.gameOverFailsafeStart = 0;
+}
+
+/*
+ * on_map_state -- Apply a tilemap snapshot from an existing player (Phase 2).
+ *
+ * A late joiner receives this from each peer already in the game and applies
+ * the first that actually differs from its (fresh) map, so it inherits blocks
+ * destroyed before it joined. All-byte payload: read directly, no alignment
+ * or byte-swap concerns. Only acted on in-game.
+ */
+static void on_map_state(PT_Peer *peer, const void *data, size_t len,
+                         void *user_data)
+{
+    const MsgMapState *msg;
+    short cols, rows;
+    (void)peer;
+    (void)user_data;
+
+    if (gGame.currentScreen != SCREEN_GAME) return;
+    if (len < 2) return;
+    msg = (const MsgMapState *)data;
+    cols = (short)msg->cols;
+    rows = (short)msg->rows;
+    if (cols < 1 || rows < 1) return;
+    if (len < (size_t)(2 + (long)cols * rows)) return;   /* truncated */
+
+    if (TileMap_SetState(cols, rows, msg->tiles)) {
+        Renderer_RequestRebuildBackground();
+        CLOG_INFO("Applied in-progress map snapshot (%dx%d)", cols, rows);
+    }
+}
+
+/*
+ * Net_GetPeerByRank -- Find the connected peer occupying a given rank/slot.
+ * Used to direct a map snapshot at a specific late joiner.
+ */
+static PT_Peer *Net_GetPeerByRank(int rank)
+{
+    int count, i;
+
+    if (!gPTCtx) return NULL;
+    count = PT_GetPeerCount(gPTCtx);
+    for (i = 0; i < count; i++) {
+        PT_Peer *p = PT_GetPeer(gPTCtx, i);
+        if (p != NULL &&
+            PT_GetPeerState(p) == PT_PEER_CONNECTED &&
+            PT_GetPeerRank(gPTCtx, p) == rank) {
+            return p;
+        }
+    }
+    return NULL;
+}
+
+/*
+ * Net_SendMapStateTo -- Send our current tilemap to one peer (the late joiner).
+ * Static buffer (not stack) to keep the 68k main stack small.
+ */
+static void Net_SendMapStateTo(PT_Peer *peer)
+{
+    static MsgMapState msg;
+    TileMap *map;
+    short cols, rows, r, c;
+    long len;
+
+    if (!gPTCtx || peer == NULL) return;
+    map = TileMap_Get();
+    cols = map->cols;
+    rows = map->rows;
+    if (cols < 1 || rows < 1 || cols > MAX_GRID_COLS || rows > MAX_GRID_ROWS) return;
+
+    msg.cols = (unsigned char)cols;
+    msg.rows = (unsigned char)rows;
+    for (r = 0; r < rows; r++) {
+        for (c = 0; c < cols; c++) {
+            msg.tiles[r * cols + c] = map->tiles[r][c];
+        }
+    }
+
+    len = 2 + (long)cols * rows;
+    PT_Send(gPTCtx, peer, MSG_MAP_STATE, &msg, (size_t)len);
+    CLOG_INFO("Sent map snapshot (%dx%d, %ld bytes) to joiner", cols, rows, len);
 }
 
 /* ---- Debug Broadcast (via PeerTalk debug channel) ---- */
@@ -293,6 +422,7 @@ void Net_Init(const char *playerName)
     PT_RegisterMessage(gPTCtx, MSG_PLAYER_KILLED,   PT_RELIABLE);
     PT_RegisterMessage(gPTCtx, MSG_GAME_START,      PT_RELIABLE);
     PT_RegisterMessage(gPTCtx, MSG_GAME_OVER,       PT_RELIABLE);
+    PT_RegisterMessage(gPTCtx, MSG_MAP_STATE,       PT_RELIABLE);
 
     /* Register callbacks */
     PT_OnPeerDiscovered(gPTCtx, on_peer_discovered, NULL);
@@ -308,6 +438,15 @@ void Net_Init(const char *playerName)
     PT_OnMessage(gPTCtx, MSG_PLAYER_KILLED,   on_player_killed, NULL);
     PT_OnMessage(gPTCtx, MSG_GAME_START,      on_game_start, NULL);
     PT_OnMessage(gPTCtx, MSG_GAME_OVER,       on_game_over, NULL);
+    PT_OnMessage(gPTCtx, MSG_MAP_STATE,       on_map_state, NULL);
+
+    /* Full-mesh topology is PeerTalk's job: once discovery finds peers it
+     * keeps a TCP connection open to every one of them (dialing only the
+     * pairs we are the designated initiator for, so the simultaneous-connect
+     * race cannot arise, and re-dialing after any drop). The lobby no longer
+     * dials, staggers, or retries by hand -- by the time a player presses
+     * Start the mesh is already formed, and GAME_START launches over it. */
+    PT_EnableAutoMesh(gPTCtx, 1);
 
     CLOG_INFO("Net initialized");
 }
@@ -350,23 +489,6 @@ void Net_StopDiscovery(void)
     }
 }
 
-void Net_ConnectToAllPeers(void)
-{
-    int count, i;
-    PT_Peer *peer;
-
-    if (!gPTCtx) return;
-
-    count = PT_GetPeerCount(gPTCtx);
-    for (i = 0; i < count; i++) {
-        peer = PT_GetPeer(gPTCtx, i);
-        if (peer && PT_GetPeerState(peer) == PT_PEER_DISCOVERED) {
-            PT_Connect(gPTCtx, peer);
-            CLOG_INFO("Connecting to %s", PT_PeerName(peer));
-        }
-    }
-}
-
 void Net_DisconnectAllPeers(void)
 {
     if (!gPTCtx) return;
@@ -375,33 +497,23 @@ void Net_DisconnectAllPeers(void)
 
 void Net_SendPosition(short pixelX, short pixelY, short facing)
 {
-    MsgPosition msg;
+    unsigned char buf[NETWIRE_POSITION_LEN];
     short ts = gGame.tileSize;
-    /* Optimization: pixel * 256 / tileSize as a pure shift.
-     * tileSize is always power of 2 (16 or 32), set at startup from
-     * display capabilities — constrained by QuickDraw alignment, PICT
-     * resource sizes, and Mac SE memory.  If a third tile size is ever
-     * added, update this shift table (and verify it's power of 2).
-     * 16px: 256/16 = 16 = 1<<4.  32px: 256/32 = 8 = 1<<3.
-     * Saves ~200 cycles per send on 68k (avoids __divsi3 soft divide).
-     * Receive side (on_position) uses multiply+shift which works for
-     * any tile size — only the send path needs this optimization since
-     * it runs every frame the local player moves. */
-    short shift = (ts == 16) ? 4 : 3;
     if (!gPTCtx) return;
 
-    msg.playerID = (unsigned char)gGame.localPlayerID;
-    msg.facing = (unsigned char)facing;
-    /* Convert to tile-independent network coords (256 units = 1 tile).
-     * This allows machines with different tile sizes (16px SE vs 32px PPC)
-     * to agree on player positions. */
-    msg.pixelX = (short)((long)pixelX << shift);
-    msg.pixelY = (short)((long)pixelY << shift);
-    msg.pad[0] = 0;
-    msg.pad[1] = 0;
+    /* Two layers: netcoord.c converts to tile-independent coords (256 units =
+     * 1 tile) so 16px-SE and 32px-PPC machines agree on positions, then
+     * net_wire.c packs them big-endian so a little-endian client agrees too.
+     * NetCoord_ToWire keeps the power-of-2 shift optimization (pixel*256/tile
+     * as a shift, avoiding the 68k soft-divide); both are host unit tested. */
+    NetWire_PackPosition((unsigned char)gGame.localPlayerID,
+                         (unsigned char)facing,
+                         NetCoord_ToWire(pixelX, ts),
+                         NetCoord_ToWire(pixelY, ts), buf);
 
-    CLOG_DEBUG("TX pos P%d px=(%d,%d) f=%d", msg.playerID, pixelX, pixelY, facing);
-    PT_Broadcast(gPTCtx, MSG_POSITION, &msg, sizeof(msg));
+    CLOG_DEBUG("TX pos P%d px=(%d,%d) f=%d",
+               gGame.localPlayerID, pixelX, pixelY, facing);
+    PT_Broadcast(gPTCtx, MSG_POSITION, buf, NETWIRE_POSITION_LEN);
 }
 
 void Net_SendBombPlaced(short col, short row, short range)
@@ -492,27 +604,42 @@ int Net_GetDiscoveredPeerCount(void)
     discovered = 0;
     for (i = 0; i < count; i++) {
         peer = PT_GetPeer(gPTCtx, i);
-        if (peer) discovered++;
+        /* Skip peers PeerTalk has flagged gone. A peer that quit (clean Cmd-Q
+         * sends a discovery leave; a crash/close tears down TCP) is marked
+         * DISCONNECTED but kept in the table -- counting it made the lobby
+         * show quit players as still present until they aged out (011). */
+        if (peer && PT_GetPeerState(peer) != PT_PEER_DISCONNECTED)
+            discovered++;
     }
     return discovered;
 }
 
-const char *Net_GetDiscoveredPeerName(int index)
+const char *Net_GetDiscoveredPeerName(int idx)
 {
+    int count, i, seen;
     PT_Peer *peer;
     if (!gPTCtx) return "";
 
-    peer = PT_GetPeer(gPTCtx, index);
-    if (peer) return PT_PeerName(peer);
+    /* Index among the live (non-DISCONNECTED) peers, matching the filtered
+     * Net_GetDiscoveredPeerCount so the lobby's count and name list agree. */
+    count = PT_GetPeerCount(gPTCtx);
+    seen = 0;
+    for (i = 0; i < count; i++) {
+        peer = PT_GetPeer(gPTCtx, i);
+        if (peer && PT_GetPeerState(peer) != PT_PEER_DISCONNECTED) {
+            if (seen == idx) return PT_PeerName(peer);
+            seen++;
+        }
+    }
     return "";
 }
 
-const char *Net_GetDiscoveredPeerAddress(int index)
+const char *Net_GetDiscoveredPeerAddress(int idx)
 {
     PT_Peer *peer;
     if (!gPTCtx) return "";
 
-    peer = PT_GetPeer(gPTCtx, index);
+    peer = PT_GetPeer(gPTCtx, idx);
     if (peer) return PT_PeerAddress(peer);
     return "";
 }
@@ -537,16 +664,6 @@ int Net_GetConnectedPeerCount(void)
 short Net_GetExpectedPlayers(void)
 {
     return gExpectedPlayers;
-}
-
-/*
- * Net_GetLocalRank -- Return local peer rank without side effects.
- * Safe to call during mesh formation (does not assign peer pointers).
- */
-short Net_GetLocalRank(void)
-{
-    if (!gPTCtx) return 0;
-    return (short)PT_GetPeerRank(gPTCtx, NULL);
 }
 
 /*

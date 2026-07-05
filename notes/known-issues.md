@@ -140,3 +140,61 @@ Observations from hardware testing that don't block current functionality but co
 **Suggested fix**: Convert all four timers from `deltaTicks` decrement to `TickCount()` start/elapsed comparison, matching the existing lobby pattern (`screen_lobby.c:120`). Each timer would store a `startTick` (set via `TickCount()` when the timer begins) and check `TickCount() - startTick >= threshold`. The `short` timer fields in `GameState` would become `long` start-tick fields (or reuse existing `long` fields).
 
 **Impact of fix**: Grace period, failsafe, timeout, and mesh stagger would all take the same wall-clock duration on every machine regardless of fps. KI-001 would be fully resolved. KI-002's stagger would become predictable across rank/machine combinations. At normal gameplay fps (>=6), the difference is negligible, but the fix eliminates the risk entirely.
+
+---
+
+## KI-006: Game Does Not Auto-End When Remaining Players Quit/Disconnect
+
+**Observed**: 011-macosx-sdl2, first cross-era hardware test (2026-07-05)
+**Severity**: Medium (game never ends in this scenario — player must force-quit)
+**Status**: FIXED in 011-macosx-sdl2 — on-disconnect deactivation now snaps the interpolation target onto the current position, so the reactivation heuristic can't resurrect a quit peer
+**Machines**: G5 (OS X Carbon build), Performa 6400 (OT), Performa 6200 (MacTCP) — 3-player game
+
+**Symptoms**: In a 3-player game, the tester quit two of the three instances (via app quit, i.e. clean disconnect). The single remaining instance kept playing indefinitely instead of declaring the last player the winner and returning to the lobby.
+
+**Impact**: A game that empties out by players quitting never reaches game-over on the survivor. The last player is stuck in an in-progress game with no opponents. Not a crash — the game keeps running normally, it just never ends.
+
+**Actual root cause**: `on_disconnected` (net.c) *did* set `players[i].active = FALSE` in-game. But `Game_Update` has a reactivation heuristic (screen_game.c ~line 93) that revives any inactive remote whose interpolation `target` diverges from its current pixel position — the mechanism by which a genuinely reconnected peer resumes. A peer that quits mid-interpolation leaves `targetPixelX/Y != pixelX/Y` behind, so it was re-activated (and re-alived) every single frame. The survivor's alive-count therefore never dropped and the last-player-standing check never fired. The `active=FALSE` was correct; the phantom reactivation undid it.
+
+**Fix (011-macosx-sdl2)**: In `on_disconnected`, when deactivating in-game, snap `targetPixelX/Y = pixelX/Y`. A quit peer then leaves `target == pixel`, so the heuristic leaves it inactive and the alive-count drops → sole survivor wins → `MSG_GAME_OVER` (survivor is the only connected node, so it is authority / the failsafe fires on authority-gone). A genuine rejoin still works: it sends fresh positions, which move the target again and trigger reactivation as before.
+
+**Frequency**: Reproduced once (the only time this exact quit sequence was tried). Was deterministic.
+
+---
+
+## KI-007: OS X (G5) Carbon Build Pegs CPU / Fans Spin Up
+
+**Observed**: 011-macosx-sdl2, first cross-era hardware test (2026-07-05)
+**Severity**: Low (expected consequence of the poll-everything loop; no functional problem)
+**Status**: FIXED in 011-macosx-sdl2 — Carbon-only `WaitNextEvent` sleep of 1 tick between frames; Classic Macs keep sleep=0 (Constitution VII)
+**Machines**: iMac G5 (10.5.8), Carbon/QuickDraw build
+
+**Symptoms**: Running the new OS X build makes the G5's fans spin up noticeably. The game runs the classic `WaitNextEvent(sleep=0)` + `GetKeys()` + `PT_Poll()` busy loop every iteration and never yields the CPU (Constitution VII: "never yield CPU in game loop"). On a fast PowerPC under OS X this pins a core at ~100%, generating heat, whereas on the original Classic Mac targets the same loop simply uses all of a much slower CPU.
+
+**Impact**: None functional — frame rate is fine (arguably too fast; see note). Purely thermal/power. On battery-less desktop hardware it is cosmetic, but worth a benchmark to quantify.
+
+**Notes / possible directions** (do NOT change lightly — Constitution VII):
+- Benchmark the G5 next session: measure actual fps and CPU%. The uncapped loop likely renders far faster than needed.
+- A frame-rate cap already exists via `FRAME_TICKS`; the *simulation* is gated, but the loop still spins between frames polling input/network. On OS X specifically, a tiny `WaitNextEvent` sleep (e.g. 1 tick) between frames, or a short `usleep` in the POSIX/Carbon main loop only, would drop CPU dramatically while keeping input latency acceptable — but this diverges from the Classic loop and must stay OS-X-only (guarded), never touching the Classic timing that the constitution fixes.
+- Revisit alongside the SDL2 build, which can cap frame rate / vsync natively.
+
+**Frequency**: Every run on the G5.
+
+---
+
+## KI-008: Sprites Invisible on Displays Deeper Than 256 Colours
+
+**Observed**: 011-macosx-sdl2, iMac G5 OS X Carbon build, second cross-era test (2026-07-05)
+**Severity**: High (all masked sprites invisible) — but only above 8-bit colour
+**Status**: FIXED in 011-macosx-sdl2 — `CreateMaskFromGWorld` made depth-aware via `ReadPixelRGB`
+**Machines**: iMac G5 (10.5.8) at 32-bit "Millions of Colours"
+
+**Symptoms**: On the G5 the bomb sprites were completely invisible — no sprite, not even the fallback oval. Explosion tile colouring (rect fallback) still rendered, and the bomb PICTs demonstrably loaded (`Mask regions: … bombF0=ok bombF1=ok bombF2=ok`), so the sprites reached the fast srcCopy+maskRgn blit path but drew nothing.
+
+**Root cause**: `CreateMaskFromGWorld` (006-renderer-optimization) built the sprite mask by reading each pixel as a **1-byte CLUT index** into `pmTable`. That is only valid for an 8-bit indexed GWorld. `NewGWorld(depth=0)` inherits the screen depth, so on a 256-colour Performa desktop the sprite GWorld is 8-bit (mask works — why classic colour Macs were fine) but on the G5 at 32-bit it is a **direct** GWorld with no real CLUT. Every pixel clamped to `ctTable[0]` == the background reference, so the whole mask came out empty → CopyBits with an empty maskRgn copies nothing → invisible sprite.
+
+**Fix**: New `ReadPixelRGB(rowBase, col, pixelSize, ctab, out)` reads a pixel's true RGB at 8-bit (index→ctab), 16-bit (5-5-5 direct), and 32-bit (xRGB direct), all normalised to 16-bit channels. `CreateMaskFromGWorld` now compares RGB at any depth. The 8-bit path is behaviourally identical, so the classic colour Macs do not regress. Runs only at PICT-load time, so the per-pixel depth branch has no frame-time cost. Confirmed on hardware: bombs visible on the G5.
+
+**Lesson**: `NewGWorld(depth=0)` is display-dependent; any code that pokes GWorld pixel bytes directly must handle 8/16/32-bit, not assume the depth of whatever machine it was first tested on.
+
+**Frequency**: Every run on any display deeper than 8-bit (deterministic).

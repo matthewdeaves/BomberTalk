@@ -64,3 +64,39 @@ jobs:
             --inline-suppr \
             -I include \
             src/
+
+  host-tests:
+    # Unit tests for the portable core, built with native gcc (no Retro68).
+    # Proves gameplay/pixel logic on the host in milliseconds -- see
+    # notes/deepening-and-testability.md. The three build jobs above prove it
+    # still cross-compiles for the Classic Macs.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run host unit tests
+        run: make -C tests check
+
+  build-sdl:
+    # SDL2 / POSIX build (modern desktop + Apple Silicon track, 011-macosx-sdl2).
+    # Proves the portable core + SDL backends (renderer_sdl/input_sdl/main_posix/
+    # mac_shim/platform_posix) compile and link on a little-endian host against
+    # PeerTalk's POSIX backend. Runtime play is validated on hardware; this job
+    # guards the build.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install SDL2
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev pkg-config
+
+      - name: Checkout peertalk + clog
+        run: |
+          git clone --depth 1 https://github.com/matthewdeaves/peertalk.git "$RUNNER_TEMP/peertalk"
+          git clone --depth 1 https://github.com/matthewdeaves/clog.git "$RUNNER_TEMP/clog"
+
+      - name: Build SDL2 target
+        env:
+          PEERTALK_DIR: ${{ runner.temp }}/peertalk
+          CLOG_DIR: ${{ runner.temp }}/clog
+        run: bash tools/build-sdl.sh

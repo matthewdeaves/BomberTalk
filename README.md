@@ -29,7 +29,7 @@ Read the full write-up: [BomberTalk Alpha](https://matthewdeaves.com/blog/2026-0
 
 ## Features
 
-- 2-4 player networked gameplay over LAN (TCP mesh, no host)
+- 2-4 player networked gameplay over LAN (automatic full TCP mesh via PeerTalk, no host)
 - Automatic peer discovery via UDP broadcast
 - Screen flow: loading, menu, lobby (peer discovery), gameplay
 - Deterministic player ID assignment (IP-sort)

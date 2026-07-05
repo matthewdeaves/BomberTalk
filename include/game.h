@@ -9,7 +9,26 @@
 #ifndef GAME_H
 #define GAME_H
 
-/* Classic Mac headers via Retro68 universal headers */
+/* Mac Toolbox headers.
+ *
+ * On the Classic Mac builds (Retro68/RetroPPC) these are the Universal
+ * Interfaces, included individually. On the OS X Carbon build (BT_CARBON,
+ * see tools/build-macosx.sh) the same managers live under the single
+ * <Carbon/Carbon.h> umbrella — the individual headers are not on the
+ * include path there. Color QuickDraw, GWorld, Windows, Events, Menus,
+ * Resources, etc. are all present via Carbon (011-macosx-sdl2). */
+#ifdef BT_CARBON
+#include <Carbon/Carbon.h>
+#elif defined(BT_POSIX)
+/* Modern/POSIX SDL2 build (011-macosx-sdl2). There is no Mac Toolbox here.
+ * mac_shim.h supplies the handful of Toolbox value types (Rect/Point/RGBColor/
+ * Str255) and the tiny QuickDraw text/rect subset the shared screens still
+ * call between Renderer_BeginScreenDraw/EndScreenDraw. The renderer, input,
+ * and main loop are provided by the SDL backends (renderer_sdl.c, input_sdl.c,
+ * main_posix.c). See notes/deepening-and-testability.md and
+ * specs/011-macosx-sdl2/plan.md. */
+#include "mac_shim.h"
+#else
 #include <Quickdraw.h>
 #include <Windows.h>
 #include <Events.h>
@@ -22,49 +41,38 @@
 #include <ToolUtils.h>
 #include <OSUtils.h>
 #include <Sound.h>
+#endif
+
+/* Carbon compatibility shims (011-macosx-sdl2).
+ *
+ * On Classic Mac a WindowPtr IS a GrafPtr and a GrafPort's fields are
+ * directly accessible. Under Carbon both WindowRef and GrafPort are opaque,
+ * so port access must go through accessor functions. These macros keep the
+ * shared renderer/main code identical on both — the classic path expands to
+ * the old struct punning, the Carbon path to the accessors. */
+#ifdef BT_CARBON
+#define BT_SetWindowPort(w)       SetPortWindowPort(w)
+#define BT_WindowCopyBitsBits(w)  GetPortBitMapForCopyBits(GetWindowPort(w))
+#define BT_WindowCGrafPort(w)     GetWindowPort(w)
+#elif defined(BT_POSIX)
+/* No QuickDraw port on SDL2 — the SDL renderer owns the window/surfaces and
+ * ignores the WindowPtr handed through the backend-agnostic renderer.h API. */
+#define BT_SetWindowPort(w)       ((void)(w))
+#define BT_WindowCopyBitsBits(w)  ((void)(w), (void *)0)
+#define BT_WindowCGrafPort(w)     ((void)(w), (void *)0)
+#else
+#define BT_SetWindowPort(w)       SetPort(w)
+#define BT_WindowCopyBitsBits(w)  (&(w)->portBits)
+#define BT_WindowCGrafPort(w)     ((CGrafPtr)(w))
+#endif
 
 /* ---- Protocol Version ---- */
-#define BT_PROTOCOL_VERSION 5
+#define BT_PROTOCOL_VERSION 6  /* v6: MSG_MAP_STATE (join-in-progress map sync) */
 
-/* ---- Grid Constants ---- */
-#define GRID_COLS       15
-#define GRID_ROWS       13
-#define MAX_GRID_COLS   31
-#define MAX_GRID_ROWS   25
-
-/* Tile size is set at runtime based on screen dimensions:
- * 32x32 for 640x480+ (color Macs), 16x16 for 512x342 (Mac SE).
- * These are the defaults for color Macs. */
-#define TILE_SIZE_LARGE 32
-#define TILE_SIZE_SMALL 16
-
-#define PLAY_WIDTH_LARGE  (GRID_COLS * TILE_SIZE_LARGE)  /* 480 */
-#define PLAY_HEIGHT_LARGE (GRID_ROWS * TILE_SIZE_LARGE)  /* 416 */
-#define PLAY_WIDTH_SMALL  (GRID_COLS * TILE_SIZE_SMALL)  /* 240 */
-#define PLAY_HEIGHT_SMALL (GRID_ROWS * TILE_SIZE_SMALL)  /* 208 */
-
-/* ---- Tile Types ---- */
-#define TILE_FLOOR      0
-#define TILE_WALL       1
-#define TILE_BLOCK      2
-#define TILE_SPAWN      3
-#define TILE_BOMB       4
-
-/* ---- Directions ---- */
-#define DIR_NONE        0
-#define DIR_UP          1
-#define DIR_DOWN        2
-#define DIR_LEFT        3
-#define DIR_RIGHT       4
-
-/* ---- Timing ---- */
-#define FRAME_TICKS     2   /* Game updates every 2 ticks (~30 fps) */
-#define EVENT_TICKS     0   /* WaitNextEvent sleep (0 = don't yield) */
-
-/* ---- Player / Bomb Limits ---- */
-#define MAX_PLAYERS     4
-#define PLAYER_NAME_MAX 31  /* max chars in player name (matches PT_NAME_MAX) */
-#define MAX_BOMBS       16
+/* Portable gameplay constants (grid, tile types, directions, timing, limits)
+ * live in coredefs.h so the gameplay core is host-testable without the
+ * Toolbox. See notes/deepening-and-testability.md. */
+#include "coredefs.h"
 #define BOMB_FUSE_TICKS             180 /* 3 seconds at 60 ticks/sec */
 #define EXPLOSION_DURATION_TICKS     20 /* ~0.33 sec at 60 ticks/sec */
 #define DEATH_FLASH_TICKS            60 /* ~1 second of flashing at 60 ticks/sec */
@@ -74,7 +82,7 @@
 
 /* ---- Network Authority & Robustness (005) ---- */
 #define DISCONNECT_GRACE_TICKS       90 /* ~1.5s grace before TCP teardown after game over */
-#define MESH_STAGGER_PER_RANK        30 /* ~0.5s per rank before first connect attempt */
+#define MESH_FORM_TIMEOUT_TICKS     900 /* ~15s to wait for PeerTalk auto-mesh before starting anyway */
 #define GAME_OVER_FAILSAFE_TICKS    120 /* ~2s timeout before non-authority sends game over */
 #define LOW_HEAP_WARNING_BYTES   262144L /* 256KB threshold for heap warning */
 #define HEAP_CHECK_INTERVAL_TICKS  1800 /* ~30s between periodic heap checks */
@@ -134,6 +142,7 @@
 #define MSG_PLAYER_KILLED   0x05
 #define MSG_GAME_START      0x06
 #define MSG_GAME_OVER       0x07
+#define MSG_MAP_STATE       0x08  /* full tilemap snapshot -> a late joiner */
 
 /* ---- Boolean (C89 has no bool) ---- */
 #ifndef TRUE
@@ -198,6 +207,15 @@ typedef struct {
     unsigned char winnerID;
     unsigned char pad;
 } MsgGameOver;
+
+/* Full tilemap snapshot sent directly to a late joiner so it inherits the
+ * in-progress map (destroyed blocks), not a fresh one. All-byte layout: no
+ * alignment concerns, no byte-swapping. Only 2 + cols*rows bytes are sent. */
+typedef struct {
+    unsigned char cols;
+    unsigned char rows;
+    unsigned char tiles[MAX_GRID_ROWS * MAX_GRID_COLS];  /* row-major */
+} MsgMapState;
 
 /* ---- Player Stats (for future power-ups / character editor) ---- */
 typedef struct {
@@ -269,7 +287,6 @@ typedef struct {
     unsigned char   pendingWinner;    /* winner ID from remote MSG_GAME_OVER */
     unsigned long   gameOverTimeoutStart;  /* TickCount() when started, 0 = inactive */
     unsigned long   disconnectGraceStart;  /* TickCount() when started, 0 = inactive */
-    unsigned long   meshStaggerStart;      /* TickCount() when started, 0 = inactive */
     int             gameOverAuthority;     /* TRUE if this machine sends MSG_GAME_OVER */
     int             localGameOverDetected; /* TRUE if local game over detected, not authority */
     unsigned long   gameOverFailsafeStart; /* TickCount() when started, 0 = inactive */

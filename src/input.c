@@ -12,9 +12,21 @@
 #include "game.h"
 #include <clog.h>
 
-static KeyMap gCurrentKeys;
-static KeyMap gPreviousKeys;
-static KeyMap gAccumEdges;  /* accumulated key-down edges between frames */
+/* KeyMap is 16 bytes on every target. On Classic Mac it is 4 longs, but
+ * under Carbon it is an array of big-endian UInt32 structs, so element-wise
+ * arithmetic on KeyMap[i] does not compile. We store the state as four raw
+ * 32-bit words instead and view GetKeys() output through a word pointer:
+ * bitwise accumulate/compare is byte-order-agnostic, and the bit extractors
+ * (Input_IsKeyDown / Input_WasKeyPressed) use byte access, so the result is
+ * identical on 68k, PPC, and Intel. (011-macosx-sdl2)
+ *
+ * NOTE: this assumes 32-bit `long` (ILP32): 4 words == KeyMap's 16 bytes.
+ * True on every current target (68k, PPC, i386). A future LP64 build
+ * (arm64/x86-64) would need `unsigned int[4]` or a 16-byte memcpy instead
+ * -- but that path (SDL2) won't call GetKeys() at all. */
+static unsigned long gCurrentKeys[4];
+static unsigned long gPreviousKeys[4];
+static unsigned long gAccumEdges[4];  /* accumulated key-down edges between frames */
 
 void Input_Init(void)
 {
@@ -36,16 +48,20 @@ void Input_Init(void)
 void Input_Poll(void)
 {
     KeyMap newKeys;
+    unsigned long *nw;
     short i;
     static long sLogTick = 0;
     long now;
 
     GetKeys(newKeys);
+    /* Word view, taken after GetKeys() has filled the KeyMap. See Input_Init
+     * for why we read the KeyMap as four raw 32-bit words. */
+    nw = (unsigned long *)newKeys;
 
     /* OR new key-down edges into accumulator */
     for (i = 0; i < 4; i++) {
-        gAccumEdges[i] |= (newKeys[i] & ~gCurrentKeys[i]);
-        gCurrentKeys[i] = newKeys[i];
+        gAccumEdges[i] |= (nw[i] & ~gCurrentKeys[i]);
+        gCurrentKeys[i] = nw[i];
     }
 
     /* Log any non-zero keymap words every 2 seconds */

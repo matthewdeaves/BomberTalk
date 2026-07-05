@@ -17,6 +17,8 @@
 #include "tilemap.h"
 #include "bomb.h"
 #include "renderer.h"
+#include "movement.h"
+#include "collision.h"
 #include <clog.h>
 
 /* ---- Grid derivation from pixel center ---- */
@@ -149,34 +151,7 @@ void Player_SetPosition(short playerID, short pixelX, short pixelY, short facing
     }
 }
 
-/* ---- AABB collision helpers ---- */
-
-/*
- * CheckTileSolid -- Returns TRUE if tile at (col,row) is solid for this player.
- * Handles bomb pass-through: skip the bomb the player is walking off of.
- *
- * Callers MUST pass (col,row) already clamped to the valid map range; this
- * function uses unchecked TILEMAP_TILE / BOMB_GRID_CELL macro reads for
- * hot-loop speed (008 FR-001). CollideAxis is the sole caller today and
- * clamps via minCol/maxCol/minRow/maxRow before iterating.
- */
-static int CheckTileSolid(const Player *p, short col, short row,
-                          const TileMap *map)
-{
-    unsigned char t = TILEMAP_TILE(map, col, row);
-    if (t == TILE_WALL || t == TILE_BLOCK) return TRUE;
-    if (BOMB_GRID_CELL(col, row)) {
-        /* Check pass-through */
-        if (p->passThroughBombIdx >= 0 && p->passThroughBombIdx < MAX_BOMBS) {
-            const Bomb *passB = &gGame.bombs[p->passThroughBombIdx];
-            if (passB->active && passB->gridCol == col && passB->gridRow == row) {
-                return FALSE; /* pass-through bomb */
-            }
-        }
-        return TRUE;
-    }
-    return FALSE;
-}
+/* ---- AABB collision ---- */
 
 /*
  * CollideAxis -- Move player along one axis, check AABB against tilemap.
@@ -186,78 +161,33 @@ static int CheckTileSolid(const Player *p, short col, short row,
  * The hitbox inset (Player_GetHitbox) is only for explosion near-miss
  * checks — walls must stop the sprite flush with no visual overlap.
  * Corner sliding handles corridor entry alignment.
+ *
+ * The geometry lives in the portable, host-tested Collide_ResolveAxis
+ * (collision.c); this wrapper resolves the pass-through bomb's grid cell
+ * from gGame and applies the result to the moving axis only.
  */
 static void CollideAxis(Player *p, short dx, short dy)
 {
-    short ts = gGame.tileSize;
-    short newPX, newPY;
-    short hLeft, hTop, hRight, hBottom;
-    short minCol, maxCol, minRow, maxRow;
-    short c, r;
-    const TileMap *map = TileMap_Get();
-    /* Cache map bounds once per call (008 FR-001, Tricks p.802-805):
-     * reusing locals avoids per-tile function-call dispatch in the inner loop. */
-    short mapCols = TileMap_GetCols();
-    short mapRows = TileMap_GetRows();
+    short outPX, outPY;
+    short ptCol = -1, ptRow = -1;
 
-    newPX = (short)(p->pixelX + dx);
-    newPY = (short)(p->pixelY + dy);
-
-    /* Compute full sprite rect at proposed position (no inset) */
-    hLeft   = newPX;
-    hTop    = newPY;
-    hRight  = (short)(newPX + ts);
-    hBottom = (short)(newPY + ts);
-
-    /* Clamp to play area bounds */
-    if (hLeft < 0) { newPX = 0; hLeft = 0; hRight = ts; }
-    if (hTop < 0) { newPY = 0; hTop = 0; hBottom = ts; }
-    if (hRight > gGame.playWidth) {
-        newPX = (short)(gGame.playWidth - ts);
-        hLeft = newPX;
-        hRight = gGame.playWidth;
-    }
-    if (hBottom > gGame.playHeight) {
-        newPY = (short)(gGame.playHeight - ts);
-        hTop = newPY;
-        hBottom = gGame.playHeight;
-    }
-
-    /* Find tiles overlapped by sprite rect */
-    minCol = (short)(hLeft / ts);
-    maxCol = (short)((hRight - 1) / ts);
-    minRow = (short)(hTop / ts);
-    maxRow = (short)((hBottom - 1) / ts);
-
-    /* Clamp tile indices */
-    if (minCol < 0) minCol = 0;
-    if (minRow < 0) minRow = 0;
-    if (maxCol >= mapCols) maxCol = (short)(mapCols - 1);
-    if (maxRow >= mapRows) maxRow = (short)(mapRows - 1);
-
-    /* Check for solid tiles */
-    for (r = minRow; r <= maxRow; r++) {
-        for (c = minCol; c <= maxCol; c++) {
-            if (CheckTileSolid(p, c, r, map)) {
-                /* Clamp sprite flush against tile boundary */
-                if (dx > 0) {
-                    newPX = (short)(c * ts - ts);
-                } else if (dx < 0) {
-                    newPX = (short)((c + 1) * ts);
-                }
-                if (dy > 0) {
-                    newPY = (short)(r * ts - ts);
-                } else if (dy < 0) {
-                    newPY = (short)((r + 1) * ts);
-                }
-                goto done;
-            }
+    /* Resolve the one bomb tile this player may walk through (walk-off). */
+    if (p->passThroughBombIdx >= 0 && p->passThroughBombIdx < MAX_BOMBS) {
+        const Bomb *passB = &gGame.bombs[p->passThroughBombIdx];
+        if (passB->active) {
+            ptCol = passB->gridCol;
+            ptRow = passB->gridRow;
         }
     }
 
-done:
-    if (dx != 0) p->pixelX = newPX;
-    if (dy != 0) p->pixelY = newPY;
+    Collide_ResolveAxis(p->pixelX, p->pixelY, dx, dy, gGame.tileSize,
+                        gGame.playWidth, gGame.playHeight,
+                        TileMap_GetCols(), TileMap_GetRows(),
+                        &TileMap_Get()->tiles[0][0], &gBombGrid[0][0],
+                        ptCol, ptRow, &outPX, &outPY);
+
+    if (dx != 0) p->pixelX = outPX;
+    if (dy != 0) p->pixelY = outPY;
 }
 
 /* ---- Corner sliding (T026) ---- */
@@ -459,16 +389,15 @@ void Player_Update(short playerID)
         return;
     }
 
-    /* Fractional accumulator: resolution-independent speed (R1) */
+    /* Fractional accumulator: resolution-independent speed (R1).
+     * Math extracted to movement.c (Move_AccumStep), host unit tested. */
     if (dirX != 0) {
-        p->accumX = (short)(p->accumX + ts * gGame.deltaTicks);
-        movePixels = (short)(p->accumX / ticksPerTile);
-        p->accumX = (short)(p->accumX % ticksPerTile);
+        movePixels = Move_AccumStep(p->accumX, ts, gGame.deltaTicks,
+                                    ticksPerTile, &p->accumX);
         p->accumY = 0;
     } else {
-        p->accumY = (short)(p->accumY + ts * gGame.deltaTicks);
-        movePixels = (short)(p->accumY / ticksPerTile);
-        p->accumY = (short)(p->accumY % ticksPerTile);
+        movePixels = Move_AccumStep(p->accumY, ts, gGame.deltaTicks,
+                                    ticksPerTile, &p->accumY);
         p->accumX = 0;
     }
 

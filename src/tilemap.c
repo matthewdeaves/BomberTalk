@@ -5,6 +5,7 @@
  */
 
 #include "tilemap.h"
+#include "tilemap_parse.h"
 #include "../maps/level1.h"
 #include <clog.h>
 #include <string.h>
@@ -24,11 +25,13 @@ static const short kDefaultSpawnRows[MAX_PLAYERS] = {1, 1, 11, 11};
  */
 static void TileMap_LoadFromResource(void)
 {
+#ifdef BT_POSIX
+    /* No Resource Manager on the SDL2/POSIX build -- always use the built-in
+     * kLevel1 default (the same fallback the classic path takes when 'TMAP'
+     * 128 is absent). (011-macosx-sdl2) */
+    CLOG_INFO("POSIX build: using default level (no Resource Manager)");
+#else
     Handle h;
-    short cols, rows;
-    long expectedSize;
-    unsigned char *data;
-    short r, c;
 
     h = GetResource('TMAP', 128);
     if (h == NULL) {
@@ -43,47 +46,22 @@ static void TileMap_LoadFromResource(void)
     }
 
     HLock(h);
-    data = (unsigned char *)*h;
 
-    /* Big-endian short: cols then rows */
-    cols = (short)((data[0] << 8) | data[1]);
-    rows = (short)((data[2] << 8) | data[3]);
-
-    /* Clamp dimensions */
-    if (cols < 7) cols = 7;
-    if (cols > MAX_GRID_COLS) cols = MAX_GRID_COLS;
-    if (rows < 7) rows = 7;
-    if (rows > MAX_GRID_ROWS) rows = MAX_GRID_ROWS;
-
-    expectedSize = 4 + (long)cols * rows;
-    if (GetHandleSize(h) < expectedSize) {
-        CLOG_WARN("TMAP size mismatch (got %ld, expected %ld), using default",
-                   GetHandleSize(h), expectedSize);
+    /* Parse + validate (clamp dims, size-check, sanitise tiles) in the
+     * portable, host-tested tilemap_parse.c. */
+    if (!TileMap_ParseData((const unsigned char *)*h, GetHandleSize(h),
+                           gMap.tiles, &gMap.cols, &gMap.rows)) {
+        CLOG_WARN("TMAP malformed or size mismatch, using default level");
         HUnlock(h);
         ReleaseResource(h);
         return;
     }
 
-    /* Clear entire tile array first */
-    memset(gMap.tiles, TILE_FLOOR, sizeof(gMap.tiles));
-
-    gMap.cols = cols;
-    gMap.rows = rows;
-
-    /* Copy tile data, sanitize unknown values */
-    data += 4;
-    for (r = 0; r < rows; r++) {
-        for (c = 0; c < cols; c++) {
-            unsigned char tile = data[r * cols + c];
-            if (tile > TILE_SPAWN) tile = TILE_FLOOR;
-            gMap.tiles[r][c] = tile;
-        }
-    }
-
     HUnlock(h);
     ReleaseResource(h);
 
-    CLOG_INFO("TMAP resource loaded: %dx%d", cols, rows);
+    CLOG_INFO("TMAP resource loaded: %dx%d", gMap.cols, gMap.rows);
+#endif /* !BT_POSIX */
 }
 
 /*
@@ -180,6 +158,37 @@ void TileMap_SetTile(short col, short row, unsigned char type)
     }
 }
 
+int TileMap_SetState(short cols, short rows, const unsigned char *tiles)
+{
+    short r, c;
+    int changed = 0;
+
+    if (tiles == NULL) return 0;
+
+    /* Clamp + sanitise network input, same rules as the TMAP parser. */
+    if (cols < 7) cols = 7;
+    if (cols > MAX_GRID_COLS) cols = MAX_GRID_COLS;
+    if (rows < 7) rows = 7;
+    if (rows > MAX_GRID_ROWS) rows = MAX_GRID_ROWS;
+
+    if (cols != gMap.cols || rows != gMap.rows) changed = 1;
+
+    for (r = 0; r < rows; r++) {
+        for (c = 0; c < cols; c++) {
+            unsigned char t = tiles[r * cols + c];
+            if (t > TILE_SPAWN) t = TILE_FLOOR;
+            if (gMap.tiles[r][c] != t) {
+                gMap.tiles[r][c] = t;
+                changed = 1;
+            }
+        }
+    }
+
+    gMap.cols = cols;
+    gMap.rows = rows;
+    return changed;
+}
+
 short TileMap_GetCols(void)
 {
     return gMap.cols;
@@ -190,15 +199,15 @@ short TileMap_GetRows(void)
     return gMap.rows;
 }
 
-short TileMap_GetSpawnCol(short index)
+short TileMap_GetSpawnCol(short idx)
 {
-    if (index < 0 || index >= gMap.spawnCount) return 1;
-    return gMap.spawnCols[index];
+    if (idx < 0 || idx >= gMap.spawnCount) return 1;
+    return gMap.spawnCols[idx];
 }
 
-short TileMap_GetSpawnRow(short index)
+short TileMap_GetSpawnRow(short idx)
 {
-    if (index < 0 || index >= gMap.spawnCount) return 1;
-    return gMap.spawnRows[index];
+    if (idx < 0 || idx >= gMap.spawnCount) return 1;
+    return gMap.spawnRows[idx];
 }
 

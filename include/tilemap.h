@@ -13,13 +13,17 @@ void TileMap_Init(void);
 void TileMap_Reset(void);
 unsigned char TileMap_GetTile(short col, short row);
 void TileMap_SetTile(short col, short row, unsigned char type);
+/* Replace the whole tilemap from a row-major snapshot (join-in-progress map
+ * sync). Clamps dims, sanitises tiles. Returns 1 if the map actually changed
+ * (caller should rebuild the background), 0 if identical. */
+int TileMap_SetState(short cols, short rows, const unsigned char *tiles);
 /* TileMap_IsSolid removed 008 FR-005 — unused. For solid-tile tests, read
  * TileMap_GetTile(col,row) == TILE_WALL || == TILE_BLOCK, or use the
  * TILEMAP_TILE(map,col,row) macro directly in bounds-checked hot paths. */
 short TileMap_GetCols(void);
 short TileMap_GetRows(void);
-short TileMap_GetSpawnCol(short index);
-short TileMap_GetSpawnRow(short index);
+short TileMap_GetSpawnCol(short idx);
+short TileMap_GetSpawnRow(short idx);
 /* Access the global tilemap */
 TileMap *TileMap_Get(void);
 

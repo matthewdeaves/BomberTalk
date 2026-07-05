@@ -23,11 +23,14 @@
 
 #include "renderer.h"
 #include "tilemap.h"
+#include "pixfmt.h"
 #include <clog.h>
 #include <string.h>
 
 /* ---- Color Mac: GWorld-based offscreen ---- */
-#include <QDOffscreen.h>
+#ifndef BT_CARBON
+#include <QDOffscreen.h>  /* Carbon build gets this via <Carbon/Carbon.h> */
+#endif
 
 static GWorldPtr gBackground = NULL;
 static GWorldPtr gWorkBuffer = NULL;
@@ -58,15 +61,24 @@ static RgnHandle gTitleMaskRgn = NULL;
  * back to the animated oval path. */
 static BitMap gBombSpriteSE[BOMB_ANIM_FRAMES];
 static BitMap gBombMaskSE[BOMB_ANIM_FRAMES];
+#ifndef BT_CARBON  /* storage owned by guarded SE alloc/free code */
 static Ptr    gBombSpriteSEStorage[BOMB_ANIM_FRAMES];
 static Ptr    gBombMaskSEStorage[BOMB_ANIM_FRAMES];
+#endif
 
-/* ---- Mac SE: BitMap-based offscreen ---- */
+/* ---- Mac SE: BitMap-based offscreen ----
+ * GrafPort is opaque under Carbon and the Mac SE 1-bit path never runs on
+ * OS X (isMacSE is always false on a colour Mac), so the port-backed SE
+ * state and code is compiled out of the Carbon build (011-macosx-sdl2). */
+#ifndef BT_CARBON
 static GrafPort gBgPortSE;
 static GrafPort gWorkPortSE;
+#endif
 static BitMap   gBgBitsSE;
 static BitMap   gWorkBitsSE;
+#ifndef BT_CARBON  /* only touched by guarded SE alloc/free code */
 static Ptr      gBgStorageSE   = NULL;
+#endif
 static Ptr      gWorkStorageSE = NULL;
 
 /* ---- Saved port for screen draw helpers ---- */
@@ -273,17 +285,21 @@ static void UnlockWork(void)
 
 static void SetPortBg(void)
 {
+#ifndef BT_CARBON
     if (gGame.isMacSE)
         SetPort(&gBgPortSE);
     else
+#endif
         SetGWorld(gBackground, NULL);
 }
 
 static void SetPortWork(void)
 {
+#ifndef BT_CARBON
     if (gGame.isMacSE)
         SetPort(&gWorkPortSE);
     else
+#endif
         SetGWorld(gWorkBuffer, NULL);
 }
 
@@ -292,17 +308,21 @@ static GDHandle gSavedBuildDevice = NULL;
 
 static void SavePort(void)
 {
+#ifndef BT_CARBON
     if (gGame.isMacSE)
         GetPort((GrafPtr *)&gSavedBuildPort);
     else
+#endif
         GetGWorld(&gSavedBuildPort, &gSavedBuildDevice);
 }
 
 static void RestorePort(void)
 {
+#ifndef BT_CARBON
     if (gGame.isMacSE)
         SetPort((GrafPtr)gSavedBuildPort);
     else
+#endif
         SetGWorld(gSavedBuildPort, gSavedBuildDevice);
 }
 
@@ -346,22 +366,24 @@ static GWorldPtr LoadPICTToGWorld(short pictID, short width, short height)
  * then converts to a Region via BitMapToRegion(). Returns NULL on failure.
  * Source: Sex, Lies and Video Games (1996) p.6615-6700.
  */
+/* ReadPixelRGB moved to pixfmt.c (PixFmt_ReadRGB) so the depth handling
+ * that caused KI-008 has one home and is host unit-testable. See pixfmt.h
+ * and tests/test_pixfmt.c. */
+
 static RgnHandle CreateMaskFromGWorld(GWorldPtr gw, short width, short height)
 {
     PixMapHandle pmh;
     Ptr pixBase;
     long pixRowBytes;
+    short pixelSize;
     short maskRowBytes;
     Ptr maskStorage;
     BitMap maskBM;
     RgnHandle rgn;
     CTabHandle ctab;
     RGBColor bgRgb;
-    short bgIndex;
     short row, col;
-    const unsigned char *srcRow;
-    long threshSq;
-    int hasCtab;
+    long thresh;
 
     if (gw == NULL) return NULL;
 
@@ -371,24 +393,14 @@ static RgnHandle CreateMaskFromGWorld(GWorldPtr gw, short width, short height)
 
     pixBase = GetPixBaseAddr(pmh);
     pixRowBytes = (*pmh)->rowBytes & 0x3FFF;
+    pixelSize = (*pmh)->pixelSize;
     ctab = (*pmh)->pmTable;
 
-    /* Read the background reference from the top-left pixel's RGB (via
-     * the ctab), not its palette index. DrawPicture colour-matches onto
-     * the device CLUT on load, and multiple distinct source colours can
-     * end up at the same device index -- so comparing indices caused
-     * the bomb's white highlight to collapse into the same slot as the
-     * transparent background on Quadra 800. Comparing RGB sidesteps
-     * that: we only mask pixels whose actual colour is close to the
-     * background colour. */
-    bgIndex = ((const unsigned char *)pixBase)[0];
-    if (ctab != NULL && *ctab != NULL) {
-        if (bgIndex > (*ctab)->ctSize) bgIndex = 0;
-        bgRgb = (*ctab)->ctTable[bgIndex].rgb;
-    } else {
-        /* No ctab (unexpected for 8-bit GWorld) -- fall back to index compare. */
-        bgRgb.red = bgRgb.green = bgRgb.blue = 0xFFFF;
-    }
+    /* Background reference = top-left pixel's actual RGB. Comparing RGB
+     * (not palette index) is depth-independent and avoids two distinct
+     * source colours that colour-matched onto the same device index from
+     * collapsing together. See PixFmt_ReadRGB for the per-depth read. */
+    PixFmt_ReadRGB((const unsigned char *)pixBase, 0, pixelSize, ctab, &bgRgb);
 
     /* Allocate 1-bit mask bitmap */
     maskRowBytes = ((width + 15) / 16) * 2;
@@ -398,37 +410,26 @@ static RgnHandle CreateMaskFromGWorld(GWorldPtr gw, short width, short height)
         return NULL;
     }
 
-    /* Tolerance for "matches background". ~3% of the 16-bit range per
-     * channel, squared Euclidean distance. Generous enough to absorb
+    /* Tolerance for "matches background": squared Euclidean distance on
+     * RGB scaled down 4 bits (12-bit channels). Generous enough to absorb
      * colour-matching rounding, tight enough that a bomb's near-black
-     * shading (which lands on a distinct gray slot) stays opaque. */
-    threshSq = 3L * 0x0800L * 0x0800L;
-    hasCtab = (ctab != NULL && *ctab != NULL);
+     * shading stays opaque. (3 * 0x0800^2) >> 8. */
+    thresh = (3L * 0x0800L * 0x0800L) >> 8;
 
     for (row = 0; row < height; row++) {
-        unsigned char *dstRow;
-        srcRow = (const unsigned char *)pixBase + (long)row * pixRowBytes;
-        dstRow = (unsigned char *)maskStorage + (long)row * maskRowBytes;
-        if (hasCtab) {
-            for (col = 0; col < width; col++) {
-                short pIdx = srcRow[col];
-                RGBColor p;
-                long dr, dg, db;
-                if (pIdx > (*ctab)->ctSize) pIdx = 0;
-                p = (*ctab)->ctTable[pIdx].rgb;
-                dr = (long)p.red   - (long)bgRgb.red;
-                dg = (long)p.green - (long)bgRgb.green;
-                db = (long)p.blue  - (long)bgRgb.blue;
-                dr >>= 4; dg >>= 4; db >>= 4;
-                if ((dr*dr + dg*dg + db*db) > (threshSq >> 8)) {
-                    dstRow[col >> 3] |= (0x80 >> (col & 7));
-                }
-            }
-        } else {
-            for (col = 0; col < width; col++) {
-                if (srcRow[col] != (unsigned char)bgIndex) {
-                    dstRow[col >> 3] |= (0x80 >> (col & 7));
-                }
+        const unsigned char *srcRow =
+            (const unsigned char *)pixBase + (long)row * pixRowBytes;
+        unsigned char *dstRow =
+            (unsigned char *)maskStorage + (long)row * maskRowBytes;
+        for (col = 0; col < width; col++) {
+            RGBColor p;
+            long dr, dg, db;
+            PixFmt_ReadRGB(srcRow, col, pixelSize, ctab, &p);
+            dr = ((long)p.red   - (long)bgRgb.red)   >> 4;
+            dg = ((long)p.green - (long)bgRgb.green) >> 4;
+            db = ((long)p.blue  - (long)bgRgb.blue)  >> 4;
+            if ((dr*dr + dg*dg + db*db) > thresh) {
+                dstRow[col >> 3] |= (0x80 >> (col & 7));
             }
         }
     }
@@ -456,7 +457,10 @@ static RgnHandle CreateMaskFromGWorld(GWorldPtr gw, short width, short height)
     return rgn;
 }
 
-/* ==== Mac SE: 1-bit PICT sprite loading ==== */
+/* ==== Mac SE: 1-bit PICT sprite loading ====
+ * GrafPort-backed and monochrome-only; never runs on OS X. Compiled out of
+ * the Carbon build (opaque GrafPort). (011-macosx-sdl2) */
+#ifndef BT_CARBON
 
 /*
  * LoadPICTToBitMap -- Load a PICT resource into a 1-bit BitMap.
@@ -669,6 +673,8 @@ static void LoadSEBombSprites(void)
               gBombSpriteSE[2].baseAddr ? "ok" : "fallback");
 }
 
+#endif /* !BT_CARBON (Mac SE 1-bit PICT loading) */
+
 static void LoadPICTResources(void)
 {
     short ts = gGame.tileSize;
@@ -693,10 +699,17 @@ static void LoadPICTResources(void)
 
     if (gTileSheet != NULL) {
         gPICTsLoaded = TRUE;
-        CLOG_INFO("PICT resources loaded successfully");
+        CLOG_INFO("Tile sheet PICT loaded");
     } else {
         gPICTsLoaded = FALSE;
-        CLOG_WARN("PICT resources not found, using rectangle fallback");
+        /* gPICTsLoaded tracks ONLY the tile sheet (rPictTiles). It is
+         * absent by design on every current target -- tiles render as
+         * colour rects. Bombs and the splash load independently (see the
+         * per-sprite mask report below), so this is not a total failure.
+         * The old "PICT resources not found" text wrongly implied all
+         * sprites failed and cost a hardware-debug session (011). */
+        CLOG_WARN("Tile sheet PICT %d absent -- tiles use colour-rect "
+                  "fallback (bombs/splash load separately)", rPictTiles);
     }
 
     /* Create mask regions for srcCopy sprite blitting (006-renderer-optimization). */
@@ -721,7 +734,8 @@ static void LoadPICTResources(void)
 }
 
 /* ==== Mac SE: Offscreen BitMap allocation ==== */
-
+/* GrafPort-backed; never runs on OS X, compiled out of Carbon build. */
+#ifndef BT_CARBON
 static int AllocOffscreenBitMap(GrafPort *port, BitMap *bits, Ptr *storage,
                                  short width, short height)
 {
@@ -746,6 +760,7 @@ static int AllocOffscreenBitMap(GrafPort *port, BitMap *bits, Ptr *storage,
 
     return TRUE;
 }
+#endif /* !BT_CARBON */
 
 /* ==== Init / Shutdown ==== */
 
@@ -757,6 +772,7 @@ void Renderer_Init(WindowPtr window)
 
     SetRect(&bounds, 0, 0, gGame.playWidth, gGame.playHeight);
 
+#ifndef BT_CARBON
     if (gGame.isMacSE) {
         if (!AllocOffscreenBitMap(&gBgPortSE, &gBgBitsSE, &gBgStorageSE,
                                    gGame.playWidth, gGame.playHeight)) {
@@ -772,7 +788,9 @@ void Renderer_Init(WindowPtr window)
         }
         CLOG_INFO("Mac SE offscreen bitmaps allocated: %ldB each",
                    (long)gBgBitsSE.rowBytes * gGame.playHeight);
-    } else {
+    } else
+#endif
+    {
         QDErr err;
 
         err = NewGWorld(&gBackground, 0, &bounds, NULL, NULL, 0);
@@ -802,9 +820,12 @@ void Renderer_Init(WindowPtr window)
     /* Load PICT resources (fall back to rectangles if missing) */
     if (!gGame.isMacSE) {
         LoadPICTResources();
-    } else {
+    }
+#ifndef BT_CARBON
+    else {
         LoadSEBombSprites();
     }
+#endif
 
     /* Initialize dirty rect tracking */
     gDirtyTotal = TileMap_GetCols() * TileMap_GetRows();
@@ -829,13 +850,17 @@ void Renderer_Shutdown(void)
      * System heap references to the freed port's font data, crashing
      * the next app (Finder) that calls StdText. */
     if (gGame.window) {
+#ifndef BT_CARBON
         if (gGame.isMacSE) {
             SetPort(gGame.window);
-        } else {
-            SetGWorld((CGrafPtr)gGame.window, GetMainDevice());
+        } else
+#endif
+        {
+            SetGWorld(BT_WindowCGrafPort(gGame.window), GetMainDevice());
         }
     }
 
+#ifndef BT_CARBON
     if (gGame.isMacSE) {
         ClosePort(&gBgPortSE);
         ClosePort(&gWorkPortSE);
@@ -853,7 +878,9 @@ void Renderer_Shutdown(void)
                 gBombMaskSE[i].baseAddr = NULL;
             }
         }
-    } else {
+    } else
+#endif
+    {
         /* UnlockPixels before DisposeGWorld per Black Art (1996) Ch. 5:
          * "The GWorld's PixMapHandle should be unlocked before calling
          * DisposeGWorld."  Inside Mac VI confirms unlocking already-unlocked
@@ -1030,7 +1057,15 @@ void Renderer_RebuildBackground(void)
                     if (map->tiles[r][c] == TILE_BLOCK) {
                         Rect tr;
                         SetRect(&tr, c * ts, r * ts, (c+1) * ts, (r+1) * ts);
+#ifdef BT_CARBON
+                        {
+                            Pattern grayPat;
+                            GetQDGlobalsGray(&grayPat);
+                            FillRect(&tr, &grayPat);
+                        }
+#else
                         FillRect(&tr, &qd.gray);
+#endif
                     }
                 }
             }
@@ -1418,7 +1453,7 @@ void Renderer_BlitToWindow(WindowPtr window)
     if (gGame.isMacSE && gWorkStorageSE == NULL) return;
 
     GetPort(&savePort);
-    SetPort(window);
+    BT_SetWindowPort(window);
 
     /* Ensure clean color state before srcCopy CopyBits (all platforms) */
     ForeColor(blackColor);
@@ -1430,7 +1465,7 @@ void Renderer_BlitToWindow(WindowPtr window)
     if (gDirtyCount >= gDirtyTotal || gDirtyCount > gDirtyTotal / 2) {
         Rect bounds;
         SetRect(&bounds, 0, 0, gGame.playWidth, gGame.playHeight);
-        CopyBits(GetWorkBits(), &window->portBits,
+        CopyBits(GetWorkBits(), BT_WindowCopyBitsBits(window),
                  &bounds, &bounds, srcCopy, NULL);
     } else {
         short di;
@@ -1443,7 +1478,7 @@ void Renderer_BlitToWindow(WindowPtr window)
             SetRect(&tileRect, c * ts, r * ts,
                     (c + 1) * ts, (r + 1) * ts);
             AlignRect32(&tileRect);
-            CopyBits(GetWorkBits(), &window->portBits,
+            CopyBits(GetWorkBits(), BT_WindowCopyBitsBits(window),
                      &tileRect, &tileRect, srcCopy, NULL);
         }
     }
@@ -1503,10 +1538,13 @@ void Renderer_BeginScreenDraw(void)
 {
     Renderer_ClearWork();
 
+#ifndef BT_CARBON
     if (gGame.isMacSE) {
         GetPort((GrafPtr *)&gSavedScreenCPort);
         SetPort(&gWorkPortSE);
-    } else {
+    } else
+#endif
+    {
         GetGWorld(&gSavedScreenCPort, &gSavedScreenDevice);
         SetGWorld(gWorkBuffer, NULL);
         LockPixels(GetGWorldPixMap(gWorkBuffer));
@@ -1515,9 +1553,12 @@ void Renderer_BeginScreenDraw(void)
 
 void Renderer_EndScreenDraw(WindowPtr window)
 {
+#ifndef BT_CARBON
     if (gGame.isMacSE) {
         SetPort((GrafPtr)gSavedScreenCPort);
-    } else {
+    } else
+#endif
+    {
         UnlockPixels(GetGWorldPixMap(gWorkBuffer));
         SetGWorld(gSavedScreenCPort, gSavedScreenDevice);
     }
@@ -1541,7 +1582,7 @@ void Renderer_DrawFPS(short fps)
     if (gGame.window == NULL) return;
 
     GetPort(&savePort);
-    SetPort(gGame.window);
+    BT_SetWindowPort(gGame.window);
 
     tens = fps / 10;
     ones = fps % 10;

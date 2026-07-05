@@ -1,0 +1,4 @@
+# Compiled test binaries (built by `make check`); keep the sources.
+test_*
+!test_*.c
+!test_util.h

@@ -2,6 +2,9 @@ build-68k/
 build-68k-ot/
 build-ppc-ot/
 build-ppc-mactcp/
+build-macosx/
+build-sdl/
+build-*-baseline/
 build/
 *.o
 *.a
@@ -16,6 +19,7 @@ Thumbs.db
 .vscode/
 .idea/
 *.log
+BomberTalk Log
 logs/
 .env*
 .rtk/

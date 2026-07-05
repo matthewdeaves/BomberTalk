@@ -14,7 +14,6 @@ void Net_Poll(void);
 
 void Net_StartDiscovery(void);
 void Net_StopDiscovery(void);
-void Net_ConnectToAllPeers(void);
 void Net_DisconnectAllPeers(void);
 
 /* Send game messages */
@@ -28,12 +27,11 @@ void Net_SendGameOver(unsigned char winnerID);
 
 /* Query state */
 int Net_IsLowestRankConnected(void);
-short Net_GetLocalRank(void);
 int Net_HasVersionMismatch(void);
 void Net_ResetVersionMismatch(void);
 int Net_GetDiscoveredPeerCount(void);
-const char *Net_GetDiscoveredPeerName(int index);
-const char *Net_GetDiscoveredPeerAddress(int index);
+const char *Net_GetDiscoveredPeerName(int idx);
+const char *Net_GetDiscoveredPeerAddress(int idx);
 int Net_GetConnectedPeerCount(void);
 short Net_GetExpectedPlayers(void);
 short Net_ComputeLocalPlayerID(void);

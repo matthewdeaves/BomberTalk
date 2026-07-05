@@ -79,11 +79,19 @@ set(GAME_SOURCES
     src/screen_lobby.c
     src/screen_game.c
     src/tilemap.c
+    src/tilemap_parse.c
     src/player.c
+    src/collision.c
     src/bomb.c
+    src/raycast.c
     src/renderer.c
+    src/pixfmt.c
+    src/movement.c
     src/input.c
     src/net.c
+    src/netcoord.c
+    src/net_wire.c
+    src/wincond.c
 )
 
 # Resource files. The 68k MacTCP target (Mac SE with 4 MB RAM) uses a
