@@ -68,7 +68,7 @@ GAME_SOURCES="
   src/main.c src/screens.c src/screen_loading.c src/screen_menu.c
   src/screen_lobby.c src/screen_game.c src/tilemap.c src/tilemap_parse.c src/player.c
   src/collision.c src/bomb.c src/raycast.c src/renderer.c src/pixfmt.c src/movement.c
-  src/input.c src/net.c src/netcoord.c src/wincond.c
+  src/input.c src/net.c src/netcoord.c src/net_wire.c src/wincond.c
 "
 SDK_SOURCES="
   $PEERTALK_DIR/src/core/pt_core.c

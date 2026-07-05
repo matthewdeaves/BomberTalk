@@ -66,10 +66,15 @@ edges.
   fixture needed, no dirty/clock port needed, and the hot inner loops stay direct-indexed and
   allocation-free (Constitution V/VII). The Mac callers (`CollideAxis`, `ExplodeBomb`, the
   game-over tally) became thin wrappers that gather globals and apply the result.
-- [ ] **D3 — `net_wire.h` serialization seam.** Move message pack/unpack behind one unit
-  that owns byte order (today "both big-endian" is a comment, not code). *Payoff:
-  endianness round-trip tests; also the prerequisite for a little-endian M5 to play the
-  classic Macs.*
+- [x] **D3 — `net_wire.h` serialization seam.** Message byte order now lives in code, not a
+  comment: `net_wire.c` (`NetWire_Pack/UnpackPosition`, `Put/GetU16`) owns the big-endian
+  wire form. Only `MsgPosition` carries multi-byte fields (two shorts); every other message
+  is all single bytes and needs no conversion. Byte-identical to the historical raw-struct
+  send on every big-endian client (68k, PPC, G5), so **no protocol bump** — it only fixes the
+  little-endian case (the Intel/Apple-Silicon `.app` slice, and any future M5). Reads
+  byte-by-byte, so it also removes the unaligned-short read on receive (68000-safe).
+  Host tested in `tests/test_net_wire.c` (41 checks: BE layout on a little-endian host,
+  round-trip, two's-complement negatives).
 - [x] **D4 — Renderer pixel-format extraction.** `renderer.h` was **already** a clean
   backend-agnostic seam (18 calls, no backend types — verified). Depth-aware pixel read
   lifted to `pixfmt.c` (`PixFmt_ReadRGB`), host-testable without a live GWorld.
@@ -105,8 +110,8 @@ nothing here.
 (68k MacTCP, PPC OT, PPC MacTCP, OS X Carbon fat ppc+i386) stay green and warning-clean;
 cppcheck clean.
 
-**Remaining:** D3 (`net_wire.h` endianness seam) and the SDL2 renderer backend (M5 track;
-`renderer.h` seam already exists).
+**Remaining:** only the SDL2 renderer backend (M5 track; `renderer.h` seam already exists).
+The portable-core deepening (D1–D5) is complete — 8 host suites / 1275 checks in CI.
 
 ## Non-goals / guardrails
 

@@ -15,7 +15,7 @@ CFLAGS  = -std=c89 -Wall -Wextra -Wno-unused-function \
 
 # Each test and the core sources it exercises.
 BINS = test_pixfmt test_netcoord test_movement test_tilemap_parse \
-       test_collision test_raycast test_wincond
+       test_collision test_raycast test_wincond test_net_wire
 
 all: check
 
@@ -39,6 +39,9 @@ test_raycast: test_raycast.c ../src/raycast.c
 
 test_wincond: test_wincond.c ../src/wincond.c
 	$(CC) $(CFLAGS) -o $@ test_wincond.c ../src/wincond.c
+
+test_net_wire: test_net_wire.c ../src/net_wire.c
+	$(CC) $(CFLAGS) -o $@ test_net_wire.c ../src/net_wire.c
 
 check: $(BINS)
 	@fail=0; \

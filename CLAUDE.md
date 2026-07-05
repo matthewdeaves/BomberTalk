@@ -197,7 +197,7 @@ Single `GameState gGame` struct holds all game state. Key fields:
 
 **OT linker**: PPC OT builds link `OpenTransportAppPPC` + `OpenTransportLib` + `OpenTptInternetLib`. PeerTalk links them PRIVATE, so BomberTalk must link them too (static lib deps don't propagate).
 
-**Big-endian**: Both 68k and PPC are big-endian. Network message structs need no byte swapping on Classic Mac. Will need conversion if POSIX build is added later.
+**Big-endian**: Both 68k and PPC are big-endian, so the classic Macs historically sent raw message structs with no byte swapping. The wire byte order is now explicit in `net_wire.c` (big-endian; 011 D3) — `NetWire_Pack/UnpackPosition` handle `MsgPosition`'s two shorts (all other messages are single bytes). It is byte-identical to the raw-struct send on big-endian hosts, so no protocol bump, but a little-endian host (the Intel/Apple-Silicon `.app` slice, a future M5) now interoperates correctly. New multi-byte fields MUST go through net_wire, not raw struct send.
 
 **Mac SE performance**: Lobby ~3fps, gameplay 10-19fps (measured 2026-04-10). Minimize Toolbox trap calls in hot paths. Cache `StringWidth()`, avoid per-tile `SavePort`/`LockPixels`. Movement cooldown must fall through on expiry (not waste a frame), and direction input must use accumulated edges — at 3-10fps a quick tap can complete entirely between frames.
 

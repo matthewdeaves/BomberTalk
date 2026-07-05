@@ -90,6 +90,7 @@ set(GAME_SOURCES
     src/input.c
     src/net.c
     src/netcoord.c
+    src/net_wire.c
     src/wincond.c
 )
 

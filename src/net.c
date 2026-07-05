@@ -13,6 +13,7 @@
 #include "tilemap.h"
 #include "renderer.h"
 #include "netcoord.h"
+#include "net_wire.h"
 #include <peertalk.h>
 #include <clog.h>
 #include <string.h>
@@ -106,10 +107,15 @@ static void on_position(PT_Peer *peer, const void *data, size_t len,
     (void)peer;
     (void)user_data;
 
-    if (len < sizeof(MsgPosition)) return;
-    /* Copy to aligned local — PeerTalk may deliver data at odd addresses,
-     * causing 68000 address errors when accessing short fields directly */
-    memcpy(&msg, data, sizeof(MsgPosition));
+    if (len < NETWIRE_POSITION_LEN) return;
+    /* Decode the big-endian wire form into an aligned local. net_wire reads
+     * the multi-byte fields byte-by-byte, so there is no unaligned short
+     * access (PeerTalk may deliver data at odd addresses, which would fault
+     * a 68000) and the byte order is explicit rather than host-dependent —
+     * a little-endian client (the Intel/Apple-Silicon .app slice) reads the
+     * same positions as the big-endian classic Macs. (011 D3) */
+    NetWire_UnpackPosition((const unsigned char *)data, &msg.playerID,
+                           &msg.facing, &msg.pixelX, &msg.pixelY);
 
     if (msg.playerID < MAX_PLAYERS &&
         msg.playerID != (unsigned char)gGame.localPlayerID) {
@@ -502,31 +508,23 @@ void Net_DisconnectAllPeers(void)
 
 void Net_SendPosition(short pixelX, short pixelY, short facing)
 {
-    MsgPosition msg;
+    unsigned char buf[NETWIRE_POSITION_LEN];
     short ts = gGame.tileSize;
-    /* Optimization: pixel * 256 / tileSize as a pure shift.
-     * tileSize is always power of 2 (16 or 32), set at startup from
-     * display capabilities — constrained by QuickDraw alignment, PICT
-     * resource sizes, and Mac SE memory.  If a third tile size is ever
-     * added, update this shift table (and verify it's power of 2).
-     * 16px: 256/16 = 16 = 1<<4.  32px: 256/32 = 8 = 1<<3.
-     * Saves ~200 cycles per send on 68k (avoids __divsi3 soft divide).
-     * The conversion now lives in netcoord.c (host unit tested); it keeps
-     * the shift optimization. */
     if (!gPTCtx) return;
 
-    msg.playerID = (unsigned char)gGame.localPlayerID;
-    msg.facing = (unsigned char)facing;
-    /* Convert to tile-independent network coords (256 units = 1 tile).
-     * This allows machines with different tile sizes (16px SE vs 32px PPC)
-     * to agree on player positions. */
-    msg.pixelX = NetCoord_ToWire(pixelX, ts);
-    msg.pixelY = NetCoord_ToWire(pixelY, ts);
-    msg.pad[0] = 0;
-    msg.pad[1] = 0;
+    /* Two layers: netcoord.c converts to tile-independent coords (256 units =
+     * 1 tile) so 16px-SE and 32px-PPC machines agree on positions, then
+     * net_wire.c packs them big-endian so a little-endian client agrees too.
+     * NetCoord_ToWire keeps the power-of-2 shift optimization (pixel*256/tile
+     * as a shift, avoiding the 68k soft-divide); both are host unit tested. */
+    NetWire_PackPosition((unsigned char)gGame.localPlayerID,
+                         (unsigned char)facing,
+                         NetCoord_ToWire(pixelX, ts),
+                         NetCoord_ToWire(pixelY, ts), buf);
 
-    CLOG_DEBUG("TX pos P%d px=(%d,%d) f=%d", msg.playerID, pixelX, pixelY, facing);
-    PT_Broadcast(gPTCtx, MSG_POSITION, &msg, sizeof(msg));
+    CLOG_DEBUG("TX pos P%d px=(%d,%d) f=%d",
+               gGame.localPlayerID, pixelX, pixelY, facing);
+    PT_Broadcast(gPTCtx, MSG_POSITION, buf, NETWIRE_POSITION_LEN);
 }
 
 void Net_SendBombPlaced(short col, short row, short range)
