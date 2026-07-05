@@ -13,10 +13,14 @@
 #include "renderer.h"
 #include <clog.h>
 
-static int gConnecting = FALSE;
-static int gWaitingForMesh = FALSE;
-static long gConnectStartTick = 0;
-static long gLastMeshRetryTick = 0;
+/* Launch handshake. PeerTalk auto-mesh forms the full mesh in the background
+ * (see Net_Init), so the lobby no longer dials, staggers, or retries. It only
+ * decides WHEN to start: gStartRequested = this player pressed Start;
+ * gGame.gameStartReceived = another player sent MSG_GAME_START. Either way we
+ * wait until the mesh is complete (or MESH_FORM_TIMEOUT_TICKS elapses) and
+ * then enter the game together. gMeshWaitStart timestamps the wait. */
+static int gStartRequested = FALSE;
+static long gMeshWaitStart = 0;
 
 /* Pre-built Pascal strings */
 static const unsigned char kLobbyTitle[]  = {5, 'L','o','b','b','y'};
@@ -35,10 +39,8 @@ void Lobby_Init(void)
 {
     short i;
 
-    gConnecting = FALSE;
-    gWaitingForMesh = FALSE;
-    gConnectStartTick = 0;
-    gLastMeshRetryTick = 0;
+    gStartRequested = FALSE;
+    gMeshWaitStart = 0;
 
     /* Clear leftover game state from previous round.
      * pendingGameOver can be set by duplicate MSG_GAME_OVER arriving
@@ -48,7 +50,6 @@ void Lobby_Init(void)
     gGame.gameStartReceived = FALSE;
     gGame.gameOverTimeoutStart = 0;
     gGame.disconnectGraceStart = 0;
-    gGame.meshStaggerStart = 0;
     gGame.localGameOverDetected = FALSE;
     gGame.gameOverFailsafeStart = 0;
 
@@ -81,109 +82,67 @@ void Lobby_Update(void)
     if (Input_WasKeyPressed(KEY_ESCAPE)) {
         CLOG_INFO("Lobby: ESC pressed, returning to menu");
         Net_StopDiscovery();
-        gConnecting = FALSE;
-        gWaitingForMesh = FALSE;
+        gStartRequested = FALSE;
+        gMeshWaitStart = 0;
         Screens_TransitionTo(SCREEN_MENU);
         return;
     }
 
     peerCount = Net_GetDiscoveredPeerCount();
     connectedCount = Net_GetConnectedPeerCount();
-    expected = Net_GetExpectedPlayers();
 
     /*
-     * Waiting for full mesh: all players must be connected to each other.
-     * Both the initiator and receivers end up here.
-     * Stagger: delay first connect by rank * MESH_STAGGER_PER_RANK (005).
+     * Launch handshake. PeerTalk auto-mesh keeps the full mesh connected in
+     * the background, so there is nothing to dial here -- we only wait for the
+     * mesh to be complete before entering the game together. We are launching
+     * if we pressed Start (gStartRequested) or received MSG_GAME_START.
      */
-    if (gWaitingForMesh) {
-        /* Stagger delay: higher-rank peers wait longer before first connect.
-         * Uses TickCount() wall-clock timing (007) — immune to deltaTicks cap. */
-        if (gGame.meshStaggerStart != 0) {
-            unsigned long stagger = (unsigned long)(Net_GetLocalRank() * MESH_STAGGER_PER_RANK);
-            if (TickCount() - gGame.meshStaggerStart >= stagger) {
-                gGame.meshStaggerStart = 0;
-                CLOG_INFO("Mesh stagger complete, connecting");
-                Net_ConnectToAllPeers();
+    if (gStartRequested || gGame.gameStartReceived) {
+        int timedOut;
+        if (gMeshWaitStart == 0) gMeshWaitStart = TickCount();
+        timedOut = (TickCount() - gMeshWaitStart > MESH_FORM_TIMEOUT_TICKS);
+
+        if (gGame.gameStartReceived) {
+            /* The roster size is fixed by the GAME_START we saw or sent.
+             * Enter once every announced peer is connected; on timeout enter
+             * with whoever is actually connected (a lagging peer can still
+             * join in progress once its link comes up). */
+            expected = Net_GetExpectedPlayers();
+            if (connectedCount >= expected - 1) {
+                CLOG_INFO("Full mesh: %d connections for %d players",
+                          connectedCount, expected);
+                enter_game(expected);
+            } else if (timedOut) {
+                CLOG_WARN("Mesh incomplete (%d/%d), starting anyway",
+                          connectedCount, expected - 1);
+                enter_game(connectedCount + 1);
             }
             return;
         }
 
-        if (connectedCount >= expected - 1) {
-            CLOG_INFO("Full mesh: %d connections for %d players",
-                      connectedCount, expected);
-            enter_game(expected);
-            return;
-        }
-
-        /* Retry connecting to unconnected peers every 2 seconds.
-         * Handles tiebreaker race where both connections drop. */
-        if (TickCount() - gLastMeshRetryTick > 120) {
-            gLastMeshRetryTick = TickCount();
-            CLOG_INFO("Mesh retry: %d/%d connected",
-                      connectedCount, expected - 1);
-            Net_ConnectToAllPeers();
-        }
-
-        /* Timeout after 15 seconds (was 10) */
-        if (TickCount() - gConnectStartTick > 900) {
-            CLOG_WARN("Mesh timeout: %d/%d connected, starting anyway",
-                      connectedCount, expected);
-            enter_game(connectedCount + 1);
-            return;
-        }
-        return;
-    }
-
-    /*
-     * Receiver: got MSG_GAME_START from another player.
-     * Stagger connect by rank to give slower machines time to prepare
-     * their TCP listener (005).
-     */
-    if (gGame.gameStartReceived && !gWaitingForMesh) {
-        short rank = Net_GetLocalRank();
-        short stagger = rank * MESH_STAGGER_PER_RANK;
-        CLOG_INFO("Game start received, mesh stagger: rank %d, delay %d ticks "
-                  "(%d expected)", rank, stagger, expected);
-        gWaitingForMesh = TRUE;
-        gConnectStartTick = TickCount();
-        if (stagger == 0) {
-            /* Rank 0: connect immediately */
-            gGame.meshStaggerStart = 0;
-            Net_ConnectToAllPeers();
-        } else {
-            gGame.meshStaggerStart = TickCount();
-        }
-        return;
-    }
-
-    /* Initiator: connecting to all peers before sending game start */
-    if (gConnecting) {
-        if (connectedCount >= peerCount) {
-            CLOG_INFO("All %d peers connected, sending game start",
-                      connectedCount);
-            expected = (short)(peerCount + 1);
+        /* Initiator: wait for the mesh to every discovered peer, then announce
+         * the roster and launch. On timeout start with whoever connected. */
+        if (connectedCount >= peerCount || timedOut) {
+            expected = (short)((timedOut ? connectedCount : peerCount) + 1);
+            if (timedOut && connectedCount < peerCount) {
+                CLOG_WARN("Mesh form timeout: starting with %d players",
+                          expected);
+            } else {
+                CLOG_INFO("Full mesh (%d peers), sending game start",
+                          connectedCount);
+            }
             Net_SendGameStart((unsigned char)expected);
-
             gGame.gameStartReceived = TRUE;
-            gWaitingForMesh = TRUE;
-            /* connectStartTick already set */
-            return;
-        }
-
-        /* Timeout after 10 seconds */
-        if (TickCount() - gConnectStartTick > 600) {
-            CLOG_ERR("Connection timeout");
-            gConnecting = FALSE;
+            enter_game(expected);
         }
         return;
     }
 
     if (Input_WasKeyPressed(KEY_RETURN) && peerCount >= 1) {
-        gConnecting = TRUE;
-        gConnectStartTick = TickCount();
-        Net_ConnectToAllPeers();
-        CLOG_INFO("Connecting to %d peers", peerCount);
+        gStartRequested = TRUE;
+        gMeshWaitStart = TickCount();
+        CLOG_INFO("Start requested; waiting for full mesh (%d peers)",
+                  peerCount);
     }
 
     if (Input_WasKeyPressed(KEY_SPACE)) {
@@ -200,9 +159,11 @@ void Lobby_Draw(WindowPtr window)
     short centerX, y;
     int peerCount, i;
     short strW;
+    int launching;
 
     centerX = gGame.playWidth / 2;
     peerCount = Net_GetDiscoveredPeerCount();
+    launching = gStartRequested || gGame.gameStartReceived;
 
     /* Draw to offscreen work buffer, then blit */
     Renderer_BeginScreenDraw();
@@ -231,7 +192,7 @@ void Lobby_Draw(WindowPtr window)
     TextSize(14);
     y = 80;
 
-    if (gConnecting) {
+    if (launching) {
         MoveTo(centerX - gLobbyConnW / 2, y);
         DrawString((ConstStr255Param)kLobbyConn);
     } else if (peerCount == 0) {
@@ -296,14 +257,14 @@ void Lobby_Draw(WindowPtr window)
 
     /* Instructions */
     y = gGame.playHeight - 60;
-    if (peerCount >= 1 && !gConnecting) {
+    if (peerCount >= 1 && !launching) {
         TextSize(12);
         MoveTo(centerX - gLobbyStartW / 2, y);
         DrawString((ConstStr255Param)kLobbyStart);
     }
 
     y += 20;
-    if (!gConnecting) {
+    if (!launching) {
         TextSize(12);
         MoveTo(centerX - gLobbySPW / 2, y);
         DrawString((ConstStr255Param)kLobbySP);

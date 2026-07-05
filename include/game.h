@@ -82,7 +82,7 @@
 
 /* ---- Network Authority & Robustness (005) ---- */
 #define DISCONNECT_GRACE_TICKS       90 /* ~1.5s grace before TCP teardown after game over */
-#define MESH_STAGGER_PER_RANK        30 /* ~0.5s per rank before first connect attempt */
+#define MESH_FORM_TIMEOUT_TICKS     900 /* ~15s to wait for PeerTalk auto-mesh before starting anyway */
 #define GAME_OVER_FAILSAFE_TICKS    120 /* ~2s timeout before non-authority sends game over */
 #define LOW_HEAP_WARNING_BYTES   262144L /* 256KB threshold for heap warning */
 #define HEAP_CHECK_INTERVAL_TICKS  1800 /* ~30s between periodic heap checks */
@@ -287,7 +287,6 @@ typedef struct {
     unsigned char   pendingWinner;    /* winner ID from remote MSG_GAME_OVER */
     unsigned long   gameOverTimeoutStart;  /* TickCount() when started, 0 = inactive */
     unsigned long   disconnectGraceStart;  /* TickCount() when started, 0 = inactive */
-    unsigned long   meshStaggerStart;      /* TickCount() when started, 0 = inactive */
     int             gameOverAuthority;     /* TRUE if this machine sends MSG_GAME_OVER */
     int             localGameOverDetected; /* TRUE if local game over detected, not authority */
     unsigned long   gameOverFailsafeStart; /* TickCount() when started, 0 = inactive */

@@ -399,7 +399,6 @@ static void InitGameState(void)
     gGame.pendingWinner = 0xFF;
     gGame.gameOverTimeoutStart = 0;
     gGame.disconnectGraceStart = 0;
-    gGame.meshStaggerStart = 0;
     gGame.gameOverAuthority = FALSE;
     gGame.localGameOverDetected = FALSE;
     gGame.gameOverFailsafeStart = 0;

@@ -267,9 +267,7 @@ static void on_game_start(PT_Peer *peer, const void *data, size_t len,
     gExpectedPlayers = (short)msg->numPlayers;
 
     CLOG_INFO("Game start received, expecting %d players", gExpectedPlayers);
-
-    /* Connect to any discovered peers we haven't connected to yet (mesh) */
-    Net_ConnectToAllPeers();
+    /* No manual dialing: PeerTalk auto-mesh already holds the connections. */
 }
 
 static void on_game_over(PT_Peer *peer, const void *data, size_t len,
@@ -442,6 +440,14 @@ void Net_Init(const char *playerName)
     PT_OnMessage(gPTCtx, MSG_GAME_OVER,       on_game_over, NULL);
     PT_OnMessage(gPTCtx, MSG_MAP_STATE,       on_map_state, NULL);
 
+    /* Full-mesh topology is PeerTalk's job: once discovery finds peers it
+     * keeps a TCP connection open to every one of them (dialing only the
+     * pairs we are the designated initiator for, so the simultaneous-connect
+     * race cannot arise, and re-dialing after any drop). The lobby no longer
+     * dials, staggers, or retries by hand -- by the time a player presses
+     * Start the mesh is already formed, and GAME_START launches over it. */
+    PT_EnableAutoMesh(gPTCtx, 1);
+
     CLOG_INFO("Net initialized");
 }
 
@@ -480,33 +486,6 @@ void Net_StopDiscovery(void)
 {
     if (gPTCtx) {
         PT_StopDiscovery(gPTCtx);
-    }
-}
-
-void Net_ConnectToAllPeers(void)
-{
-    int count, i;
-    PT_Peer *peer;
-
-    if (!gPTCtx) return;
-
-    count = PT_GetPeerCount(gPTCtx);
-    for (i = 0; i < count; i++) {
-        peer = PT_GetPeer(gPTCtx, i);
-        /* Only dial peers we are the designated initiator for (lower IP dials,
-         * higher IP listens). PT_ShouldInitiate makes each pair connect from
-         * exactly one side, so two machines never dial each other at once --
-         * this is what eliminates the simultaneous-connect tiebreaker race that
-         * left the MacTCP<->G5 link half-dead in the 011 cross-era game (a
-         * player frozen at spawn, divergent maps). The higher-IP peer accepts
-         * passively; PeerTalk's listener is always open. This makes the old
-         * app-side mesh stagger (screen_lobby.c) redundant -- kept for now as a
-         * harmless extra delay on higher ranks. */
-        if (peer && PT_GetPeerState(peer) == PT_PEER_DISCOVERED &&
-            PT_ShouldInitiate(gPTCtx, peer)) {
-            PT_Connect(gPTCtx, peer);
-            CLOG_INFO("Connecting to %s (initiator)", PT_PeerName(peer));
-        }
     }
 }
 
@@ -685,16 +664,6 @@ int Net_GetConnectedPeerCount(void)
 short Net_GetExpectedPlayers(void)
 {
     return gExpectedPlayers;
-}
-
-/*
- * Net_GetLocalRank -- Return local peer rank without side effects.
- * Safe to call during mesh formation (does not assign peer pointers).
- */
-short Net_GetLocalRank(void)
-{
-    if (!gPTCtx) return 0;
-    return (short)PT_GetPeerRank(gPTCtx, NULL);
 }
 
 /*
