@@ -493,9 +493,19 @@ void Net_ConnectToAllPeers(void)
     count = PT_GetPeerCount(gPTCtx);
     for (i = 0; i < count; i++) {
         peer = PT_GetPeer(gPTCtx, i);
-        if (peer && PT_GetPeerState(peer) == PT_PEER_DISCOVERED) {
+        /* Only dial peers we are the designated initiator for (lower IP dials,
+         * higher IP listens). PT_ShouldInitiate makes each pair connect from
+         * exactly one side, so two machines never dial each other at once --
+         * this is what eliminates the simultaneous-connect tiebreaker race that
+         * left the MacTCP<->G5 link half-dead in the 011 cross-era game (a
+         * player frozen at spawn, divergent maps). The higher-IP peer accepts
+         * passively; PeerTalk's listener is always open. This makes the old
+         * app-side mesh stagger (screen_lobby.c) redundant -- kept for now as a
+         * harmless extra delay on higher ranks. */
+        if (peer && PT_GetPeerState(peer) == PT_PEER_DISCOVERED &&
+            PT_ShouldInitiate(gPTCtx, peer)) {
             PT_Connect(gPTCtx, peer);
-            CLOG_INFO("Connecting to %s", PT_PeerName(peer));
+            CLOG_INFO("Connecting to %s (initiator)", PT_PeerName(peer));
         }
     }
 }
