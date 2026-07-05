@@ -56,12 +56,14 @@ edges.
 - [x] **D1 — Host type shim.** `tests/host_mac_types.h`: `RGBColor`/`ColorTable` +
   `Rect`/`Point`/`SetRect`, included only under `BT_HOST_TEST`. *Unblocked compiling pure
   units on the host.*
-- [~] **D2 — Portable-core carve.** *Partial:* the pure leaf math is now carved into
-  standalone, host-built units — `netcoord.c` (coord normalisation) and `movement.c`
-  (accumulator). *Remaining:* `player.c` collision (`CollideAxis`/`CheckTileSolid`),
-  `bomb.c` raycast, `tilemap.c` scan/sanitise, and the win-condition/reactivation logic —
-  these still read `gGame`/`TileMap`/Toolbox and need the dirty-notify + clock ports and a
-  `Player`/`TileMap` fixture before they build on the host.
+- [~] **D2 — Portable-core carve.** *In progress:* pure logic carved into standalone,
+  host-built units — `netcoord.c` (coord normalisation), `movement.c` (accumulator), and
+  `tilemap_parse.c` (TMAP validate/clamp/sanitise). The portable gameplay constants are now
+  in `coredefs.h` (Toolbox-free; `game.h` includes it), which is the foundation the
+  remaining carves need. *Remaining:* `player.c` collision (`CollideAxis`/`CheckTileSolid`),
+  `bomb.c` raycast, and the win-condition/reactivation logic — these still read
+  `gGame`/`Player`/`TileMap` and need the dirty-notify + clock ports and a `Player`/`TileMap`
+  fixture before they build on the host.
 - [ ] **D3 — `net_wire.h` serialization seam.** Move message pack/unpack behind one unit
   that owns byte order (today "both big-endian" is a comment, not code). *Payoff:
   endianness round-trip tests; also the prerequisite for a little-endian M5 to play the

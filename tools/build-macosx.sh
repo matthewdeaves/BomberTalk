@@ -66,7 +66,7 @@ FRAMEWORKS="-framework Carbon"
 
 GAME_SOURCES="
   src/main.c src/screens.c src/screen_loading.c src/screen_menu.c
-  src/screen_lobby.c src/screen_game.c src/tilemap.c src/player.c
+  src/screen_lobby.c src/screen_game.c src/tilemap.c src/tilemap_parse.c src/player.c
   src/bomb.c src/renderer.c src/pixfmt.c src/movement.c src/input.c src/net.c src/netcoord.c
 "
 SDK_SOURCES="

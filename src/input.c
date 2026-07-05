@@ -48,14 +48,17 @@ void Input_Init(void)
 void Input_Poll(void)
 {
     KeyMap newKeys;
-    unsigned long *nw = (unsigned long *)newKeys;
+    unsigned long *nw;
     short i;
     static long sLogTick = 0;
     long now;
 
     GetKeys(newKeys);
+    /* Word view, taken after GetKeys() has filled the KeyMap. See Input_Init
+     * for why we read the KeyMap as four raw 32-bit words. */
+    nw = (unsigned long *)newKeys;
 
-    /* OR new key-down edges into accumulator (word view; see Input_Init) */
+    /* OR new key-down edges into accumulator */
     for (i = 0; i < 4; i++) {
         gAccumEdges[i] |= (nw[i] & ~gCurrentKeys[i]);
         gCurrentKeys[i] = nw[i];

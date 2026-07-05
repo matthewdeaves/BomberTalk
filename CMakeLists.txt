@@ -79,6 +79,7 @@ set(GAME_SOURCES
     src/screen_lobby.c
     src/screen_game.c
     src/tilemap.c
+    src/tilemap_parse.c
     src/player.c
     src/bomb.c
     src/renderer.c

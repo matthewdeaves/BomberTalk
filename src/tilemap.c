@@ -5,6 +5,7 @@
  */
 
 #include "tilemap.h"
+#include "tilemap_parse.h"
 #include "../maps/level1.h"
 #include <clog.h>
 #include <string.h>
@@ -25,10 +26,6 @@ static const short kDefaultSpawnRows[MAX_PLAYERS] = {1, 1, 11, 11};
 static void TileMap_LoadFromResource(void)
 {
     Handle h;
-    short cols, rows;
-    long expectedSize;
-    unsigned char *data;
-    short r, c;
 
     h = GetResource('TMAP', 128);
     if (h == NULL) {
@@ -43,47 +40,21 @@ static void TileMap_LoadFromResource(void)
     }
 
     HLock(h);
-    data = (unsigned char *)*h;
 
-    /* Big-endian short: cols then rows */
-    cols = (short)((data[0] << 8) | data[1]);
-    rows = (short)((data[2] << 8) | data[3]);
-
-    /* Clamp dimensions */
-    if (cols < 7) cols = 7;
-    if (cols > MAX_GRID_COLS) cols = MAX_GRID_COLS;
-    if (rows < 7) rows = 7;
-    if (rows > MAX_GRID_ROWS) rows = MAX_GRID_ROWS;
-
-    expectedSize = 4 + (long)cols * rows;
-    if (GetHandleSize(h) < expectedSize) {
-        CLOG_WARN("TMAP size mismatch (got %ld, expected %ld), using default",
-                   GetHandleSize(h), expectedSize);
+    /* Parse + validate (clamp dims, size-check, sanitise tiles) in the
+     * portable, host-tested tilemap_parse.c. */
+    if (!TileMap_ParseData((const unsigned char *)*h, GetHandleSize(h),
+                           gMap.tiles, &gMap.cols, &gMap.rows)) {
+        CLOG_WARN("TMAP malformed or size mismatch, using default level");
         HUnlock(h);
         ReleaseResource(h);
         return;
     }
 
-    /* Clear entire tile array first */
-    memset(gMap.tiles, TILE_FLOOR, sizeof(gMap.tiles));
-
-    gMap.cols = cols;
-    gMap.rows = rows;
-
-    /* Copy tile data, sanitize unknown values */
-    data += 4;
-    for (r = 0; r < rows; r++) {
-        for (c = 0; c < cols; c++) {
-            unsigned char tile = data[r * cols + c];
-            if (tile > TILE_SPAWN) tile = TILE_FLOOR;
-            gMap.tiles[r][c] = tile;
-        }
-    }
-
     HUnlock(h);
     ReleaseResource(h);
 
-    CLOG_INFO("TMAP resource loaded: %dx%d", cols, rows);
+    CLOG_INFO("TMAP resource loaded: %dx%d", gMap.cols, gMap.rows);
 }
 
 /*
