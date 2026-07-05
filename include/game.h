@@ -19,6 +19,15 @@
  * Resources, etc. are all present via Carbon (011-macosx-sdl2). */
 #ifdef BT_CARBON
 #include <Carbon/Carbon.h>
+#elif defined(BT_POSIX)
+/* Modern/POSIX SDL2 build (011-macosx-sdl2). There is no Mac Toolbox here.
+ * mac_shim.h supplies the handful of Toolbox value types (Rect/Point/RGBColor/
+ * Str255) and the tiny QuickDraw text/rect subset the shared screens still
+ * call between Renderer_BeginScreenDraw/EndScreenDraw. The renderer, input,
+ * and main loop are provided by the SDL backends (renderer_sdl.c, input_sdl.c,
+ * main_posix.c). See notes/deepening-and-testability.md and
+ * specs/011-macosx-sdl2/plan.md. */
+#include "mac_shim.h"
 #else
 #include <Quickdraw.h>
 #include <Windows.h>
@@ -45,6 +54,12 @@
 #define BT_SetWindowPort(w)       SetPortWindowPort(w)
 #define BT_WindowCopyBitsBits(w)  GetPortBitMapForCopyBits(GetWindowPort(w))
 #define BT_WindowCGrafPort(w)     GetWindowPort(w)
+#elif defined(BT_POSIX)
+/* No QuickDraw port on SDL2 — the SDL renderer owns the window/surfaces and
+ * ignores the WindowPtr handed through the backend-agnostic renderer.h API. */
+#define BT_SetWindowPort(w)       ((void)(w))
+#define BT_WindowCopyBitsBits(w)  ((void)(w), (void *)0)
+#define BT_WindowCGrafPort(w)     ((void)(w), (void *)0)
 #else
 #define BT_SetWindowPort(w)       SetPort(w)
 #define BT_WindowCopyBitsBits(w)  (&(w)->portBits)

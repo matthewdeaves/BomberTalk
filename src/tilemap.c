@@ -25,6 +25,12 @@ static const short kDefaultSpawnRows[MAX_PLAYERS] = {1, 1, 11, 11};
  */
 static void TileMap_LoadFromResource(void)
 {
+#ifdef BT_POSIX
+    /* No Resource Manager on the SDL2/POSIX build -- always use the built-in
+     * kLevel1 default (the same fallback the classic path takes when 'TMAP'
+     * 128 is absent). (011-macosx-sdl2) */
+    CLOG_INFO("POSIX build: using default level (no Resource Manager)");
+#else
     Handle h;
 
     h = GetResource('TMAP', 128);
@@ -55,6 +61,7 @@ static void TileMap_LoadFromResource(void)
     ReleaseResource(h);
 
     CLOG_INFO("TMAP resource loaded: %dx%d", gMap.cols, gMap.rows);
+#endif /* !BT_POSIX */
 }
 
 /*

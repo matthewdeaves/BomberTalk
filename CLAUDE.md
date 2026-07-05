@@ -48,9 +48,23 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE=$RETRO68_TOOLCHAIN/powerpc-apple-macos/cmake/ret
 
 # Using local checkouts (optional, overrides FetchContent):
 #   -DPEERTALK_DIR=~/peertalk -DCLOG_DIR=~/clog
+
+# SDL2 / POSIX (build-sdl/) -- modern desktop + Apple Silicon (011-macosx-sdl2)
+# Native gcc/clang, no cross toolchain. Needs libsdl2-dev + pkg-config and
+# peertalk/clog checkouts (defaults ../peertalk, ../clog). Runs on Linux (a
+# faithful little-endian proxy for the M5) and modern macOS.
+PEERTALK_DIR=~/peertalk CLOG_DIR=~/clog bash tools/build-sdl.sh   # -> build-sdl/BomberTalk
 ```
 
-After changes, always build and verify all three targets compile clean before committing.
+After changes, always build and verify all three classic targets compile clean before committing.
+
+The **SDL2 build** (`BT_POSIX`) reuses the entire shared game core + `net.c`; only the
+renderer/input/main-loop/time backends are swapped (`renderer_sdl.c`, `input_sdl.c`,
+`main_posix.c`, `platform_posix.c`) plus a small QuickDraw text/rect shim (`mac_shim.c`,
+`include/mac_shim.h`, `src/font8x8.h`) so `screen_*.c` stay identical. It is byte-order
+correct against big-endian classic Macs via `net_wire.c`. Headless smoke: `SDL_VIDEODRIVER=dummy
+BT_SCREENSHOT=out.bmp ./build-sdl/BomberTalk` saves the menu frame; `tools/sdl_probe.c` dumps a
+gameplay board frame.
 
 ## Hardware Deployment
 
@@ -202,6 +216,8 @@ Single `GameState gGame` struct holds all game state. Key fields:
 **Mac SE performance**: Lobby ~3fps, gameplay 10-19fps (measured 2026-04-10). Minimize Toolbox trap calls in hot paths. Cache `StringWidth()`, avoid per-tile `SavePort`/`LockPixels`. Movement cooldown must fall through on expiry (not waste a frame), and direction input must use accumulated edges — at 3-10fps a quick tap can complete entirely between frames.
 
 **CopyBits alignment for sub-tile sprites**: Sub-tile sprite positions will be misaligned for CopyBits (up to ~2x penalty per Sex Lies p.148). Accepted: Mac SE uses PaintRect (no penalty), PPC uses transparent mode (already slower). If PPC FPS drops measurably, consider pre-shifted sprite GWorlds (4 copies per sprite) as mitigation.
+
+**SDL2 build seam (`BT_POSIX`)**: game.h has three branches — classic (individual Toolbox headers), `BT_CARBON` (`<Carbon/Carbon.h>`), and `BT_POSIX` (`include/mac_shim.h`, no Toolbox at all). The shared core touches only a tiny Toolbox slice off the renderer: `TickCount` + a QuickDraw text/rect subset the screens call between `Renderer_BeginScreenDraw`/`EndScreenDraw`. `mac_shim.h` supplies the value types (Rect/Point/RGBColor/Str255/WindowPtr) and declares that subset; `mac_shim.c` draws it into the SDL work surface via an embedded 8x8 font. New multi-byte-emitting shared code must add nothing Toolbox-y outside this seam, or the SDL build breaks. `sdl_backend.h` carries SDL types between `mac_shim.c` and `renderer_sdl.c` only — never include it from shared code.
 
 **BOMBERTALK_DEBUG**: CMake option (default ON). When OFF, adds `-DCLOG_STRIP` causing all `CLOG_*` macros to expand to `((void)0)`. clog library still linked (PeerTalk depends on it). Guard `clog_init`/`clog_set_file`/`clog_set_network_sink`/`clog_shutdown` with `#ifndef CLOG_STRIP`.
 

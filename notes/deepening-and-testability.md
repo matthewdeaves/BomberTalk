@@ -110,7 +110,22 @@ nothing here.
 (68k MacTCP, PPC OT, PPC MacTCP, OS X Carbon fat ppc+i386) stay green and warning-clean;
 cppcheck clean.
 
-**Remaining:** only the SDL2 renderer backend (M5 track; `renderer.h` seam already exists).
+**SDL2 backend: DONE** (011). The modern/Apple-Silicon target now builds and runs.
+The `renderer.h` seam held exactly as designed — no refactor of the shared screens
+was needed. New POSIX-only files behind a `BT_POSIX` build flag:
+`renderer_sdl.c` (SDL software work/bg surfaces → streaming texture; colored-rect
+sprite fallback, Constitution VI), `input_sdl.c` (SDL keyboard state mapped back to
+Mac scan codes so `screen_*.c`/`player.c` are unchanged), `main_posix.c` (SDL poll
+loop, same fixed-tick gate as classic), `mac_shim.c` + `mac_shim.h` (the tiny
+QuickDraw text/rect subset the screens call, drawn with an embedded 8x8 font —
+`font8x8.h`), and `platform_posix.c` (60 Hz `TickCount`). Built and validated on
+Linux via `tools/build-sdl.sh` (menu, gameplay board, and PeerTalk POSIX networking
+all confirmed by headless screenshot + log). CI `build-sdl` job guards it. All four
+Mac targets stay green. Live cross-era LE↔BE play is the remaining hardware test
+(pinned by the D3 net_wire host tests).
+
+**Remaining (polish, not blocking):** real PNG/asset sprites for SDL (R5; colored-rect
+fallback ships today), and an optional CMake target mirroring `build-sdl.sh`.
 The portable-core deepening (D1–D5) is complete — 8 host suites / 1275 checks in CI.
 
 ## Non-goals / guardrails
