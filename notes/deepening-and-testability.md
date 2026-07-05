@@ -56,14 +56,16 @@ edges.
 - [x] **D1 — Host type shim.** `tests/host_mac_types.h`: `RGBColor`/`ColorTable` +
   `Rect`/`Point`/`SetRect`, included only under `BT_HOST_TEST`. *Unblocked compiling pure
   units on the host.*
-- [~] **D2 — Portable-core carve.** *In progress:* pure logic carved into standalone,
-  host-built units — `netcoord.c` (coord normalisation), `movement.c` (accumulator), and
-  `tilemap_parse.c` (TMAP validate/clamp/sanitise). The portable gameplay constants are now
-  in `coredefs.h` (Toolbox-free; `game.h` includes it), which is the foundation the
-  remaining carves need. *Remaining:* `player.c` collision (`CollideAxis`/`CheckTileSolid`),
-  `bomb.c` raycast, and the win-condition/reactivation logic — these still read
-  `gGame`/`Player`/`TileMap` and need the dirty-notify + clock ports and a `Player`/`TileMap`
-  fixture before they build on the host.
+- [x] **D2 — Portable-core carve.** *Done:* pure logic carved into standalone, host-built
+  units — `netcoord.c` (coord normalisation), `movement.c` (accumulator), `tilemap_parse.c`
+  (TMAP validate/clamp/sanitise), `collision.c` (`Collide_ResolveAxis` — axis-separated AABB),
+  `raycast.c` (`Ray_Reach` — bomb blast reach), and `wincond.c` (`Win_Decide` +
+  `Win_ShouldReactivate`). Portable gameplay constants live in `coredefs.h` (Toolbox-free;
+  `game.h` includes it). The three gameplay-critical carves took plain-value arguments (flat
+  tile/bomb arrays, tallied counts) rather than `gGame`/`Player`/`TileMap` pointers — no
+  fixture needed, no dirty/clock port needed, and the hot inner loops stay direct-indexed and
+  allocation-free (Constitution V/VII). The Mac callers (`CollideAxis`, `ExplodeBomb`, the
+  game-over tally) became thin wrappers that gather globals and apply the result.
 - [ ] **D3 — `net_wire.h` serialization seam.** Move message pack/unpack behind one unit
   that owns byte order (today "both big-endian" is a comment, not code). *Payoff:
   endianness round-trip tests; also the prerequisite for a little-endian M5 to play the
@@ -84,18 +86,27 @@ nothing here.
 
 - [x] **T1 `PixFmt_ReadRGB`** — 8-bit(ctab), 16-bit(555), 32-bit(xRGB) + the white≠black
   distinctness that was the actual failure. *(KI-008)* — `tests/test_pixfmt.c`, 21 checks.
-- [ ] **T2 win-condition** — 3 players, deactivate 2 with stale interp targets → asserts
-  sole survivor wins and no phantom reactivation. *(KI-006)* — needs the D2 player fixture.
+- [x] **T2 win-condition** — sole survivor wins, mutual-destruction draw, undecided while
+  dying, one-player match never ends, and the KI-006 reactivation guard (target==position →
+  no phantom reactivation). *(KI-006)* — `tests/test_wincond.c`, 14 checks.
 - [x] **T3 coord round-trip** — round-trip exact per size + grid-cell preserved across
   16px/32px + no short overflow at max field. *(004)* — `tests/test_netcoord.c`, 925 checks.
-- [ ] **T4 collision** — axis-separated AABB against a fixture tilemap; corner-slide cases.
-- [ ] **T5 bomb raycast** — range, wall-stop, block-destroy, chain via `TILEMAP_TILE`.
+- [x] **T4 collision** — axis-separated AABB against a fixture tilemap: free movement, flush
+  wall/block stop on all four axes, bomb-tile solidity + walk-off pass-through, play-bounds
+  clamp. *(004)* — `tests/test_collision.c`, 17 checks.
+- [x] **T5 bomb raycast** — range, wall-stops-short, block-destroy-and-stop, wall shadows a
+  block behind it, map-edge stop. *(005)* — `tests/test_raycast.c`, 21 checks.
 - [x] **T6 movement accumulator** — one tile crossed in `ticksPerTile` ticks on both 16px
   and 32px (resolution independence) + carry invariants. — `tests/test_movement.c`, 216 checks.
 
-**Shipped this session (011):** D1, D4, D5 complete; D2 started (netcoord + movement);
-T1, T3, T6 green — 1162 checks across 3 suites, wired into CI. All four Mac targets stay
-green and warning-clean.
+**Shipped this session (011):** D1, D2, D4, D5 complete; T1–T6 green — 1234 checks across
+7 host suites, wired into CI. Portable core is now: `pixfmt`, `netcoord`, `movement`,
+`tilemap_parse`, `collision`, `raycast`, `wincond` (+ `coredefs.h`). All four Mac targets
+(68k MacTCP, PPC OT, PPC MacTCP, OS X Carbon fat ppc+i386) stay green and warning-clean;
+cppcheck clean.
+
+**Remaining:** D3 (`net_wire.h` endianness seam) and the SDL2 renderer backend (M5 track;
+`renderer.h` seam already exists).
 
 ## Non-goals / guardrails
 

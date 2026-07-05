@@ -14,7 +14,8 @@ CFLAGS  = -std=c89 -Wall -Wextra -Wno-unused-function \
           -DBT_HOST_TEST -I. -I../include
 
 # Each test and the core sources it exercises.
-BINS = test_pixfmt test_netcoord test_movement test_tilemap_parse
+BINS = test_pixfmt test_netcoord test_movement test_tilemap_parse \
+       test_collision test_raycast test_wincond
 
 all: check
 
@@ -29,6 +30,15 @@ test_movement: test_movement.c ../src/movement.c
 
 test_tilemap_parse: test_tilemap_parse.c ../src/tilemap_parse.c
 	$(CC) $(CFLAGS) -o $@ test_tilemap_parse.c ../src/tilemap_parse.c
+
+test_collision: test_collision.c ../src/collision.c
+	$(CC) $(CFLAGS) -o $@ test_collision.c ../src/collision.c
+
+test_raycast: test_raycast.c ../src/raycast.c
+	$(CC) $(CFLAGS) -o $@ test_raycast.c ../src/raycast.c
+
+test_wincond: test_wincond.c ../src/wincond.c
+	$(CC) $(CFLAGS) -o $@ test_wincond.c ../src/wincond.c
 
 check: $(BINS)
 	@fail=0; \

@@ -12,6 +12,7 @@
 #include "renderer.h"
 #include "input.h"
 #include "net.h"
+#include "wincond.h"
 #include <clog.h>
 
 static short gLastSentPX = -1;
@@ -92,9 +93,11 @@ void Game_Update(void)
      * diverging from current position. */
     for (i = 0; i < gGame.numPlayers; i++) {
         if (i == gGame.localPlayerID) continue;
-        if (!gGame.players[i].active &&
-            (gGame.players[i].targetPixelX != gGame.players[i].pixelX ||
-             gGame.players[i].targetPixelY != gGame.players[i].pixelY)) {
+        if (Win_ShouldReactivate(gGame.players[i].active,
+                                 gGame.players[i].targetPixelX,
+                                 gGame.players[i].targetPixelY,
+                                 gGame.players[i].pixelX,
+                                 gGame.players[i].pixelY)) {
             gGame.players[i].active = TRUE;
             gGame.players[i].alive = TRUE;
             gGame.players[i].deathTimer = 0;
@@ -269,10 +272,13 @@ void Game_Update(void)
             return;
         }
 
-        if (!anyDying && aliveCount <= 1 && gGame.numPlayers > 1 &&
-            !gGame.localGameOverDetected) {
-            unsigned char winner = (aliveCount == 1) ?
-                                   (unsigned char)lastAlive : 0xFF;
+        {
+        int winnerIdx;
+        if (!gGame.localGameOverDetected &&
+            Win_Decide(anyDying, aliveCount, lastAlive, gGame.numPlayers,
+                       &winnerIdx)) {
+            unsigned char winner = (winnerIdx < 0) ?
+                                   0xFF : (unsigned char)winnerIdx;
             CLOG_INFO("Game over! Winner: %d (alive=%d dying=%d)",
                       winner, aliveCount, anyDying);
             for (i = 0; i < gGame.numPlayers; i++) {
@@ -298,6 +304,7 @@ void Game_Update(void)
             gGame.disconnectGraceStart = TickCount();
             CLOG_INFO("Game over: starting grace period (%d ticks)",
                       DISCONNECT_GRACE_TICKS);
+        }
         }
     }
 }
