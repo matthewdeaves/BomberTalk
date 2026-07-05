@@ -52,7 +52,7 @@
 #endif
 
 /* ---- Protocol Version ---- */
-#define BT_PROTOCOL_VERSION 5
+#define BT_PROTOCOL_VERSION 6  /* v6: MSG_MAP_STATE (join-in-progress map sync) */
 
 /* Portable gameplay constants (grid, tile types, directions, timing, limits)
  * live in coredefs.h so the gameplay core is host-testable without the
@@ -127,6 +127,7 @@
 #define MSG_PLAYER_KILLED   0x05
 #define MSG_GAME_START      0x06
 #define MSG_GAME_OVER       0x07
+#define MSG_MAP_STATE       0x08  /* full tilemap snapshot -> a late joiner */
 
 /* ---- Boolean (C89 has no bool) ---- */
 #ifndef TRUE
@@ -191,6 +192,15 @@ typedef struct {
     unsigned char winnerID;
     unsigned char pad;
 } MsgGameOver;
+
+/* Full tilemap snapshot sent directly to a late joiner so it inherits the
+ * in-progress map (destroyed blocks), not a fresh one. All-byte layout: no
+ * alignment concerns, no byte-swapping. Only 2 + cols*rows bytes are sent. */
+typedef struct {
+    unsigned char cols;
+    unsigned char rows;
+    unsigned char tiles[MAX_GRID_ROWS * MAX_GRID_COLS];  /* row-major */
+} MsgMapState;
 
 /* ---- Player Stats (for future power-ups / character editor) ---- */
 typedef struct {

@@ -21,6 +21,10 @@ static PT_Context *gPTCtx = NULL;
 static short gExpectedPlayers = 0;
 static int gVersionMismatch = FALSE;
 
+/* Join-in-progress map sync (011-macosx-sdl2, Phase 2) */
+static PT_Peer *Net_GetPeerByRank(int rank);
+static void Net_SendMapStateTo(PT_Peer *peer);
+
 /* ---- Callbacks ---- */
 
 static void on_peer_discovered(PT_Peer *peer, void *user_data)
@@ -127,6 +131,16 @@ static void on_position(PT_Peer *peer, const void *data, size_t len,
                         TileMap_GetSpawnRow((short)msg.playerID));
             CLOG_INFO("P%d joined game in progress (numPlayers now %d)",
                       msg.playerID, gGame.numPlayers);
+
+            /* Send our current (in-progress) map to the joiner so it inherits
+             * already-destroyed blocks. Directed to the joiner only, so a
+             * fresh map can never overwrite an existing player's. Every
+             * seating peer sends; the joiner applies the first that differs
+             * (Phase 2). */
+            {
+                PT_Peer *jp = Net_GetPeerByRank((int)msg.playerID);
+                if (jp != NULL) Net_SendMapStateTo(jp);
+            }
         }
 
         /* Convert tile-independent network coords back to local pixel coords.
@@ -287,6 +301,87 @@ static void on_game_over(PT_Peer *peer, const void *data, size_t len,
     gGame.gameOverFailsafeStart = 0;
 }
 
+/*
+ * on_map_state -- Apply a tilemap snapshot from an existing player (Phase 2).
+ *
+ * A late joiner receives this from each peer already in the game and applies
+ * the first that actually differs from its (fresh) map, so it inherits blocks
+ * destroyed before it joined. All-byte payload: read directly, no alignment
+ * or byte-swap concerns. Only acted on in-game.
+ */
+static void on_map_state(PT_Peer *peer, const void *data, size_t len,
+                         void *user_data)
+{
+    const MsgMapState *msg;
+    short cols, rows;
+    (void)peer;
+    (void)user_data;
+
+    if (gGame.currentScreen != SCREEN_GAME) return;
+    if (len < 2) return;
+    msg = (const MsgMapState *)data;
+    cols = (short)msg->cols;
+    rows = (short)msg->rows;
+    if (cols < 1 || rows < 1) return;
+    if (len < (size_t)(2 + (long)cols * rows)) return;   /* truncated */
+
+    if (TileMap_SetState(cols, rows, msg->tiles)) {
+        Renderer_RequestRebuildBackground();
+        CLOG_INFO("Applied in-progress map snapshot (%dx%d)", cols, rows);
+    }
+}
+
+/*
+ * Net_GetPeerByRank -- Find the connected peer occupying a given rank/slot.
+ * Used to direct a map snapshot at a specific late joiner.
+ */
+static PT_Peer *Net_GetPeerByRank(int rank)
+{
+    int count, i;
+
+    if (!gPTCtx) return NULL;
+    count = PT_GetPeerCount(gPTCtx);
+    for (i = 0; i < count; i++) {
+        PT_Peer *p = PT_GetPeer(gPTCtx, i);
+        if (p != NULL &&
+            PT_GetPeerState(p) == PT_PEER_CONNECTED &&
+            PT_GetPeerRank(gPTCtx, p) == rank) {
+            return p;
+        }
+    }
+    return NULL;
+}
+
+/*
+ * Net_SendMapStateTo -- Send our current tilemap to one peer (the late joiner).
+ * Static buffer (not stack) to keep the 68k main stack small.
+ */
+static void Net_SendMapStateTo(PT_Peer *peer)
+{
+    static MsgMapState msg;
+    TileMap *map;
+    short cols, rows, r, c;
+    long len;
+
+    if (!gPTCtx || peer == NULL) return;
+    map = TileMap_Get();
+    cols = map->cols;
+    rows = map->rows;
+    if (cols < 1 || rows < 1 || cols > MAX_GRID_COLS || rows > MAX_GRID_ROWS) return;
+
+    msg.cols = (unsigned char)cols;
+    msg.rows = (unsigned char)rows;
+    for (r = 0; r < rows; r++) {
+        for (c = 0; c < cols; c++) {
+            msg.tiles[r * cols + c] = map->tiles[r][c];
+        }
+    }
+
+    len = 2 + (long)cols * rows;
+    PT_Send(gPTCtx, peer, MSG_MAP_STATE, &msg, (size_t)len);
+    CLOG_INFO("Sent map snapshot (%dx%d, %ld bytes) to joiner", cols, rows, len);
+}
+
 /* ---- Debug Broadcast (via PeerTalk debug channel) ---- */
 
 #ifndef CLOG_STRIP
@@ -323,6 +418,7 @@ void Net_Init(const char *playerName)
     PT_RegisterMessage(gPTCtx, MSG_PLAYER_KILLED,   PT_RELIABLE);
     PT_RegisterMessage(gPTCtx, MSG_GAME_START,      PT_RELIABLE);
     PT_RegisterMessage(gPTCtx, MSG_GAME_OVER,       PT_RELIABLE);
+    PT_RegisterMessage(gPTCtx, MSG_MAP_STATE,       PT_RELIABLE);
 
     /* Register callbacks */
     PT_OnPeerDiscovered(gPTCtx, on_peer_discovered, NULL);
@@ -338,6 +434,7 @@ void Net_Init(const char *playerName)
     PT_OnMessage(gPTCtx, MSG_PLAYER_KILLED,   on_player_killed, NULL);
     PT_OnMessage(gPTCtx, MSG_GAME_START,      on_game_start, NULL);
     PT_OnMessage(gPTCtx, MSG_GAME_OVER,       on_game_over, NULL);
+    PT_OnMessage(gPTCtx, MSG_MAP_STATE,       on_map_state, NULL);
 
     CLOG_INFO("Net initialized");
 }
