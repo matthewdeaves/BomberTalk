@@ -108,8 +108,27 @@ static void on_position(PT_Peer *peer, const void *data, size_t len,
     memcpy(&msg, data, sizeof(MsgPosition));
 
     if (msg.playerID < MAX_PLAYERS &&
-        msg.playerID < (unsigned char)gGame.numPlayers &&
         msg.playerID != (unsigned char)gGame.localPlayerID) {
+        /* Join-in-progress: a position from a slot we are not yet tracking
+         * means that player is in the game, filling a free spawn corner.
+         * Seat it (Player_Init activates it and places it at its corner) and
+         * grow the roster. Four corners => up to MAX_PLAYERS; a player can
+         * join a game already running. This gates on the slot being inactive,
+         * so it never disturbs players already in the game, and it only fires
+         * in-game so lobby position chatter is unaffected. The KI-006 target
+         * snapping still holds: Player_Init sets target == pixel. (011) */
+        if (gGame.currentScreen == SCREEN_GAME &&
+            !gGame.players[msg.playerID].active) {
+            if (msg.playerID >= (unsigned char)gGame.numPlayers) {
+                gGame.numPlayers = (short)(msg.playerID + 1);
+            }
+            Player_Init((short)msg.playerID,
+                        TileMap_GetSpawnCol((short)msg.playerID),
+                        TileMap_GetSpawnRow((short)msg.playerID));
+            CLOG_INFO("P%d joined game in progress (numPlayers now %d)",
+                      msg.playerID, gGame.numPlayers);
+        }
+
         /* Convert tile-independent network coords back to local pixel coords.
          * Network coords use 256 units per tile, so multiply by local tileSize
          * and divide by 256 to get pixel position in our coordinate space. */
