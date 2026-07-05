@@ -617,18 +617,33 @@ int Net_GetDiscoveredPeerCount(void)
     discovered = 0;
     for (i = 0; i < count; i++) {
         peer = PT_GetPeer(gPTCtx, i);
-        if (peer) discovered++;
+        /* Skip peers PeerTalk has flagged gone. A peer that quit (clean Cmd-Q
+         * sends a discovery leave; a crash/close tears down TCP) is marked
+         * DISCONNECTED but kept in the table -- counting it made the lobby
+         * show quit players as still present until they aged out (011). */
+        if (peer && PT_GetPeerState(peer) != PT_PEER_DISCONNECTED)
+            discovered++;
     }
     return discovered;
 }
 
 const char *Net_GetDiscoveredPeerName(int index)
 {
+    int count, i, seen;
     PT_Peer *peer;
     if (!gPTCtx) return "";
 
-    peer = PT_GetPeer(gPTCtx, index);
-    if (peer) return PT_PeerName(peer);
+    /* Index among the live (non-DISCONNECTED) peers, matching the filtered
+     * Net_GetDiscoveredPeerCount so the lobby's count and name list agree. */
+    count = PT_GetPeerCount(gPTCtx);
+    seen = 0;
+    for (i = 0; i < count; i++) {
+        peer = PT_GetPeer(gPTCtx, i);
+        if (peer && PT_GetPeerState(peer) != PT_PEER_DISCONNECTED) {
+            if (seen == index) return PT_PeerName(peer);
+            seen++;
+        }
+    }
     return "";
 }
 
