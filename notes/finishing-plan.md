@@ -74,14 +74,33 @@ icons (stage 6); bomb refresh optional (exists).
 
 ## Stages
 
-1. **Asset pipeline one-command tool.** `tools/build-asset.sh <frames-dir> <name>`
-   takes generated PNG frames → **pixel-truing first** (pixeltrue CLI: grid snap,
-   palette quantize, correction report) → emits colour PICTs (ImageMagick), SE
-   1-bit PICTs (pixeltrue Atkinson → ImageMagick), the SDL BMP atlas, and
-   regenerates the .r data blocks. Nothing untrued ever reaches a build.
-   Prerequisite: pixeltrue stages 1–3 (see that repo's DESIGN.md). First deliverable inside it: verify an
-   ImageMagick-written PICT loads on real QuickDraw (else fall back to grid2pict).
-   Prove the tool by re-emitting the bomb frames through it.
+1. **Asset pipeline one-command tool.** ✅ **Built 2026-08-19** —
+   `tools/build-asset.sh <frames-dir> <name>` takes generated PNG frames →
+   **pixel-truing first** (pixeltrue `batch --true`, one grid voted across all
+   frames so animations cannot wobble; correction score gates the run, a red
+   verdict fails before anything is written) → emits colour PICTs, SE 1-bit
+   PICTs, the SDL BMP atlas, and regenerates the .r data blocks. Sizes, ids,
+   palettes and low-memory policy live in `resources/gfx/assets.json`, which
+   `scripts/embed-gfx.py` now also reads (no more hardcoded frame table).
+   Documented in `docs/asset-pipeline.md`.
+
+   The PICT question resolved differently than assumed: **ImageMagick cannot
+   write the SE tier at all** — its PICT coder ignores `-depth 1`/`-monochrome`
+   and always emits an 8-bit PixMap, and grid2pict emits 4-bit/8-bit PixMaps.
+   Both are Color QuickDraw constructs, and the SE's original QuickDraw draws
+   opcode `$0098` only as a BitMap. So `tools/png2pict.py` writes both forms
+   directly: a genuine 1-bit BitMap picture for the SE, and an indexed PixMap
+   for colour Macs that packs 4-bit when it fits (half ImageMagick's bytes, and
+   byte-for-byte the same structure grid2pict produced on the existing bomb
+   frames). ImageMagick is now only a PNG decoder. `tests/test_png2pict.py`
+   parses the emitted opcode stream back and is wired into `make -C tests check`.
+
+   **Still open — the hardware half:** no modern decoder can judge a 1-bit
+   BitMap PICT (ImageMagick renders it solid black, `sips` solid white), so the
+   SE tier needs one confirmation on a real SE or a System 6/7 guest under
+   `../QemuMac` before a whole sprite set is built on it. Fallback if it fails
+   is `--mode indexed` for the SE tier too. Colour Macs are already proven
+   (KI-008, confirmed on the G5).
    *Test: one command, three artifacts, all builds green, bombs visible on the SE.*
 2. **Full static sprite set, classic Macs.** Players, tiles, explosion, title —
    colour PICTs + SE 1-bit PICTs into the existing resource slots (the renderers

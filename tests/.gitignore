@@ -1,4 +1,5 @@
 # Compiled test binaries (built by `make check`); keep the sources.
 test_*
 !test_*.c
+!test_*.py
 !test_util.h

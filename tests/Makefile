@@ -7,6 +7,10 @@
 #   make check   # build + run all tests, non-zero exit on any failure
 #   make clean
 #
+# test_png2pict.py is the odd one out: the asset pipeline's PICT writer is
+# Python, so its test is too. It is skipped when python3 or ImageMagick is
+# missing rather than failing the suite.
+#
 # See notes/deepening-and-testability.md.
 
 CC     ?= cc
@@ -48,6 +52,11 @@ check: $(BINS)
 	for t in $(BINS); do \
 	  ./$$t || fail=1; \
 	done; \
+	if command -v python3 >/dev/null 2>&1 && command -v magick >/dev/null 2>&1; then \
+	  python3 test_png2pict.py || fail=1; \
+	else \
+	  echo "skipping test_png2pict.py (needs python3 + ImageMagick)"; \
+	fi; \
 	if [ $$fail -eq 0 ]; then \
 	  echo "ALL HOST TESTS PASSED"; \
 	else \

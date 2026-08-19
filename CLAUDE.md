@@ -66,6 +66,21 @@ correct against big-endian classic Macs via `net_wire.c`. Headless smoke: `SDL_V
 BT_SCREENSHOT=out.bmp ./build-sdl/BomberTalk` saves the menu frame; `tools/sdl_probe.c` dumps a
 gameplay board frame.
 
+## Assets
+
+`tools/build-asset.sh <frames-dir> <asset-name>` is the only supported way to produce game
+graphics: it grid-trues generated PNG frames with [pixeltrue](https://github.com/matthewdeaves/pixeltrue)
+(one voted grid across the directory; a red correction verdict fails the run), derives the
+colour / Mac SE / SDL tiers, writes the PICTs and atlas into `resources/gfx/`, and regenerates
+the Rez data blocks. Never hand-edit `resources/bombertalk_gfx*.r` — they are generated.
+
+Tier sizes, palettes, resource ids and low-memory policy live in `resources/gfx/assets.json`;
+add an asset there before building it, and keep ids in sync with the `rPict*` defines in
+`include/game.h`. `tools/png2pict.py` writes the PICTs directly — ImageMagick cannot emit the
+1-bit BitMap form the Mac SE's original QuickDraw needs, and is used only as a PNG decoder.
+Full detail, including the outstanding hardware verification of the SE tier, in
+`docs/asset-pipeline.md`.
+
 ## Hardware Deployment
 
 Deploy builds to real Classic Mac hardware using the [classic-mac-hardware-mcp](https://github.com/matthewdeaves/classic-mac-hardware-mcp) MCP server. See that repo's README for setup. Never use raw FTP scripts — the MCP server handles rate limiting and path normalization for RumpusFTP.

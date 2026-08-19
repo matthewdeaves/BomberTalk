@@ -1,0 +1,70 @@
+{
+  "_comment": [
+    "Single source of truth for the graphics resources. tools/build-asset.sh reads",
+    "the tier settings to know how to emit each asset; scripts/embed-gfx.py reads the",
+    "ids/labels/lowmem flags to know how to embed the results. Add an asset here",
+    "before building it.",
+    "",
+    "PICT files are named <name>_<tier>.pict for single-frame assets and",
+    "<name>_<tier>_f<N>.pict when frames > 1 -- the convention already on disk.",
+    "",
+    "Tiers: 'color' -> indexed PICT for Colour QuickDraw Macs; 'se' -> 1-bit BitMap",
+    "PICT that ORIGINAL QuickDraw (Mac SE, Plus, Classic) can actually draw; 'sdl'",
+    "-> BMP sprite atlas for the modern SDL client. Resource ids must match the",
+    "rPict* defines in include/game.h.",
+    "",
+    "lowmem: keep this resource in bombertalk_gfx_lowmem.r (the 68k MacTCP / Mac SE",
+    "build). Colour-only resources set it false to stay out of that resource fork."
+  ],
+  "assets": [
+    {
+      "name": "bomb",
+      "frames": 3,
+      "knockout": "auto",
+      "tiers": {
+        "color": {
+          "ids": [140, 141, 142],
+          "label": "Bomb f{n}",
+          "size": "32x32",
+          "palette": "system7",
+          "lowmem": false
+        },
+        "se": {
+          "ids": [145, 146, 147],
+          "label": "Bomb SE f{n}",
+          "size": "16x16",
+          "palette": "1bit-mac",
+          "dither": "atkinson",
+          "lowmem": true
+        },
+        "sdl": {
+          "size": "64x64",
+          "palette": "system7",
+          "atlas": "bomb_atlas.bmp"
+        }
+      }
+    },
+    {
+      "name": "splash",
+      "frames": 1,
+      "knockout": "none",
+      "tiers": {
+        "color": {
+          "ids": [150],
+          "label": "Splash Color",
+          "size": "480x416",
+          "palette": "system7",
+          "lowmem": false
+        },
+        "se": {
+          "ids": [250],
+          "label": "Splash SE",
+          "size": "240x208",
+          "palette": "1bit-mac",
+          "dither": "atkinson",
+          "lowmem": true
+        }
+      }
+    }
+  ]
+}

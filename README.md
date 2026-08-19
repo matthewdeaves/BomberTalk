@@ -124,10 +124,25 @@ src/           # Shared C89 game core + swappable backends
                #   and SDL2/POSIX (BT_POSIX)
 tests/         # Native host unit tests for the portable core (no Mac needed)
 maps/          # Level data
-resources/     # Rez files (MENU, SIZE, sprites)
+resources/     # Rez files (MENU, SIZE, sprites) + gfx/ PICTs and assets.json
+tools/         # Build scripts and the asset pipeline (build-asset.sh, png2pict.py)
 books/         # Classic Mac game programming reference books
 specs/         # Design artifacts (spec, plan, tasks, data model, contracts)
 ```
+
+## Assets
+
+Generated PNG frames become shippable assets in one command:
+
+```sh
+tools/build-asset.sh <frames-dir> <asset-name>
+```
+
+It grid-trues the frames (via [pixeltrue](https://github.com/matthewdeaves/pixeltrue)),
+rejects generations too sloppy to true cleanly, then derives all three tiers —
+32x32 indexed PICT for colour Macs, 16x16 1-bit BitMap PICT for the Mac SE,
+64x64 BMP atlas for SDL — and regenerates the Rez data blocks.
+See [docs/asset-pipeline.md](docs/asset-pipeline.md).
 
 ## Design Principles
 
