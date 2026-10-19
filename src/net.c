@@ -151,9 +151,10 @@ static void on_position(PT_Peer *peer, const void *data, size_t len,
 
         /* Convert tile-independent network coords back to local pixel coords.
          * Network coords use 256 units per tile, so multiply by local tileSize
-         * and divide by 256 to get pixel position in our coordinate space. */
-        localPX = NetCoord_ToLocal(msg.pixelX, ts);
-        localPY = NetCoord_ToLocal(msg.pixelY, ts);
+         * and divide by 256 to get pixel position in our coordinate space,
+         * clamped into the play area (the wire value is untrusted). */
+        localPX = NetCoord_ToLocalClamped(msg.pixelX, ts, gGame.playWidth);
+        localPY = NetCoord_ToLocalClamped(msg.pixelY, ts, gGame.playHeight);
 
         /* Mark old position dirty (multi-tile aware) */
         Player_MarkDirtyTiles(msg.playerID);

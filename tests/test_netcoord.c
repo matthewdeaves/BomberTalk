@@ -96,11 +96,45 @@ static void test_no_overflow_max_field(void)
     CHECK_EQ(back, maxPixel32, "max field round-trips");
 }
 
+/*
+ * Regression: a remote MSG_POSITION's coords were converted and used as the
+ * player's interpolation target with no range check, so a wire value like
+ * 32767 (or a negative) put the sprite 4095px away / off the left edge of the
+ * play area. Received positions are clamped to [0, extent - tileSize].
+ */
+static void test_clamp_local(void)
+{
+    short ts, ext;
+    printf("test_clamp_local\n");
+    ts = 32; ext = (short)(15 * 32);
+    CHECK_EQ(NetCoord_ToLocalClamped(0, ts, ext), 0, "origin");
+    CHECK_EQ(NetCoord_ToLocalClamped(NetCoord_ToWire(100, ts), ts, ext), 100, "in range unchanged");
+    CHECK_EQ(NetCoord_ToLocalClamped(NetCoord_ToWire(ext - ts, ts), ts, ext), ext - ts, "max in range");
+    CHECK_EQ(NetCoord_ToLocalClamped(NetCoord_ToWire(ext, ts), ts, ext), ext - ts, "one tile past clamped");
+    CHECK_EQ(NetCoord_ToLocalClamped(32767, ts, ext), ext - ts, "SHRT_MAX clamped");
+    CHECK_EQ(NetCoord_ToLocalClamped(-1, ts, ext), 0, "-1 clamped to 0");
+    CHECK_EQ(NetCoord_ToLocalClamped(-32768, ts, ext), 0, "SHRT_MIN clamped to 0");
+    ts = 16; ext = (short)(15 * 16);
+    CHECK_EQ(NetCoord_ToLocalClamped(32767, ts, ext), ext - ts, "SHRT_MAX clamped (16px)");
+    CHECK_EQ(NetCoord_ToLocalClamped(NetCoord_ToWire(50, ts), ts, ext), 50, "in range unchanged (16px)");
+}
+
+/* ToWire must not left-shift a negative value (undefined in C); the result
+ * must still be the exact two's complement product. */
+static void test_to_wire_negative(void)
+{
+    printf("test_to_wire_negative\n");
+    CHECK_EQ(NetCoord_ToWire(-1, 16), -16, "-1 px @16");
+    CHECK_EQ(NetCoord_ToWire(-3, 32), -24, "-3 px @32");
+}
+
 int main(void)
 {
     printf("== test_netcoord ==\n");
     test_roundtrip_same_size();
     test_cross_size_grid_agreement();
     test_no_overflow_max_field();
+    test_clamp_local();
+    test_to_wire_negative();
     return TEST_RESULT();
 }

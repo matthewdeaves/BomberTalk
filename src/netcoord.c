@@ -14,7 +14,8 @@ short NetCoord_ToWire(short pixel, short tileSize)
      * cycles. 16px: 256/16 = 1<<4.  32px: 256/32 = 1<<3. A new tile size
      * would need another entry here (and must be a power of two). */
     short shift = (tileSize == 16) ? 4 : 3;
-    return (short)((long)pixel << shift);
+    /* Shift as unsigned: left-shifting a negative value is undefined in C. */
+    return (short)(long)((unsigned long)(long)pixel << shift);
 }
 
 short NetCoord_ToLocal(short wire, short tileSize)
@@ -22,4 +23,13 @@ short NetCoord_ToLocal(short wire, short tileSize)
     /* pixel = wire * tileSize / 256. Multiply-then-shift works for any tile
      * size; the receive path is not the per-frame hot path the send is. */
     return (short)(((long)wire * tileSize) >> 8);
+}
+
+short NetCoord_ToLocalClamped(short wire, short tileSize, short extent)
+{
+    short px = NetCoord_ToLocal(wire, tileSize);
+    short maxPx = (short)(extent - tileSize);
+    if (px > maxPx) px = maxPx;
+    if (px < 0) px = 0;
+    return px;
 }

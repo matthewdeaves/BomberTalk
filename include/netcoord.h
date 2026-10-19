@@ -20,4 +20,9 @@ short NetCoord_ToWire(short pixel, short tileSize);
 /* Wire coordinate -> local pixel position for this machine's tile size. */
 short NetCoord_ToLocal(short wire, short tileSize);
 
+/* Same as NetCoord_ToLocal, then clamped to [0, extent - tileSize] where
+ * extent is the play-area width/height in pixels. For positions received from
+ * a peer: untrusted values must not place a sprite outside the play area. */
+short NetCoord_ToLocalClamped(short wire, short tileSize, short extent);
+
 #endif /* NETCOORD_H */
