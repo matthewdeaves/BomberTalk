@@ -326,10 +326,10 @@ static void on_map_state(PT_Peer *peer, const void *data, size_t len,
     msg = (const MsgMapState *)data;
     cols = (short)msg->cols;
     rows = (short)msg->rows;
-    if (cols < 1 || rows < 1) return;
-    if (len < (size_t)(2 + (long)cols * rows)) return;   /* truncated */
 
-    if (TileMap_SetState(cols, rows, msg->tiles)) {
+    /* TileMap_SetState rejects out-of-range dims and a payload shorter than
+     * cols*rows without modifying the map (no clamp-then-overread). */
+    if (TileMap_SetState(cols, rows, msg->tiles, (long)(len - 2))) {
         Renderer_RequestRebuildBackground();
         CLOG_INFO("Applied in-progress map snapshot (%dx%d)", cols, rows);
     }

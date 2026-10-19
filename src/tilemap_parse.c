@@ -50,3 +50,37 @@ int TileMap_ParseData(const unsigned char *data, long size,
     *outRows = rows;
     return 1;
 }
+
+int TileMap_ApplySnapshot(unsigned char tiles[MAX_GRID_ROWS][MAX_GRID_COLS],
+                          short *curCols, short *curRows,
+                          short cols, short rows,
+                          const unsigned char *src, long srcLen)
+{
+    short r, c;
+    int changed = 0;
+
+    if (src == NULL) return -1;
+
+    /* Reject, never clamp: the byte count validated below must be the same
+     * cols*rows the loop reads. Validate fully before touching any state. */
+    if (cols < 7 || cols > MAX_GRID_COLS) return -1;
+    if (rows < 7 || rows > MAX_GRID_ROWS) return -1;
+    if (srcLen < (long)cols * rows) return -1;
+
+    if (cols != *curCols || rows != *curRows) changed = 1;
+
+    for (r = 0; r < rows; r++) {
+        for (c = 0; c < cols; c++) {
+            unsigned char t = src[r * cols + c];
+            if (t > TILE_SPAWN) t = TILE_FLOOR;
+            if (tiles[r][c] != t) {
+                tiles[r][c] = t;
+                changed = 1;
+            }
+        }
+    }
+
+    *curCols = cols;
+    *curRows = rows;
+    return changed;
+}

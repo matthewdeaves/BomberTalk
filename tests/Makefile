@@ -5,6 +5,7 @@
 # host_mac_types.h) and links each test_*.c into its own executable.
 #
 #   make check   # build + run all tests, non-zero exit on any failure
+#   make check SAN="-fsanitize=address,undefined -g"   # same, under sanitizers
 #   make clean
 #
 # test_png2pict.py is the odd one out: the asset pipeline's PICT writer is
@@ -14,12 +15,13 @@
 # See notes/deepening-and-testability.md.
 
 CC     ?= cc
-CFLAGS  = -std=c89 -Wall -Wextra -Wno-unused-function \
+CFLAGS  = -std=c89 -Wall -Wextra -Wno-unused-function $(SAN) \
           -DBT_HOST_TEST -I. -I../include
 
 # Each test and the core sources it exercises.
 BINS = test_pixfmt test_netcoord test_movement test_tilemap_parse \
-       test_collision test_raycast test_wincond test_net_wire
+       test_collision test_raycast test_wincond test_net_wire \
+       test_tilemap_snapshot
 
 all: check
 
@@ -34,6 +36,9 @@ test_movement: test_movement.c ../src/movement.c
 
 test_tilemap_parse: test_tilemap_parse.c ../src/tilemap_parse.c
 	$(CC) $(CFLAGS) -o $@ test_tilemap_parse.c ../src/tilemap_parse.c
+
+test_tilemap_snapshot: test_tilemap_snapshot.c ../src/tilemap_parse.c
+	$(CC) $(CFLAGS) -o $@ test_tilemap_snapshot.c ../src/tilemap_parse.c
 
 test_collision: test_collision.c ../src/collision.c
 	$(CC) $(CFLAGS) -o $@ test_collision.c ../src/collision.c

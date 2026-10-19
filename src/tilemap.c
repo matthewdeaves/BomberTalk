@@ -158,35 +158,13 @@ void TileMap_SetTile(short col, short row, unsigned char type)
     }
 }
 
-int TileMap_SetState(short cols, short rows, const unsigned char *tiles)
+int TileMap_SetState(short cols, short rows, const unsigned char *tiles,
+                     long tilesLen)
 {
-    short r, c;
-    int changed = 0;
-
-    if (tiles == NULL) return 0;
-
-    /* Clamp + sanitise network input, same rules as the TMAP parser. */
-    if (cols < 7) cols = 7;
-    if (cols > MAX_GRID_COLS) cols = MAX_GRID_COLS;
-    if (rows < 7) rows = 7;
-    if (rows > MAX_GRID_ROWS) rows = MAX_GRID_ROWS;
-
-    if (cols != gMap.cols || rows != gMap.rows) changed = 1;
-
-    for (r = 0; r < rows; r++) {
-        for (c = 0; c < cols; c++) {
-            unsigned char t = tiles[r * cols + c];
-            if (t > TILE_SPAWN) t = TILE_FLOOR;
-            if (gMap.tiles[r][c] != t) {
-                gMap.tiles[r][c] = t;
-                changed = 1;
-            }
-        }
-    }
-
-    gMap.cols = cols;
-    gMap.rows = rows;
-    return changed;
+    /* Validation (dims in range, payload length) lives in the host-tested
+     * TileMap_ApplySnapshot; a rejected snapshot changes nothing. */
+    return TileMap_ApplySnapshot(gMap.tiles, &gMap.cols, &gMap.rows,
+                                 cols, rows, tiles, tilesLen) == 1;
 }
 
 short TileMap_GetCols(void)
