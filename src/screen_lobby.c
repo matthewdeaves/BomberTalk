@@ -10,6 +10,7 @@
 #include "screens.h"
 #include "input.h"
 #include "net.h"
+#include "net_wire.h"
 #include "renderer.h"
 #include <clog.h>
 
@@ -65,7 +66,25 @@ void Lobby_Init(void)
 
 static void enter_game(int numPlayers)
 {
-    gGame.localPlayerID = Net_ComputeLocalPlayerID();
+    short localID = Net_ComputeLocalPlayerID();
+
+    /* More than MAX_PLAYERS machines on the network: a rank past the last
+     * slot would index gGame.players[] out of range in Game_Init, so refuse
+     * to launch (back to the lobby) rather than overrun. A roster larger than
+     * MAX_PLAYERS (discovered/connected peer counts are unbounded here) is
+     * clamped to the slots that exist. */
+    if (!NetWire_ValidSlot(localID)) {
+        CLOG_WARN("Local rank %d has no player slot (max %d); not starting",
+                  localID, MAX_PLAYERS);
+        gStartRequested = FALSE;
+        gMeshWaitStart = 0;
+        gGame.gameStartReceived = FALSE;
+        return;
+    }
+    if (numPlayers > MAX_PLAYERS) numPlayers = MAX_PLAYERS;
+    if (numPlayers < 1) numPlayers = 1;
+
+    gGame.localPlayerID = localID;
     gGame.numPlayers = (short)numPlayers;
 
     CLOG_INFO("Entering game: %d players, localID=%d",
@@ -124,6 +143,7 @@ void Lobby_Update(void)
          * the roster and launch. On timeout start with whoever connected. */
         if (connectedCount >= peerCount || timedOut) {
             expected = (short)((timedOut ? connectedCount : peerCount) + 1);
+            if (expected > MAX_PLAYERS) expected = MAX_PLAYERS;
             if (timedOut && connectedCount < peerCount) {
                 CLOG_WARN("Mesh form timeout: starting with %d players",
                           expected);

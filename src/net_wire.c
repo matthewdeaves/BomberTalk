@@ -40,3 +40,13 @@ void NetWire_UnpackPosition(const unsigned char *in, unsigned char *playerID,
     *pixelX = (short)NetWire_GetU16(in + 2);
     *pixelY = (short)NetWire_GetU16(in + 4);
 }
+
+int NetWire_ValidRoster(int n)
+{
+    return (n >= 1 && n <= MAX_PLAYERS) ? 1 : 0;
+}
+
+int NetWire_ValidSlot(int id)
+{
+    return (id >= 0 && id < MAX_PLAYERS) ? 1 : 0;
+}

@@ -87,6 +87,30 @@ static void test_negative_twos_complement(void)
     roundtrip(0, 0, -32768, -32768);
 }
 
+/*
+ * Regression: MSG_GAME_START's numPlayers byte went straight into
+ * gExpectedPlayers -> enter_game -> gGame.numPlayers, which Game_Init and the
+ * game loop use as a bound on gGame.players[MAX_PLAYERS]. 0xFF (or 5..255, or
+ * 0) from the wire indexed far past the array.
+ */
+static void test_roster_and_slot_validation(void)
+{
+    int n;
+    printf("test_roster_and_slot_validation\n");
+    CHECK_EQ(NetWire_ValidRoster(0), 0, "roster 0 invalid");
+    CHECK_EQ(NetWire_ValidRoster(-1), 0, "roster -1 invalid");
+    for (n = 1; n <= MAX_PLAYERS; n++)
+        CHECK_EQ(NetWire_ValidRoster(n), 1, "roster 1..MAX_PLAYERS valid");
+    CHECK_EQ(NetWire_ValidRoster(MAX_PLAYERS + 1), 0, "roster MAX+1 invalid");
+    CHECK_EQ(NetWire_ValidRoster(255), 0, "roster 255 invalid");
+
+    CHECK_EQ(NetWire_ValidSlot(-1), 0, "slot -1 invalid");
+    for (n = 0; n < MAX_PLAYERS; n++)
+        CHECK_EQ(NetWire_ValidSlot(n), 1, "slot 0..MAX_PLAYERS-1 valid");
+    CHECK_EQ(NetWire_ValidSlot(MAX_PLAYERS), 0, "slot MAX invalid");
+    CHECK_EQ(NetWire_ValidSlot(255), 0, "slot 255 invalid");
+}
+
 int main(void)
 {
     printf("== test_net_wire ==\n");
@@ -94,5 +118,6 @@ int main(void)
     test_position_layout();
     test_position_roundtrip();
     test_negative_twos_complement();
+    test_roster_and_slot_validation();
     return TEST_RESULT();
 }

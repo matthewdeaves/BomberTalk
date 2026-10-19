@@ -19,6 +19,8 @@
 #ifndef NET_WIRE_H
 #define NET_WIRE_H
 
+#include "coredefs.h"   /* MAX_PLAYERS */
+
 /* Big-endian 16-bit primitives. Host endianness does not matter: PutU16 always
  * writes the high byte first, GetU16 always reads it first. */
 void NetWire_PutU16(unsigned char *p, unsigned short v);
@@ -33,5 +35,13 @@ void NetWire_PackPosition(unsigned char playerID, unsigned char facing,
                           short pixelX, short pixelY, unsigned char *out);
 void NetWire_UnpackPosition(const unsigned char *in, unsigned char *playerID,
                             unsigned char *facing, short *pixelX, short *pixelY);
+
+/* Range checks for player counts / slot numbers that arrive off the wire (or
+ * come from a PeerTalk rank) before they are used as a bound on, or an index
+ * into, gGame.players[MAX_PLAYERS]. Return 1 if valid, 0 if not.
+ *   ValidRoster: a player count, 1..MAX_PLAYERS
+ *   ValidSlot:   a player index, 0..MAX_PLAYERS-1 */
+int NetWire_ValidRoster(int n);
+int NetWire_ValidSlot(int id);
 
 #endif /* NET_WIRE_H */

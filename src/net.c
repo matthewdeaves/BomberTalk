@@ -256,6 +256,14 @@ static void on_game_start(PT_Peer *peer, const void *data, size_t len,
     if (len < sizeof(MsgGameStart)) return;
     msg = (const MsgGameStart *)data;
 
+    /* numPlayers bounds gGame.players[] once it reaches gGame.numPlayers:
+     * reject anything outside 1..MAX_PLAYERS rather than trust the wire. */
+    if (!NetWire_ValidRoster(msg->numPlayers)) {
+        CLOG_WARN("Game start with invalid player count %d ignored",
+                  msg->numPlayers);
+        return;
+    }
+
     /* Version check (T023) */
     if (msg->version != BT_PROTOCOL_VERSION) {
         CLOG_WARN("Version mismatch: got %d, expected %d",
