@@ -198,3 +198,28 @@ Observations from hardware testing that don't block current functionality but co
 **Lesson**: `NewGWorld(depth=0)` is display-dependent; any code that pokes GWorld pixel bytes directly must handle 8/16/32-bit, not assume the depth of whatever machine it was first tested on.
 
 **Frequency**: Every run on any display deeper than 8-bit (deterministic).
+
+---
+
+## KI-009: A Remote Peer Can Claim Another Player's Identity or Authority
+
+**Observed**: static review of `src/net.c` handlers after the 2026-10 input-validation pass (not seen in play)
+**Severity**: Low in practice (trusted home LAN, friendly retro machines); a robustness and cheating gap, not a crash
+**Status**: OPEN, design decision needed. Do not fix by changing PeerTalk (see "Where the fix belongs").
+
+**What is possible**: every game message carries the player it is about (`playerID` in `MsgPosition`, `MSG_BOMB_PLACED`, `MSG_PLAYER_KILLED`, ...), and the handlers trust it. A peer can send `MSG_PLAYER_KILLED` for the local player, `MSG_BOMB_PLACED` or a position update that names someone else, or `MSG_GAME_START` when it is not the starter. The input-validation pass made all of this safe from a memory-safety point of view (bounds, roster size, map size), but not from a who-is-allowed-to-say-what point of view.
+
+**Where the fix belongs: BomberTalk, in the net handlers.** What "a player" is, who owns a bomb, who may report a death and who may start a game are all rules of this game. PeerTalk is a transport library for many kinds of application (Bomberman, Chess, Chat, and whatever comes next) and must not learn them.
+
+**What PeerTalk already gives us**: every `PT_MessageCallback` receives the `PT_Peer *peer` the message arrived from. For TCP that comes from the connection; for UDP it comes from the source IP of a connected peer (`pt_messaging_process_udp_data`). `PT_GetPeerRank(ctx, peer)` turns a peer into its stable rank, which BomberTalk already uses to pick a player slot (`Net_ComputeLocalPlayerID`).
+
+**Suggested design** (BomberTalk only):
+1. One helper in the net layer that maps the sending `peer` to its player slot, built on the rank mapping that already exists, and returns "unknown" if the peer has no slot.
+2. Each handler requires the claimed player to equal the sender's slot: position, bomb placed, bomb explode (only the owner), player killed (only a peer reporting itself, or the authority per the existing game-over rules).
+3. `MSG_GAME_START` accepted only from the peer that is allowed to start (the lobby already knows the initiator).
+4. Drop and `CLOG_DEBUG` anything else. No new message fields and no protocol bump are needed, because the sender is known from the transport.
+5. Test it on the host with the same fake-peer approach as `tests/test_net_wire.c`: put the check in a pure function (sender slot, claimed slot, message type -> accept or reject) so the host tests cover it.
+
+**Things to get right**: ranks can change when a peer joins or leaves mid-game (late join); decide whether the slot is fixed at game start and stored, rather than recomputed from the live rank. UDP messages are attributed by source IP only, so on a LAN this stops accidents and casual cheating, not a determined spoofer. Two machines behind one NAT address look like one peer; that is a test-setup limit, not something to design around.
+
+**Not a PeerTalk feature request.** Per PeerTalk's constitution a feature must serve at least the three reference apps (Bomberman, Chess, Chat) and add no knobs. If a second application later needs the same thing, the candidate is a tiny, generic helper that tells the app which peer a message came from (which the callback already does), not authentication, encryption or anything that knows what a "player" is. See also the "Trust boundary" section in PeerTalk's `ARCHITECTURE.md`.
