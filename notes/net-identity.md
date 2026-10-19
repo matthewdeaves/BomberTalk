@@ -3,7 +3,7 @@
 BomberTalk is one application on the generic PeerTalk transport. PeerTalk
 tells every message callback which `PT_Peer` the message came from; it does
 not know what a "player" is. The rules below are BomberTalk's, in
-`src/net.c` (wiring) and `src/net_auth.c` (pure rules, host tested in
+`src/net_handlers.c` (wiring) and `src/net_auth.c` (pure rules, host tested in
 `tests/test_net_auth.c`). Nothing in PeerTalk changed.
 
 ## Sender slot

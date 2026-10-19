@@ -50,7 +50,7 @@ GAME_SOURCES="
   src/screens.c src/screen_loading.c src/screen_menu.c src/screen_lobby.c
   src/screen_game.c src/tilemap.c src/tilemap_parse.c src/player.c
   src/collision.c src/bomb.c src/raycast.c src/movement.c src/wincond.c
-  src/net.c src/netcoord.c src/net_wire.c src/net_auth.c
+  src/net.c src/netcoord.c src/net_wire.c src/net_auth.c src/net_handlers.c src/net_send.c
   src/renderer_sdl.c src/input_sdl.c src/main_posix.c
   src/mac_shim.c src/platform_posix.c
 "

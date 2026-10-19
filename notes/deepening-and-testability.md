@@ -59,8 +59,8 @@ edges.
 - [x] **D2 — Portable-core carve.** *Done:* pure logic carved into standalone, host-built
   units — `netcoord.c` (coord normalisation), `movement.c` (accumulator), `tilemap_parse.c`
   (TMAP validate/clamp/sanitise), `collision.c` (`Collide_ResolveAxis` — axis-separated AABB),
-  `raycast.c` (`Ray_Reach` — bomb blast reach), and `wincond.c` (`Win_Decide` +
-  `Win_ShouldReactivate`). Portable gameplay constants live in `coredefs.h` (Toolbox-free;
+  `raycast.c` (`Ray_Reach`, `Blast_Plan` — bomb blast reach/plan), and `wincond.c` (`Win_Decide` +
+  `Win_ShouldReactivate` + the `RoundEnd` state machine). Portable gameplay constants live in `coredefs.h` (Toolbox-free;
   `game.h` includes it). The three gameplay-critical carves took plain-value arguments (flat
   tile/bomb arrays, tallied counts) rather than `gGame`/`Player`/`TileMap` pointers — no
   fixture needed, no dirty/clock port needed, and the hot inner loops stay direct-indexed and

@@ -175,9 +175,14 @@ Two offscreen buffers: **background** (static tilemap) and **work** (per-frame c
 - Mark tiles dirty in every code path that changes visible state: player move, bomb place/explode, block destroy, explosion expire, network position update, player disconnect
 - `Player_MarkDirtyTiles(playerID)` marks 1-4 tiles for sub-tile positions (player straddling tile boundaries). Called before and after movement updates, and before disconnect deactivation.
 
-### Network Layer (`net.c`)
+### Network Layer (`net.c`, `net_handlers.c`, `net_send.c`)
 
 Thin wrapper around PeerTalk SDK. All network I/O is callback-driven via `PT_Poll()`.
+Split by concern: `net.c` = lifecycle, discovery, peer/roster queries, the PeerTalk context
+(shared via `net_internal.h`); `net_handlers.c` = incoming callbacks and sender identity;
+`net_send.c` = outgoing messages. Pure rules: `net_auth.c`, `net_wire.c`, `netcoord.c`.
+The round-end flow (local decision, failsafe, pending remote game over) is a host-tested state
+machine in `wincond.c` (`RoundEnd`, `Win_RoundEndStep`); blast geometry is `Blast_Plan` in `raycast.c`.
 
 - **Discovery**: UDP broadcast, peers appear in lobby
 - **Connection**: Full TCP mesh formed automatically by PeerTalk (`PT_EnableAutoMesh`). Each pair dialed from one side only (lower IP dials), so no simultaneous-connect race; self-heals after drops. App never calls `PT_Connect` directly.
