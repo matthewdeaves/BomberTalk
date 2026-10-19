@@ -205,7 +205,9 @@ Observations from hardware testing that don't block current functionality but co
 
 **Observed**: static review of `src/net.c` handlers after the 2026-10 input-validation pass (not seen in play)
 **Severity**: Low in practice (trusted home LAN, friendly retro machines); a robustness and cheating gap, not a crash
-**Status**: OPEN, design decision needed. Do not fix by changing PeerTalk (see "Where the fix belongs").
+**Status**: RESOLVED (2026-10) in BomberTalk's net handlers; PeerTalk unchanged. See `notes/net-identity.md` for the design. The text below is the original analysis.
+
+**Remaining limits**: UDP (`MSG_POSITION`) is attributed by source IP only, so a same-IP or spoofed-source packet is still believed (a determined LAN attacker, or two machines behind one NAT address, is out of scope). Any *seated* peer may still send block-destroyed, map-snapshot and game-over messages (game over cannot be lowest-rank-only because the 005 failsafe has other peers send it). Any player may send GAME_START (no host concept) while we are in the lobby.
 
 **What is possible**: every game message carries the player it is about (`playerID` in `MsgPosition`, `MSG_BOMB_PLACED`, `MSG_PLAYER_KILLED`, ...), and the handlers trust it. A peer can send `MSG_PLAYER_KILLED` for the local player, `MSG_BOMB_PLACED` or a position update that names someone else, or `MSG_GAME_START` when it is not the starter. The input-validation pass made all of this safe from a memory-safety point of view (bounds, roster size, map size), but not from a who-is-allowed-to-say-what point of view.
 
@@ -234,3 +236,17 @@ Observations from hardware testing that don't block current functionality but co
 
 - `on_bomb_placed` passes the wire `range` (0..255) straight to `Bomb_PlaceAt`. The raycast stops at the map edge, so it is memory-safe, but a peer can send a flame as long as the map. Fix with a game-rule cap (a `MAX_BOMB_RANGE` clamp in `on_bomb_placed`); related to KI-009.
 - `kDefaultSpawnCols` in `tilemap.c` is `{1,13,1,13}` (and rows up to 11): on a custom TMAP narrower than 14 columns or shorter than 12 rows, the fallback spawns fall outside the map. Fix by clamping fallback corners to `cols-2` / `rows-2` in `TileMap_ScanSpawns`. `tilemap.c` is not yet in the host test set, so this needs the parse/spawn logic split out first.
+
+---
+
+## KI-011: A Machine That Joins After GAME_START Left Rosters Disagreeing
+
+**Observed**: static review, 2026-10 (the numbering of the original task said KI-010; KI-010 is the bomb-range item above)
+**Severity**: Low
+**Status**: RESOLVED (2026-10) by a single admission rule; see `notes/net-identity.md`
+
+**Problem**: `GAME_START` fixes the roster size, but a machine can arrive afterwards. Slots are the sorted-IP ranks, so a newcomer that sorts below existing players shifts their *live* ranks. Peers that kept the smaller `numPlayers` ignored the newcomer's updates, or (with live ranks as identity) attributed them to the wrong player.
+
+**Decision**: keep the existing join-in-progress feature (011), but make admission one deterministic rule every machine applies identically (`NetAuth_AdmitLateJoiner`): an unseated peer that talks in-game is seated only into the free slot its live rank gives it, and only if that is the slot it claims. Seating binds the peer to that slot, grows `numPlayers` to cover it, spawns it, and sends it the current map. Anything else (it ranks into a slot someone holds, claims a slot it does not rank into) is ignored by everyone. Rejected alternative: re-announcing the roster, which needs a new message, a protocol bump, and agreement on who announces. A late `GAME_START` is dropped unless we are in the lobby, so it cannot re-roster a running game.
+
+**Remaining limit**: a joiner whose IP sorts into the middle of a running game is not admitted by anyone (and sees a mismatched roster itself); it must wait for the next round. Only joiners that sort above everyone, or into a freed slot, play.

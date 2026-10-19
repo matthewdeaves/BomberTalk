@@ -100,6 +100,44 @@ static void test_late_join_roster(void)
     CHECK_EQ(NetWire_SeatRoster(4, 2), 4, "roster never shrinks");
 }
 
+/* Roster agreement (KI-011): three seated machines (slots 0..2, local is 0).
+ * Every machine applies the same rule to a newcomer, so they all admit it or
+ * all ignore it. */
+static void test_roster_scenarios(void)
+{
+    static int px, py, jn;
+    const void *peers[MAX_PLAYERS];
+    int num = 3, slot, held;
+    printf("test_roster_scenarios\n");
+    peers[0] = 0; peers[1] = &px; peers[2] = &py; peers[3] = 0;
+
+    /* Joiner with the highest address: live rank 3, claims 3, slot free. */
+    CHECK_EQ(NetAuth_SlotOfPeer(peers, MAX_PLAYERS, &jn), NETAUTH_NO_SLOT,
+             "joiner starts unseated");
+    held = (peers[3] != 0);
+    CHECK_EQ(NetAuth_AdmitLateJoiner(3, 3, 0, held), 1, "top-rank joiner in");
+    peers[3] = &jn;
+    num = NetWire_SeatRoster(num, 3);
+    CHECK_EQ(num, 4, "roster grew to 4");
+    slot = NetAuth_SlotOfPeer(peers, MAX_PLAYERS, &jn);
+    CHECK_EQ(NetAuth_Accept(NETAUTH_SELF, slot, 3), 1, "joiner's own updates ok");
+    CHECK_EQ(NetAuth_Accept(NETAUTH_SELF, slot, 1), 0, "joiner cannot be P1");
+
+    /* Joiner whose address sorts into the middle: live rank 1 (existing
+     * players' live ranks shift), but slot 1 is held, so it is ignored. */
+    peers[3] = 0; num = 3;
+    held = (peers[1] != 0);
+    CHECK_EQ(NetAuth_AdmitLateJoiner(1, 1, 0, held), 0, "mid-rank joiner out");
+    CHECK_EQ(NetAuth_AdmitLateJoiner(3, 1, 0, 0), 0, "cannot claim a free slot it does not rank into");
+    CHECK_EQ(num, 3, "roster unchanged");
+
+    /* A seated player drops and its slot frees; it (or a newcomer ranking
+     * into it) is readmitted without moving anyone else. */
+    peers[1] = 0;
+    CHECK_EQ(NetAuth_AdmitLateJoiner(1, 1, 0, peers[1] != 0), 1, "freed slot reusable");
+    CHECK_EQ(NetAuth_SlotOfPeer(peers, MAX_PLAYERS, &py), 2, "others keep slots");
+}
+
 int main(void)
 {
     test_slot_of_peer();
@@ -110,5 +148,6 @@ int main(void)
     test_seated_messages();
     test_late_joiner();
     test_late_join_roster();
+    test_roster_scenarios();
     return TEST_RESULT();
 }
