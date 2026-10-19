@@ -111,6 +111,27 @@ static void test_roster_and_slot_validation(void)
     CHECK_EQ(NetWire_ValidSlot(255), 0, "slot 255 invalid");
 }
 
+static void test_seat_roster(void)
+{
+    int n;
+    printf("test_seat_roster\n");
+    CHECK_EQ(NetWire_SeatRoster(4, 2), 4, "roster covering our slot is unchanged");
+    CHECK_EQ(NetWire_SeatRoster(3, 2), 3, "slot == n-1 unchanged");
+    CHECK_EQ(NetWire_SeatRoster(2, 2), 3, "rank 2, roster 2: widened to seat us");
+    CHECK_EQ(NetWire_SeatRoster(1, 3), 4, "rank 3, roster 1: widened to 4");
+    CHECK_EQ(NetWire_SeatRoster(0, 0), 1, "roster 0 raised to 1");
+    CHECK_EQ(NetWire_SeatRoster(-5, 0), 1, "negative roster raised to 1");
+    CHECK_EQ(NetWire_SeatRoster(99, 0), MAX_PLAYERS, "oversized roster clamped");
+    for (n = -2; n < 12; n++) {
+        int id;
+        for (id = 0; id < MAX_PLAYERS; id++) {
+            int r = NetWire_SeatRoster(n, id);
+            CHECK(NetWire_ValidRoster(r) && r > id,
+                  "result is a valid roster that includes our slot");
+        }
+    }
+}
+
 int main(void)
 {
     printf("== test_net_wire ==\n");
@@ -119,5 +140,6 @@ int main(void)
     test_position_roundtrip();
     test_negative_twos_complement();
     test_roster_and_slot_validation();
+    test_seat_roster();
     return TEST_RESULT();
 }

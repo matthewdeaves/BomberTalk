@@ -81,8 +81,13 @@ static void enter_game(int numPlayers)
         gGame.gameStartReceived = FALSE;
         return;
     }
-    if (numPlayers > MAX_PLAYERS) numPlayers = MAX_PLAYERS;
-    if (numPlayers < 1) numPlayers = 1;
+    /* Our rank can exceed the roster size (a machine joined after
+     * GAME_START was announced, or the timeout path counted only connected
+     * peers). Game_Init seats only slots < numPlayers, so an unwidened roster
+     * would leave our slot force-activated but never Player_Init'd: standing
+     * at (0,0) inside a wall. Widen the roster to include our own slot rather
+     * than strand a machine that is already launching. */
+    numPlayers = NetWire_SeatRoster(numPlayers, localID);
 
     gGame.localPlayerID = localID;
     gGame.numPlayers = (short)numPlayers;

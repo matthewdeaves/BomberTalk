@@ -50,3 +50,11 @@ int NetWire_ValidSlot(int id)
 {
     return (id >= 0 && id < MAX_PLAYERS) ? 1 : 0;
 }
+
+int NetWire_SeatRoster(int numPlayers, int id)
+{
+    if (numPlayers > MAX_PLAYERS) numPlayers = MAX_PLAYERS;
+    if (numPlayers < 1) numPlayers = 1;
+    if (numPlayers <= id) numPlayers = id + 1;
+    return numPlayers;
+}

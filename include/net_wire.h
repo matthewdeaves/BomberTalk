@@ -44,4 +44,9 @@ void NetWire_UnpackPosition(const unsigned char *in, unsigned char *playerID,
 int NetWire_ValidRoster(int n);
 int NetWire_ValidSlot(int id);
 
+/* Roster size to seat a launching machine: the announced/connected count
+ * clamped to 1..MAX_PLAYERS and widened to at least id+1, so our own slot
+ * (id must be a ValidSlot) is always inside the roster Game_Init seats. */
+int NetWire_SeatRoster(int numPlayers, int id);
+
 #endif /* NET_WIRE_H */
