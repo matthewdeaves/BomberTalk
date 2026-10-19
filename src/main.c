@@ -147,12 +147,12 @@ static void SetupMenus(void)
 {
     MenuHandle appleMenu, fileMenu;
 
-    appleMenu = NewMenu(rMenuApple, "\p\x14");
+    appleMenu = NewMenu(rMenuApple, (ConstStr255Param)"\p\x14");
     AppendResMenu(appleMenu, 'DRVR');
     InsertMenu(appleMenu, 0);
 
-    fileMenu = NewMenu(rMenuFile, "\pFile");
-    AppendMenu(fileMenu, "\pQuit/Q");
+    fileMenu = NewMenu(rMenuFile, (ConstStr255Param)"\pFile");
+    AppendMenu(fileMenu, (ConstStr255Param)"\pQuit/Q");
     InsertMenu(fileMenu, 0);
 
     DrawMenuBar();
@@ -205,13 +205,13 @@ static void CreateGameWindow(void)
     if (gGame.isMacSE) {
         /* Mac SE: no Color QuickDraw, use NewWindow */
         gGame.window = NewWindow(
-            0L, &bounds, "\pBomberTalk", TRUE,
+            0L, &bounds, (ConstStr255Param)"\pBomberTalk", TRUE,
             noGrowDocProc, (WindowPtr)-1L, FALSE, 0L);
     } else
 #endif
     {
         gGame.window = (WindowPtr)NewCWindow(
-            0L, &bounds, "\pBomberTalk", TRUE,
+            0L, &bounds, (ConstStr255Param)"\pBomberTalk", TRUE,
             noGrowDocProc, (WindowPtr)-1L, FALSE, 0L);
     }
 
