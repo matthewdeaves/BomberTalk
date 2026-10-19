@@ -44,15 +44,12 @@ void Lobby_Init(void)
     gMeshWaitStart = 0;
 
     /* Clear leftover game state from previous round.
-     * pendingGameOver can be set by duplicate MSG_GAME_OVER arriving
+     * roundEnd.pending can be set by duplicate MSG_GAME_OVER arriving
      * after we already transitioned to lobby. gameStartReceived should
      * already be FALSE but belt-and-suspenders. */
-    gGame.pendingGameOver = FALSE;
+    Win_RoundEndClear(&gGame.roundEnd);
     gGame.gameStartReceived = FALSE;
-    gGame.gameOverTimeoutStart = 0;
     gGame.disconnectGraceStart = 0;
-    gGame.localGameOverDetected = FALSE;
-    gGame.gameOverFailsafeStart = 0;
 
     /* Clear stale peer pointers from previous game */
     for (i = 0; i < MAX_PLAYERS; i++) {

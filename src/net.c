@@ -386,13 +386,7 @@ static void on_game_over(PT_Peer *peer, const void *data, size_t len,
 
     /* Defer transition: let death animations finish before going to lobby.
      * Game_Update will handle the actual transition. */
-    gGame.pendingGameOver = TRUE;
-    gGame.pendingWinner = msg->winnerID;
-    gGame.gameOverTimeoutStart = TickCount();
-
-    /* Cancel failsafe timer if active — authority's message arrived (005) */
-    gGame.localGameOverDetected = FALSE;
-    gGame.gameOverFailsafeStart = 0;
+    Win_RoundEndOnRemote(&gGame.roundEnd, msg->winnerID, TickCount());
 }
 
 /*

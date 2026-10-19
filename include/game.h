@@ -43,6 +43,8 @@
 #include <Sound.h>
 #endif
 
+#include "wincond.h"
+
 /* Carbon compatibility shims (011-macosx-sdl2).
  *
  * On Classic Mac a WindowPtr IS a GrafPtr and a GrafPort's fields are
@@ -283,12 +285,8 @@ typedef struct {
     short           deltaTicks;     /* actual elapsed ticks since last frame */
     int             showFPS;
     short           fpsValue;
-    int             pendingGameOver;  /* remote game over received, wait for death anims */
-    unsigned char   pendingWinner;    /* winner ID from remote MSG_GAME_OVER */
-    unsigned long   gameOverTimeoutStart;  /* TickCount() when started, 0 = inactive */
+    RoundEnd        roundEnd;       /* round-end flow state (wincond.h) */
     unsigned long   disconnectGraceStart;  /* TickCount() when started, 0 = inactive */
-    int             localGameOverDetected; /* TRUE if local game over detected, not authority */
-    unsigned long   gameOverFailsafeStart; /* TickCount() when started, 0 = inactive */
     long            heapCheckTimer;        /* ticks since last periodic heap check */
     WindowPtr       window;
 } GameState;

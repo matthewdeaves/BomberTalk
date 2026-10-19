@@ -395,12 +395,8 @@ static void InitGameState(void)
     gGame.deltaTicks = FRAME_TICKS;
     gGame.showFPS = FALSE;
     gGame.fpsValue = 0;
-    gGame.pendingGameOver = FALSE;
-    gGame.pendingWinner = 0xFF;
-    gGame.gameOverTimeoutStart = 0;
+    Win_RoundEndClear(&gGame.roundEnd);
     gGame.disconnectGraceStart = 0;
-    gGame.localGameOverDetected = FALSE;
-    gGame.gameOverFailsafeStart = 0;
     gGame.heapCheckTimer = 0;
 
     for (i = 0; i < MAX_PLAYERS; i++) {

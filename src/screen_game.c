@@ -56,6 +56,96 @@ void Game_Init(void)
               gGame.numPlayers, gGame.localPlayerID);
 }
 
+/*
+ * EndRound -- Stop the simulation and start the disconnect grace period.
+ */
+static void EndRound(void)
+{
+    gGame.gameRunning = FALSE;
+    gGame.disconnectGraceStart = TickCount();
+    CLOG_INFO("Game over: starting grace period (%d ticks)",
+              DISCONNECT_GRACE_TICKS);
+}
+
+/*
+ * UpdateRoundEnd -- Tally the players and run the round-end flow.
+ * The decisions (failsafe, pending remote game over, last player standing,
+ * authority) live in wincond.c and are host tested; this does the I/O.
+ */
+static void UpdateRoundEnd(void)
+{
+    short i;
+    short aliveCount = 0;
+    short lastAlive = -1;
+    int anyDying = FALSE;
+    int action;
+    unsigned char winner;
+
+    for (i = 0; i < gGame.numPlayers; i++) {
+        if (gGame.players[i].active && gGame.players[i].alive) {
+            if (gGame.players[i].deathTimer > 0) {
+                anyDying = TRUE;
+            } else {
+                aliveCount++;
+                lastAlive = i;
+            }
+        }
+    }
+
+    action = Win_RoundEndStep(&gGame.roundEnd, anyDying, aliveCount,
+                              lastAlive, gGame.numPlayers, TickCount(),
+                              GAME_OVER_FAILSAFE_TICKS,
+                              GAME_OVER_TIMEOUT_TICKS,
+                              Net_IsLowestRankConnected, &winner);
+
+    switch (action) {
+    case WIN_ACT_END_FAILSAFE_GONE:
+    case WIN_ACT_END_FAILSAFE_TIME:
+        /* Non-authority machine detected game over but the authority's
+         * MSG_GAME_OVER never came (005): send it as a backup. */
+        CLOG_WARN("Game over failsafe: %s, sending as backup",
+                  action == WIN_ACT_END_FAILSAFE_GONE
+                      ? "authority disconnected" : "authority timeout");
+        Net_SendGameOver(winner);
+        EndRound();
+        break;
+
+    case WIN_ACT_END_REMOTE_TIME:
+    case WIN_ACT_END_REMOTE:
+        if (action == WIN_ACT_END_REMOTE_TIME) {
+            CLOG_WARN("Game over timeout, forcing transition");
+        }
+        CLOG_INFO("Game over (remote): winner=%d", winner);
+        EndRound();
+        break;
+
+    case WIN_ACT_END_AUTHORITY:
+    case WIN_ACT_WAIT_NONAUTH:
+        CLOG_INFO("Game over! Winner: %d (alive=%d dying=%d)",
+                  winner, aliveCount, anyDying);
+        for (i = 0; i < gGame.numPlayers; i++) {
+            CLOG_INFO("  P%d: active=%d alive=%d death=%d",
+                      i, gGame.players[i].active,
+                      gGame.players[i].alive,
+                      gGame.players[i].deathTimer);
+        }
+        /* Authority-based game over (005): only lowest-rank connected
+         * player broadcasts MSG_GAME_OVER. */
+        if (action == WIN_ACT_END_AUTHORITY) {
+            CLOG_INFO("Game over authority: sending MSG_GAME_OVER");
+            Net_SendGameOver(winner);
+            EndRound();
+        } else {
+            CLOG_INFO("Game over non-authority: starting failsafe timer");
+            Win_RoundEndArmFailsafe(&gGame.roundEnd, TickCount());
+        }
+        break;
+
+    default:
+        break;
+    }
+}
+
 void Game_Update(void)
 {
     short i;
@@ -70,8 +160,7 @@ void Game_Update(void)
         if (TickCount() - gGame.disconnectGraceStart >= DISCONNECT_GRACE_TICKS) {
             CLOG_INFO("Grace period complete, disconnecting");
             gGame.gameStartReceived = FALSE;
-            gGame.pendingGameOver = FALSE;
-            gGame.localGameOverDetected = FALSE;
+            Win_RoundEndClear(&gGame.roundEnd);
             Net_StopDiscovery();
             Net_DisconnectAllPeers();
             Screens_TransitionTo(SCREEN_LOBBY);
@@ -211,102 +300,7 @@ void Game_Update(void)
         }
     }
 
-    /* Check for game over: last player standing (wait for death anims) */
-    {
-        short aliveCount = 0;
-        short lastAlive = -1;
-        int anyDying = FALSE;
-        for (i = 0; i < gGame.numPlayers; i++) {
-            if (gGame.players[i].active && gGame.players[i].alive) {
-                if (gGame.players[i].deathTimer > 0) {
-                    anyDying = TRUE;
-                } else {
-                    aliveCount++;
-                    lastAlive = i;
-                }
-            }
-        }
-
-        /* Failsafe: non-authority machine detected game over locally but
-         * hasn't received MSG_GAME_OVER from authority yet (005).
-         * Only fires if authority has disconnected OR timer expired.
-         * If authority is still connected, keep waiting — it will send.
-         * Placed after alive-count loop to reuse aliveCount/lastAlive. */
-        if (gGame.localGameOverDetected) {
-            int authorityGone = Net_IsLowestRankConnected();
-            if (!gGame.pendingGameOver &&
-                (authorityGone ||
-                 (gGame.gameOverFailsafeStart != 0 &&
-                  TickCount() - gGame.gameOverFailsafeStart >= GAME_OVER_FAILSAFE_TICKS))) {
-                unsigned char winnerFC = (aliveCount == 1) ?
-                                         (unsigned char)lastAlive : 0xFF;
-                CLOG_WARN("Game over failsafe: %s, sending as backup",
-                          authorityGone ? "authority disconnected"
-                                        : "authority timeout");
-                Net_SendGameOver(winnerFC);
-                gGame.localGameOverDetected = FALSE;
-                gGame.gameRunning = FALSE;
-                gGame.disconnectGraceStart = TickCount();
-                CLOG_INFO("Game over: starting grace period (%d ticks)",
-                          DISCONNECT_GRACE_TICKS);
-                return;
-            }
-        }
-
-        /* Handle pending remote game over: wait for death anims or timeout.
-         * Uses TickCount() wall-clock timing (007). */
-        if (gGame.pendingGameOver) {
-            int timedOut = (gGame.gameOverTimeoutStart != 0 &&
-                            TickCount() - gGame.gameOverTimeoutStart >= GAME_OVER_TIMEOUT_TICKS);
-            if (!anyDying || timedOut) {
-                if (timedOut) {
-                    CLOG_WARN("Game over timeout, forcing transition");
-                }
-                CLOG_INFO("Game over (remote): winner=%d", gGame.pendingWinner);
-                gGame.gameRunning = FALSE;
-                gGame.pendingGameOver = FALSE;
-                gGame.disconnectGraceStart = TickCount();
-                CLOG_INFO("Game over: starting grace period (%d ticks)",
-                          DISCONNECT_GRACE_TICKS);
-            }
-            return;
-        }
-
-        {
-        int winnerIdx;
-        if (!gGame.localGameOverDetected &&
-            Win_Decide(anyDying, aliveCount, lastAlive, gGame.numPlayers,
-                       &winnerIdx)) {
-            unsigned char winner = (winnerIdx < 0) ?
-                                   0xFF : (unsigned char)winnerIdx;
-            CLOG_INFO("Game over! Winner: %d (alive=%d dying=%d)",
-                      winner, aliveCount, anyDying);
-            for (i = 0; i < gGame.numPlayers; i++) {
-                CLOG_INFO("  P%d: active=%d alive=%d death=%d",
-                          i, gGame.players[i].active,
-                          gGame.players[i].alive,
-                          gGame.players[i].deathTimer);
-            }
-
-            /* Authority-based game over (005): only lowest-rank
-             * connected player broadcasts MSG_GAME_OVER. */
-            if (Net_IsLowestRankConnected()) {
-                CLOG_INFO("Game over authority: sending MSG_GAME_OVER");
-                Net_SendGameOver(winner);
-            } else {
-                CLOG_INFO("Game over non-authority: starting failsafe timer");
-                gGame.localGameOverDetected = TRUE;
-                gGame.gameOverFailsafeStart = TickCount();
-                return;
-            }
-
-            gGame.gameRunning = FALSE;
-            gGame.disconnectGraceStart = TickCount();
-            CLOG_INFO("Game over: starting grace period (%d ticks)",
-                      DISCONNECT_GRACE_TICKS);
-        }
-        }
-    }
+    UpdateRoundEnd();
 }
 
 void Game_Draw(WindowPtr window)
