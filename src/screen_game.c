@@ -146,40 +146,34 @@ static void UpdateRoundEnd(void)
     }
 }
 
-void Game_Update(void)
+/*
+ * Grace period: wait for TCP buffers to flush before disconnect (005).
+ * Net_Poll() runs in MainLoop() before Screens_Update(), so TCP delivery
+ * continues during this wait without additional code. Uses TickCount()
+ * wall-clock timing (007) -- immune to the deltaTicks cap.
+ * Returns TRUE while a grace period is running (caller skips the frame).
+ */
+static int RunGracePeriod(void)
+{
+    if (gGame.disconnectGraceStart == 0) return FALSE;
+    if (TickCount() - gGame.disconnectGraceStart >= DISCONNECT_GRACE_TICKS) {
+        CLOG_INFO("Grace period complete, disconnecting");
+        gGame.gameStartReceived = FALSE;
+        Win_RoundEndClear(&gGame.roundEnd);
+        Net_StopDiscovery();
+        Net_DisconnectAllPeers();
+        Screens_TransitionTo(SCREEN_LOBBY);
+    }
+    return TRUE;
+}
+
+/* Reactivate remote players that received position data while inactive.
+ * Handles transient disconnect/reconnect: net layer delivers coords to
+ * inactive player (setting targetPixelX/Y), detected here by target
+ * diverging from current position. */
+static void ReactivateRemotePlayers(void)
 {
     short i;
-    Player *local;
-    short oldPX[MAX_PLAYERS], oldPY[MAX_PLAYERS];
-
-    /* Grace period: wait for TCP buffers to flush before disconnect (005).
-     * Net_Poll() runs in MainLoop() before Screens_Update(), so TCP
-     * delivery continues during this wait without additional code.
-     * Uses TickCount() wall-clock timing (007) — immune to deltaTicks cap. */
-    if (gGame.disconnectGraceStart != 0) {
-        if (TickCount() - gGame.disconnectGraceStart >= DISCONNECT_GRACE_TICKS) {
-            CLOG_INFO("Grace period complete, disconnecting");
-            gGame.gameStartReceived = FALSE;
-            Win_RoundEndClear(&gGame.roundEnd);
-            Net_StopDiscovery();
-            Net_DisconnectAllPeers();
-            Screens_TransitionTo(SCREEN_LOBBY);
-        }
-        return;
-    }
-
-    if (!gGame.gameRunning) return;
-
-    /* Save positions before update for moved-player dirty optimization */
-    for (i = 0; i < MAX_PLAYERS; i++) {
-        oldPX[i] = gGame.players[i].pixelX;
-        oldPY[i] = gGame.players[i].pixelY;
-    }
-
-    /* Reactivate remote players that received position data while inactive.
-     * Handles transient disconnect/reconnect: net layer delivers coords to
-     * inactive player (setting targetPixelX/Y), detected here by target
-     * diverging from current position. */
     for (i = 0; i < gGame.numPlayers; i++) {
         if (i == gGame.localPlayerID) continue;
         if (Win_ShouldReactivate(gGame.players[i].active,
@@ -193,62 +187,60 @@ void Game_Update(void)
             CLOG_INFO("P%d reactivated via network data", i);
         }
     }
+}
 
-    /* Update all players (local moves, remotes interpolate) */
-    for (i = 0; i < MAX_PLAYERS; i++) {
-        if (gGame.players[i].active) {
-            Player_Update(i);
-        }
+/* Send the local position when it changed (rate limited) or as a heartbeat. */
+static void SendLocalPosition(const Player *local)
+{
+    gHeartbeatTimer += gGame.deltaTicks;
+    gPosSendTimer += gGame.deltaTicks;
+    if ((local->pixelX != gLastSentPX ||
+         local->pixelY != gLastSentPY ||
+         local->facing != gLastSentFacing) &&
+        gPosSendTimer >= POS_SEND_INTERVAL) {
+        Net_SendPosition(local->pixelX, local->pixelY, local->facing);
+        gLastSentPX = local->pixelX;
+        gLastSentPY = local->pixelY;
+        gLastSentFacing = local->facing;
+        gHeartbeatTimer = 0;
+        gPosSendTimer = 0;
+    } else if (gHeartbeatTimer >= HEARTBEAT_TICKS) {
+        Net_SendPosition(local->pixelX, local->pixelY, local->facing);
+        gLastSentPX = local->pixelX;
+        gLastSentPY = local->pixelY;
+        gLastSentFacing = local->facing;
+        gHeartbeatTimer = 0;
+        gPosSendTimer = 0;
     }
+}
 
-    /* Check if local player moved and send position */
-    local = Player_GetLocal();
-    if (local && local->active && local->alive && local->deathTimer <= 0) {
-        gHeartbeatTimer += gGame.deltaTicks;
-        gPosSendTimer += gGame.deltaTicks;
-        if ((local->pixelX != gLastSentPX ||
-             local->pixelY != gLastSentPY ||
-             local->facing != gLastSentFacing) &&
-            gPosSendTimer >= POS_SEND_INTERVAL) {
-            Net_SendPosition(local->pixelX, local->pixelY, local->facing);
-            gLastSentPX = local->pixelX;
-            gLastSentPY = local->pixelY;
-            gLastSentFacing = local->facing;
-            gHeartbeatTimer = 0;
-            gPosSendTimer = 0;
-        } else if (gHeartbeatTimer >= HEARTBEAT_TICKS) {
-            Net_SendPosition(local->pixelX, local->pixelY, local->facing);
-            gLastSentPX = local->pixelX;
-            gLastSentPY = local->pixelY;
-            gLastSentFacing = local->facing;
-            gHeartbeatTimer = 0;
-            gPosSendTimer = 0;
-        }
-
-        /* Bomb placement (T012: use center-derived gridCol/gridRow) */
-        if (Input_WasKeyPressed(KEY_SPACE) && local->bombsAvailable > 0) {
-            if (Bomb_PlaceAt(local->gridCol, local->gridRow,
-                             local->stats.bombRange, local->playerID)) {
-                /* Set pass-through for the just-placed bomb (T016) */
-                {
-                    short bi;
-                    for (bi = 0; bi < MAX_BOMBS; bi++) {
-                        if (gGame.bombs[bi].active &&
-                            gGame.bombs[bi].gridCol == local->gridCol &&
-                            gGame.bombs[bi].gridRow == local->gridRow) {
-                            local->passThroughBombIdx = bi;
-                            break;
-                        }
-                    }
+/* Bomb placement (T012: use center-derived gridCol/gridRow). */
+static void PlaceLocalBomb(Player *local)
+{
+    if (Input_WasKeyPressed(KEY_SPACE) && local->bombsAvailable > 0) {
+        if (Bomb_PlaceAt(local->gridCol, local->gridRow,
+                         local->stats.bombRange, local->playerID)) {
+            /* Set pass-through for the just-placed bomb (T016) */
+            short bi;
+            for (bi = 0; bi < MAX_BOMBS; bi++) {
+                if (gGame.bombs[bi].active &&
+                    gGame.bombs[bi].gridCol == local->gridCol &&
+                    gGame.bombs[bi].gridRow == local->gridRow) {
+                    local->passThroughBombIdx = bi;
+                    break;
                 }
-                local->bombsAvailable--;
-                Net_SendBombPlaced(local->gridCol, local->gridRow,
-                                   local->stats.bombRange);
             }
+            local->bombsAvailable--;
+            Net_SendBombPlaced(local->gridCol, local->gridRow,
+                               local->stats.bombRange);
         }
     }
+}
 
-    /* Mark dirty only for players that moved or are dying (flash) */
+/* Mark dirty only for players that moved or are dying (flash). */
+static void MarkPlayersDirty(const short *oldPX, const short *oldPY)
+{
+    short i;
     for (i = 0; i < MAX_PLAYERS; i++) {
         if (!gGame.players[i].active) continue;
         if (gGame.players[i].deathTimer > 0) {
@@ -270,26 +262,29 @@ void Game_Update(void)
             Player_MarkDirtyTiles(i);
         }
     }
+}
 
-    /* Mark active bombs and explosions dirty (sprites drawn into work) */
+/* Mark active bombs and explosions dirty (sprites drawn into work). */
+static void MarkBombsDirty(void)
+{
+    short i, expCount;
+    const Explosion *exps;
     for (i = 0; i < MAX_BOMBS; i++) {
         if (gGame.bombs[i].active) {
             Renderer_MarkDirty(gGame.bombs[i].gridCol,
                                gGame.bombs[i].gridRow);
         }
     }
-    {
-        short expCount;
-        const Explosion *exps = Bomb_GetExplosions(&expCount);
-        for (i = 0; i < expCount; i++) {
-            Renderer_MarkDirty(exps[i].col, exps[i].row);
-        }
+    exps = Bomb_GetExplosions(&expCount);
+    for (i = 0; i < expCount; i++) {
+        Renderer_MarkDirty(exps[i].col, exps[i].row);
     }
+}
 
-    /* Update bombs (fuse countdown, explosions) */
-    Bomb_Update();
-
-    /* Tick death timers (tick-based, not frame-based) */
+/* Tick death timers (tick-based, not frame-based). */
+static void TickDeathTimers(void)
+{
+    short i;
     for (i = 0; i < gGame.numPlayers; i++) {
         if (gGame.players[i].deathTimer > 0) {
             gGame.players[i].deathTimer -= gGame.deltaTicks;
@@ -299,7 +294,46 @@ void Game_Update(void)
             }
         }
     }
+}
 
+void Game_Update(void)
+{
+    short i;
+    Player *local;
+    short oldPX[MAX_PLAYERS], oldPY[MAX_PLAYERS];
+
+    if (RunGracePeriod()) return;
+    if (!gGame.gameRunning) return;
+
+    /* Save positions before update for moved-player dirty optimization */
+    for (i = 0; i < MAX_PLAYERS; i++) {
+        oldPX[i] = gGame.players[i].pixelX;
+        oldPY[i] = gGame.players[i].pixelY;
+    }
+
+    ReactivateRemotePlayers();
+
+    /* Update all players (local moves, remotes interpolate) */
+    for (i = 0; i < MAX_PLAYERS; i++) {
+        if (gGame.players[i].active) {
+            Player_Update(i);
+        }
+    }
+
+    /* Check if local player moved and send position */
+    local = Player_GetLocal();
+    if (local && local->active && local->alive && local->deathTimer <= 0) {
+        SendLocalPosition(local);
+        PlaceLocalBomb(local);
+    }
+
+    MarkPlayersDirty(oldPX, oldPY);
+    MarkBombsDirty();
+
+    /* Update bombs (fuse countdown, explosions) */
+    Bomb_Update();
+
+    TickDeathTimers();
     UpdateRoundEnd();
 }
 
