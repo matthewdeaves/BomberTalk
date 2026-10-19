@@ -14,6 +14,7 @@
 #include "renderer.h"
 #include "netcoord.h"
 #include "net_wire.h"
+#include "net_auth.h"
 #include <peertalk.h>
 #include <clog.h>
 #include <string.h>
@@ -23,8 +24,70 @@ static short gExpectedPlayers = 0;
 static int gVersionMismatch = FALSE;
 
 /* Join-in-progress map sync (011-macosx-sdl2, Phase 2) */
-static PT_Peer *Net_GetPeerByRank(int rank);
 static void Net_SendMapStateTo(PT_Peer *peer);
+
+/* ---- Sender identity (KI-009) ----
+ * The claimed player in a message is untrusted; the sender is the peer the
+ * transport delivered it from. Each peer is bound to a slot in
+ * gGame.players[i].peer when the roster is seated (Net_ComputeLocalPlayerID,
+ * or a late join below) and the binding is stored, not recomputed from the
+ * live rank, so ranks shifting when someone joins or leaves cannot re-assign
+ * who is who. Rules live in net_auth.c (host tested). */
+static int Net_SenderSlot(const PT_Peer *peer)
+{
+    const void *peers[MAX_PLAYERS];
+    short i;
+    for (i = 0; i < MAX_PLAYERS; i++) peers[i] = gGame.players[i].peer;
+    return NetAuth_SlotOfPeer(peers, MAX_PLAYERS, peer);
+}
+
+/*
+ * Net_ResolveSender -- Sender slot for a per-player message, admitting a late
+ * joiner (join-in-progress, 011) if the peer is not bound yet. An unbound
+ * peer is admitted only into the free slot its live rank gives it, and only
+ * if that is the slot it claims; otherwise it stays unseated and every
+ * machine ignores it alike (KI-009 / KI-011). On admission the peer is bound,
+ * the roster grows to cover its slot, a never-seated slot is spawned, and
+ * our current map is sent to it so it inherits destroyed blocks.
+ * Returns the sender's slot or NETAUTH_NO_SLOT.
+ */
+static int Net_ResolveSender(PT_Peer *peer, unsigned char claimed)
+{
+    int slot = Net_SenderSlot(peer);
+    int rank;
+
+    if (slot != NETAUTH_NO_SLOT) return slot;
+    if (!gPTCtx || gGame.currentScreen != SCREEN_GAME) return NETAUTH_NO_SLOT;
+
+    rank = PT_GetPeerRank(gPTCtx, peer);
+    if (!NetAuth_AdmitLateJoiner((int)claimed, rank, gGame.localPlayerID,
+                                 NetWire_ValidSlot((int)claimed) &&
+                                 gGame.players[claimed].peer != NULL)) {
+        CLOG_DEBUG("Unseated peer claiming P%d (rank %d) ignored",
+                   claimed, rank);
+        return NETAUTH_NO_SLOT;
+    }
+
+    gGame.players[claimed].peer = peer;
+    strncpy(gGame.players[claimed].name, PT_PeerName(peer), PLAYER_NAME_MAX);
+    gGame.players[claimed].name[PLAYER_NAME_MAX] = '\0';
+    gGame.numPlayers = (short)NetWire_SeatRoster(gGame.numPlayers, (int)claimed);
+
+    /* A slot we are not yet tracking means that player is filling a free
+     * spawn corner. Player_Init activates it and places it at its corner;
+     * it only touches never-seated slots, so players already in the game are
+     * undisturbed. The KI-006 target snapping still holds: Player_Init sets
+     * target == pixel. */
+    if (!gGame.players[claimed].active) {
+        Player_Init((short)claimed,
+                    TileMap_GetSpawnCol((short)claimed),
+                    TileMap_GetSpawnRow((short)claimed));
+        Net_SendMapStateTo(peer);
+    }
+    CLOG_INFO("P%d joined game in progress (numPlayers now %d)",
+              claimed, gGame.numPlayers);
+    return (int)claimed;
+}
 
 /* ---- Callbacks ---- */
 
@@ -104,7 +167,6 @@ static void on_position(PT_Peer *peer, const void *data, size_t len,
     MsgPosition msg;
     short localPX, localPY;
     short ts = gGame.tileSize;
-    (void)peer;
     (void)user_data;
 
     if (len < NETWIRE_POSITION_LEN) return;
@@ -117,38 +179,15 @@ static void on_position(PT_Peer *peer, const void *data, size_t len,
     NetWire_UnpackPosition((const unsigned char *)data, &msg.playerID,
                            &msg.facing, &msg.pixelX, &msg.pixelY);
 
-    if (msg.playerID < MAX_PLAYERS &&
-        msg.playerID != (unsigned char)gGame.localPlayerID) {
-        /* Join-in-progress: a position from a slot we are not yet tracking
-         * means that player is in the game, filling a free spawn corner.
-         * Seat it (Player_Init activates it and places it at its corner) and
-         * grow the roster. Four corners => up to MAX_PLAYERS; a player can
-         * join a game already running. This gates on the slot being inactive,
-         * so it never disturbs players already in the game, and it only fires
-         * in-game so lobby position chatter is unaffected. The KI-006 target
-         * snapping still holds: Player_Init sets target == pixel. (011) */
-        if (gGame.currentScreen == SCREEN_GAME &&
-            !gGame.players[msg.playerID].active) {
-            if (msg.playerID >= (unsigned char)gGame.numPlayers) {
-                gGame.numPlayers = (short)(msg.playerID + 1);
-            }
-            Player_Init((short)msg.playerID,
-                        TileMap_GetSpawnCol((short)msg.playerID),
-                        TileMap_GetSpawnRow((short)msg.playerID));
-            CLOG_INFO("P%d joined game in progress (numPlayers now %d)",
-                      msg.playerID, gGame.numPlayers);
+    /* Only in-game, and only about the sender itself (KI-009). */
+    if (gGame.currentScreen != SCREEN_GAME) return;
+    if (!NetAuth_Accept(NETAUTH_SELF, Net_ResolveSender(peer, msg.playerID),
+                        msg.playerID)) {
+        CLOG_DEBUG("Position for P%d from wrong sender dropped", msg.playerID);
+        return;
+    }
 
-            /* Send our current (in-progress) map to the joiner so it inherits
-             * already-destroyed blocks. Directed to the joiner only, so a
-             * fresh map can never overwrite an existing player's. Every
-             * seating peer sends; the joiner applies the first that differs
-             * (Phase 2). */
-            {
-                PT_Peer *jp = Net_GetPeerByRank((int)msg.playerID);
-                if (jp != NULL) Net_SendMapStateTo(jp);
-            }
-        }
-
+    {
         /* Convert tile-independent network coords back to local pixel coords.
          * Network coords use 256 units per tile, so multiply by local tileSize
          * and divide by 256 to get pixel position in our coordinate space,
@@ -170,13 +209,17 @@ static void on_bomb_placed(PT_Peer *peer, const void *data, size_t len,
                            void *user_data)
 {
     const MsgBombPlaced *msg;
-    (void)peer;
     (void)user_data;
 
     if (gGame.currentScreen != SCREEN_GAME) return;
     if (len < sizeof(MsgBombPlaced)) return;
     msg = (const MsgBombPlaced *)data;
 
+    if (!NetAuth_Accept(NETAUTH_SELF, Net_ResolveSender(peer, msg->playerID),
+                        msg->playerID)) {
+        CLOG_DEBUG("Bomb for P%d from wrong sender dropped", msg->playerID);
+        return;
+    }
     if (msg->playerID >= (unsigned char)gGame.numPlayers) return;
 
     CLOG_INFO("RX bomb placed P%d (%d,%d) range=%d",
@@ -190,12 +233,29 @@ static void on_bomb_explode(PT_Peer *peer, const void *data, size_t len,
                             void *user_data)
 {
     const MsgBombExplode *msg;
-    (void)peer;
+    int owner = NETAUTH_NO_SLOT;
+    short i;
     (void)user_data;
 
     if (gGame.currentScreen != SCREEN_GAME) return;
     if (len < sizeof(MsgBombExplode)) return;
     msg = (const MsgBombExplode *)data;
+
+    /* Owner-authoritative (005): only the bomb's owner announces its fuse
+     * expiry, so the sender must own the bomb at that cell. */
+    for (i = 0; i < MAX_BOMBS; i++) {
+        if (gGame.bombs[i].active &&
+            gGame.bombs[i].gridCol == msg->gridCol &&
+            gGame.bombs[i].gridRow == msg->gridRow) {
+            owner = (int)gGame.bombs[i].ownerID;
+            break;
+        }
+    }
+    if (!NetAuth_Accept(NETAUTH_OWNER, Net_SenderSlot(peer), owner)) {
+        CLOG_DEBUG("Bomb explode (%d,%d) from non-owner dropped",
+                   msg->gridCol, msg->gridRow);
+        return;
+    }
 
     /* Force-explode the bomb if it hasn't exploded locally yet.
      * This keeps slow machines in sync with fast ones. */
@@ -207,12 +267,13 @@ static void on_block_destroyed(PT_Peer *peer, const void *data, size_t len,
                                void *user_data)
 {
     const MsgBlockDestroyed *msg;
-    (void)peer;
     (void)user_data;
 
     if (gGame.currentScreen != SCREEN_GAME) return;
     if (len < sizeof(MsgBlockDestroyed)) return;
     msg = (const MsgBlockDestroyed *)data;
+
+    if (!NetAuth_Accept(NETAUTH_SEATED, Net_SenderSlot(peer), 0)) return;
 
     /* Only an existing block can be destroyed. Skips duplicates (near-
      * simultaneous fuse expiry on several machines sending the same
@@ -230,13 +291,18 @@ static void on_player_killed(PT_Peer *peer, const void *data, size_t len,
                              void *user_data)
 {
     const MsgPlayerKilled *msg;
-    (void)peer;
     (void)user_data;
 
     if (gGame.currentScreen != SCREEN_GAME) return;
     if (len < sizeof(MsgPlayerKilled)) return;
     msg = (const MsgPlayerKilled *)data;
 
+    /* Each machine is authoritative for its own player's death only (see
+     * Bomb_Update), so a death report must come from the victim itself. */
+    if (!NetAuth_Accept(NETAUTH_SELF, Net_SenderSlot(peer), msg->playerID)) {
+        CLOG_DEBUG("Kill of P%d from wrong sender dropped", msg->playerID);
+        return;
+    }
     if (msg->playerID < MAX_PLAYERS &&
         msg->playerID < (unsigned char)gGame.numPlayers) {
         gGame.players[msg->playerID].deathTimer = DEATH_FLASH_TICKS;
@@ -250,6 +316,12 @@ static void on_game_start(PT_Peer *peer, const void *data, size_t len,
     const MsgGameStart *msg;
     (void)peer;
     (void)user_data;
+
+    /* Any player may press Start (no host concept), so there is no single
+     * authorised sender -- but a launch announcement only means something in
+     * the lobby. In-game or elsewhere it is dropped: a hostile or late
+     * GAME_START cannot re-roster a running game (KI-009/KI-011). */
+    if (gGame.currentScreen != SCREEN_LOBBY) return;
 
     /* Ignore duplicate MSG_GAME_START */
     if (gGame.gameStartReceived) return;
@@ -284,7 +356,6 @@ static void on_game_over(PT_Peer *peer, const void *data, size_t len,
                          void *user_data)
 {
     const MsgGameOver *msg;
-    (void)peer;
     (void)user_data;
 
     if (len < sizeof(MsgGameOver)) return;
@@ -296,6 +367,15 @@ static void on_game_over(PT_Peer *peer, const void *data, size_t len,
     /* Ignore game-over if we're not in-game (e.g. already transitioned to lobby).
      * Duplicate MSG_GAME_OVER can arrive after transition due to network latency. */
     if (gGame.currentScreen != SCREEN_GAME) return;
+
+    /* Round end must come from a seated peer. Not restricted to the lowest
+     * rank: the failsafe (005) has a non-authority machine send it when the
+     * authority is gone or silent, so every seated peer is a legitimate
+     * sender. */
+    if (!NetAuth_Accept(NETAUTH_SEATED, Net_SenderSlot(peer), 0)) {
+        CLOG_DEBUG("Game over from unseated peer dropped");
+        return;
+    }
 
     /* Bounds check winnerID (T024) */
     if (msg->winnerID < MAX_PLAYERS) {
@@ -328,11 +408,11 @@ static void on_map_state(PT_Peer *peer, const void *data, size_t len,
 {
     const MsgMapState *msg;
     short cols, rows;
-    (void)peer;
     (void)user_data;
 
     if (gGame.currentScreen != SCREEN_GAME) return;
     if (len < 2) return;
+    if (!NetAuth_Accept(NETAUTH_SEATED, Net_SenderSlot(peer), 0)) return;
     msg = (const MsgMapState *)data;
     cols = (short)msg->cols;
     rows = (short)msg->rows;
@@ -344,27 +424,6 @@ static void on_map_state(PT_Peer *peer, const void *data, size_t len,
         Renderer_RequestRebuildBackground();
         CLOG_INFO("Applied in-progress map snapshot (%dx%d)", cols, rows);
     }
-}
-
-/*
- * Net_GetPeerByRank -- Find the connected peer occupying a given rank/slot.
- * Used to direct a map snapshot at a specific late joiner.
- */
-static PT_Peer *Net_GetPeerByRank(int rank)
-{
-    int count, i;
-
-    if (!gPTCtx) return NULL;
-    count = PT_GetPeerCount(gPTCtx);
-    for (i = 0; i < count; i++) {
-        PT_Peer *p = PT_GetPeer(gPTCtx, i);
-        if (p != NULL &&
-            PT_GetPeerState(p) == PT_PEER_CONNECTED &&
-            PT_GetPeerRank(gPTCtx, p) == rank) {
-            return p;
-        }
-    }
-    return NULL;
 }
 
 /*

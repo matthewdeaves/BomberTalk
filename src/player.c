@@ -99,7 +99,9 @@ void Player_Init(short playerID, short spawnCol, short spawnRow)
     p->stats.speedTicks = 12;
     p->bombsAvailable = p->stats.bombsMax;
     p->playerID = (unsigned char)playerID;
-    p->peer = NULL;
+    /* p->peer is deliberately left alone: Net_ComputeLocalPlayerID binds each
+     * peer to its slot before Game_Init seats the roster, and net.c (KI-009)
+     * attributes incoming messages by that binding. Lobby_Init clears it. */
 
     CLOG_INFO("P%d init at grid=(%d,%d) px=(%d,%d)",
               playerID, spawnCol, spawnRow, p->pixelX, p->pixelY);
