@@ -615,34 +615,37 @@ int Net_GetDiscoveredPeerCount(void)
     return discovered;
 }
 
-const char *Net_GetDiscoveredPeerName(int idx)
+/* idx-th live (non-DISCONNECTED) peer, matching the filtered
+ * Net_GetDiscoveredPeerCount so the lobby's count, name list and address list
+ * all index the same peers. NULL if idx is out of range. */
+static PT_Peer *Net_GetLivePeer(int idx)
 {
     int count, i, seen;
     PT_Peer *peer;
-    if (!gPTCtx) return "";
+    if (!gPTCtx || idx < 0) return NULL;
 
-    /* Index among the live (non-DISCONNECTED) peers, matching the filtered
-     * Net_GetDiscoveredPeerCount so the lobby's count and name list agree. */
     count = PT_GetPeerCount(gPTCtx);
     seen = 0;
     for (i = 0; i < count; i++) {
         peer = PT_GetPeer(gPTCtx, i);
         if (peer && PT_GetPeerState(peer) != PT_PEER_DISCONNECTED) {
-            if (seen == idx) return PT_PeerName(peer);
+            if (seen == idx) return peer;
             seen++;
         }
     }
-    return "";
+    return NULL;
+}
+
+const char *Net_GetDiscoveredPeerName(int idx)
+{
+    PT_Peer *peer = Net_GetLivePeer(idx);
+    return peer ? PT_PeerName(peer) : "";
 }
 
 const char *Net_GetDiscoveredPeerAddress(int idx)
 {
-    PT_Peer *peer;
-    if (!gPTCtx) return "";
-
-    peer = PT_GetPeer(gPTCtx, idx);
-    if (peer) return PT_PeerAddress(peer);
-    return "";
+    PT_Peer *peer = Net_GetLivePeer(idx);
+    return peer ? PT_PeerAddress(peer) : "";
 }
 
 int Net_GetConnectedPeerCount(void)
