@@ -38,4 +38,53 @@ short Ray_Reach(short originCol, short originRow, short dCol, short dRow,
                 short range, short mapCols, short mapRows,
                 const unsigned char *tiles, int *hitBlockOut);
 
+/*
+ * ---- Whole-blast plan and hit test ----
+ *
+ * Blast_Plan runs Ray_Reach in all four directions and lists the covered
+ * tiles (centre first, then up, down, left, right, each in distance order --
+ * the order the explosion sprites were always added in) and the blocks the
+ * rays stopped on. bomb.c applies the plan (sprites, tilemap, network
+ * messages); keeping the geometry here keeps the simulation host tested and
+ * free of the Net_* calls.
+ */
+typedef struct {
+    short col;
+    short row;
+} BlastCell;
+
+/* 1 centre + at most (dim - 1) covered tiles each way on the biggest map. */
+#define BLAST_MAX_CELLS   (1 + 2 * (MAX_GRID_COLS - 1) + 2 * (MAX_GRID_ROWS - 1))
+#define BLAST_MAX_BLOCKS  4
+
+/*
+ * Blast_Plan -- Plan a cross blast from (originCol, originRow).
+ *
+ *   cells        receives up to BLAST_MAX_CELLS covered tiles
+ *   blocks       receives up to BLAST_MAX_BLOCKS destroyed blocks
+ *   numBlocksOut receives the block count
+ *
+ * Returns the number of covered tiles (always >= 1, the centre). Pure.
+ */
+short Blast_Plan(short originCol, short originRow, short range,
+                 short mapCols, short mapRows, const unsigned char *tiles,
+                 BlastCell *cells, BlastCell *blocks, short *numBlocksOut);
+
+/*
+ * Blast_CellHitsBox -- Does tile (col,row), tileSize square, overlap the box
+ * [left,right) x [top,bottom)? Strict AABB: touching edges do not overlap.
+ */
+int Blast_CellHitsBox(short col, short row, short tileSize,
+                      short left, short top, short right, short bottom);
+
+/* Same test as an expression macro, for the per-frame explosion loop on the
+ * 68k where 008 FR-002 deliberately avoids a call per cell. Arguments are
+ * evaluated more than once: pass plain variables. Blast_CellHitsBox is a thin
+ * wrapper over this, so the host tests cover the macro. */
+#define BLAST_CELL_HITS_BOX(col, row, ts, left, top, right, bottom) \
+    (!((right) <= (short)((col) * (ts)) || \
+       (left)  >= (short)((short)((col) * (ts)) + (ts)) || \
+       (bottom) <= (short)((row) * (ts)) || \
+       (top)   >= (short)((short)((row) * (ts)) + (ts))))
+
 #endif /* RAYCAST_H */

@@ -44,3 +44,42 @@ short Ray_Reach(short originCol, short originRow, short dCol, short dRow,
 
     return range;
 }
+
+/* Explosion directions: up, down, left, right. */
+static const short kDCol[4] = {0, 0, -1, 1};
+static const short kDRow[4] = {-1, 1, 0, 0};
+
+short Blast_Plan(short originCol, short originRow, short range,
+                 short mapCols, short mapRows, const unsigned char *tiles,
+                 BlastCell *cells, BlastCell *blocks, short *numBlocksOut)
+{
+    short n = 0, nb = 0, dir, dist, reach;
+
+    cells[n].col = originCol;
+    cells[n].row = originRow;
+    n++;
+
+    for (dir = 0; dir < 4; dir++) {
+        int hitBlock = 0;
+        reach = Ray_Reach(originCol, originRow, kDCol[dir], kDRow[dir],
+                          range, mapCols, mapRows, tiles, &hitBlock);
+        for (dist = 1; dist <= reach; dist++) {
+            cells[n].col = (short)(originCol + kDCol[dir] * dist);
+            cells[n].row = (short)(originRow + kDRow[dir] * dist);
+            n++;
+        }
+        if (hitBlock) {
+            blocks[nb].col = (short)(originCol + kDCol[dir] * reach);
+            blocks[nb].row = (short)(originRow + kDRow[dir] * reach);
+            nb++;
+        }
+    }
+    *numBlocksOut = nb;
+    return n;
+}
+
+int Blast_CellHitsBox(short col, short row, short tileSize,
+                      short left, short top, short right, short bottom)
+{
+    return BLAST_CELL_HITS_BOX(col, row, tileSize, left, top, right, bottom);
+}
