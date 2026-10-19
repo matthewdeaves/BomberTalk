@@ -21,6 +21,10 @@ void TileMap_SetTile(short col, short row, unsigned char type);
  * rebuild the background), 0 if identical or rejected. */
 int TileMap_SetState(short cols, short rows, const unsigned char *tiles,
                      long tilesLen);
+/* Destroy the TILE_BLOCK at (col,row) in response to a remote message. Returns
+ * 1 if a block was destroyed; 0 (no change) for walls, spawns, floor or
+ * out-of-range cells. */
+int TileMap_DestroyBlock(short col, short row);
 /* TileMap_IsSolid removed 008 FR-005 — unused. For solid-tile tests, read
  * TileMap_GetTile(col,row) == TILE_WALL || == TILE_BLOCK, or use the
  * TILEMAP_TILE(map,col,row) macro directly in bounds-checked hot paths. */

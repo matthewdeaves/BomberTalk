@@ -87,3 +87,12 @@ int TileMap_ApplySnapshot(unsigned char tiles[MAX_GRID_ROWS][MAX_GRID_COLS],
 
     return changed;
 }
+
+int TileMap_ClearBlock(unsigned char tiles[MAX_GRID_ROWS][MAX_GRID_COLS],
+                       short cols, short rows, short col, short row)
+{
+    if (col < 0 || col >= cols || row < 0 || row >= rows) return 0;
+    if (tiles[row][col] != TILE_BLOCK) return 0;
+    tiles[row][col] = TILE_FLOOR;
+    return 1;
+}

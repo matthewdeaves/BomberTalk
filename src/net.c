@@ -213,13 +213,14 @@ static void on_block_destroyed(PT_Peer *peer, const void *data, size_t len,
     if (len < sizeof(MsgBlockDestroyed)) return;
     msg = (const MsgBlockDestroyed *)data;
 
-    /* Skip if tile already destroyed (duplicate from near-simultaneous
-     * fuse expiry on multiple machines sending the same explosion) */
-    if (TileMap_GetTile((short)msg->gridCol, (short)msg->gridRow) == TILE_FLOOR)
+    /* Only an existing block can be destroyed. Skips duplicates (near-
+     * simultaneous fuse expiry on several machines sending the same
+     * explosion) and refuses to open walls/spawns or touch cells outside
+     * the map. */
+    if (!TileMap_DestroyBlock((short)msg->gridCol, (short)msg->gridRow))
         return;
 
     CLOG_INFO("RX block destroyed (%d,%d)", msg->gridCol, msg->gridRow);
-    TileMap_SetTile((short)msg->gridCol, (short)msg->gridRow, TILE_FLOOR);
     Renderer_MarkDirty((short)msg->gridCol, (short)msg->gridRow);
     Renderer_RequestRebuildBackground();
 }

@@ -59,4 +59,16 @@ int TileMap_ApplySnapshot(unsigned char tiles[MAX_GRID_ROWS][MAX_GRID_COLS],
                           short cols, short rows,
                           const unsigned char *src, long srcLen);
 
+/*
+ * TileMap_ClearBlock -- Turn the destructible block at (col,row) into floor,
+ * as dictated by a remote MSG_BLOCK_DESTROYED.
+ *
+ * Only TILE_BLOCK is destroyable: walls and spawn markers never are, so a
+ * bogus or stale message cannot open the arena. (col,row) must lie inside the
+ * live cols x rows map (cells beyond it still exist in the fixed array but
+ * are not part of the map). Returns 1 if a block was destroyed, 0 otherwise.
+ */
+int TileMap_ClearBlock(unsigned char tiles[MAX_GRID_ROWS][MAX_GRID_COLS],
+                       short cols, short rows, short col, short row);
+
 #endif /* TILEMAP_PARSE_H */

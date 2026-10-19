@@ -167,6 +167,11 @@ int TileMap_SetState(short cols, short rows, const unsigned char *tiles,
                                  cols, rows, tiles, tilesLen) == 1;
 }
 
+int TileMap_DestroyBlock(short col, short row)
+{
+    return TileMap_ClearBlock(gMap.tiles, gMap.cols, gMap.rows, col, row);
+}
+
 short TileMap_GetCols(void)
 {
     return gMap.cols;

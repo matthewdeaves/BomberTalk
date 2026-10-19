@@ -155,11 +155,55 @@ static void test_truncated_rejected(void)
     free(p);
 }
 
+/*
+ * Regression: the MSG_BLOCK_DESTROYED handler turned ANY in-range non-floor
+ * tile into floor, so a peer could delete indestructible walls (or spawn
+ * markers). Only TILE_BLOCK may be destroyed.
+ */
+static void test_destroy_block_only_blocks(void)
+{
+    Grid g;
+    printf("test_destroy_block_only_blocks\n");
+    fill_live(g);
+    g[3][4] = TILE_BLOCK;
+    g[5][6] = TILE_SPAWN;
+    g[7][8] = TILE_FLOOR;
+
+    CHECK_EQ(TileMap_ClearBlock(g, LIVE_COLS, LIVE_ROWS, 4, 3), 1, "block destroyed");
+    CHECK_EQ(g[3][4], TILE_FLOOR, "block now floor");
+    CHECK_EQ(TileMap_ClearBlock(g, LIVE_COLS, LIVE_ROWS, 4, 3), 0, "duplicate is a no-op");
+    CHECK_EQ(TileMap_ClearBlock(g, LIVE_COLS, LIVE_ROWS, 0, 0), 0, "wall not destroyed");
+    CHECK_EQ(g[0][0], TILE_WALL, "wall intact");
+    CHECK_EQ(TileMap_ClearBlock(g, LIVE_COLS, LIVE_ROWS, 6, 5), 0, "spawn not destroyed");
+    CHECK_EQ(g[5][6], TILE_SPAWN, "spawn intact");
+    CHECK_EQ(TileMap_ClearBlock(g, LIVE_COLS, LIVE_ROWS, 8, 7), 0, "floor is a no-op");
+}
+
+static void test_destroy_block_bounds(void)
+{
+    Grid g;
+    printf("test_destroy_block_bounds\n");
+    fill_live(g);
+    /* Outside the live map but inside the 31x25 array: must not be touched
+     * (and must not be reported destroyed). */
+    g[LIVE_ROWS][2] = TILE_BLOCK;
+    g[2][LIVE_COLS] = TILE_BLOCK;
+    CHECK_EQ(TileMap_ClearBlock(g, LIVE_COLS, LIVE_ROWS, 2, LIVE_ROWS), 0, "row == rows rejected");
+    CHECK_EQ(TileMap_ClearBlock(g, LIVE_COLS, LIVE_ROWS, LIVE_COLS, 2), 0, "col == cols rejected");
+    CHECK_EQ(TileMap_ClearBlock(g, LIVE_COLS, LIVE_ROWS, -1, 2), 0, "negative col rejected");
+    CHECK_EQ(TileMap_ClearBlock(g, LIVE_COLS, LIVE_ROWS, 2, -1), 0, "negative row rejected");
+    CHECK_EQ(TileMap_ClearBlock(g, LIVE_COLS, LIVE_ROWS, 255, 255), 0, "255,255 rejected");
+    CHECK_EQ(g[LIVE_ROWS][2], TILE_BLOCK, "out-of-map cell untouched");
+    CHECK_EQ(g[2][LIVE_COLS], TILE_BLOCK, "out-of-map cell untouched");
+}
+
 int main(void)
 {
     printf("test_tilemap_snapshot\n");
     test_valid_and_exact();
     test_dimension_mismatch_rejected();
+    test_destroy_block_only_blocks();
+    test_destroy_block_bounds();
     test_tiny_rejected();
     test_zero_rejected();
     test_oversize_rejected();
