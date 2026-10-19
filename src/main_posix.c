@@ -69,6 +69,7 @@ static void InitGameState(void)
         gGame.players[i].stats.bombRange = 1;
         gGame.players[i].stats.speedTicks = 12;
         gGame.players[i].peer = NULL;
+        gGame.players[i].passThroughBombIdx = -1;
     }
 
     for (i = 0; i < MAX_BOMBS; i++) {
