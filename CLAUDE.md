@@ -54,6 +54,10 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE=$RETRO68_TOOLCHAIN/powerpc-apple-macos/cmake/ret
 # peertalk/clog checkouts (defaults ../peertalk, ../clog). Runs on Linux (a
 # faithful little-endian proxy for the M5) and modern macOS.
 PEERTALK_DIR=~/peertalk CLOG_DIR=~/clog bash tools/build-sdl.sh   # -> build-sdl/BomberTalk
+
+# Static analysis (cppcheck, clang-tidy, scan-build, make check under ASan/UBSan;
+# optional Retro68 -fanalyzer when RETRO68_TOOLCHAIN is set). Stages: cppcheck tidy scan tests retro68
+PEERTALK_DIR=~/peertalk CLOG_DIR=~/clog bash tools/static-analysis.sh
 ```
 
 After changes, always build and verify all three classic targets compile clean before committing.

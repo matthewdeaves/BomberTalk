@@ -223,3 +223,14 @@ Observations from hardware testing that don't block current functionality but co
 **Things to get right**: ranks can change when a peer joins or leaves mid-game (late join); decide whether the slot is fixed at game start and stored, rather than recomputed from the live rank. UDP messages are attributed by source IP only, so on a LAN this stops accidents and casual cheating, not a determined spoofer. Two machines behind one NAT address look like one peer; that is a test-setup limit, not something to design around.
 
 **Not a PeerTalk feature request.** Per PeerTalk's constitution a feature must serve at least the three reference apps (Bomberman, Chess, Chat) and add no knobs. If a second application later needs the same thing, the candidate is a tiny, generic helper that tells the app which peer a message came from (which the callback already does), not authentication, encryption or anything that knows what a "player" is. See also the "Trust boundary" section in PeerTalk's `ARCHITECTURE.md`.
+
+---
+
+## KI-010: Remote Bomb Range Is Unbounded; Default Spawns Assume a 15-Column Map
+
+**Observed**: static review, 2026-10 (not seen in play)
+**Severity**: Low
+**Status**: OPEN, not fixed (no small host-testable seam)
+
+- `on_bomb_placed` passes the wire `range` (0..255) straight to `Bomb_PlaceAt`. The raycast stops at the map edge, so it is memory-safe, but a peer can send a flame as long as the map. Fix with a game-rule cap (a `MAX_BOMB_RANGE` clamp in `on_bomb_placed`); related to KI-009.
+- `kDefaultSpawnCols` in `tilemap.c` is `{1,13,1,13}` (and rows up to 11): on a custom TMAP narrower than 14 columns or shorter than 12 rows, the fallback spawns fall outside the map. Fix by clamping fallback corners to `cols-2` / `rows-2` in `TileMap_ScanSpawns`. `tilemap.c` is not yet in the host test set, so this needs the parse/spawn logic split out first.
