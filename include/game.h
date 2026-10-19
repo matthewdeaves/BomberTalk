@@ -287,7 +287,6 @@ typedef struct {
     unsigned char   pendingWinner;    /* winner ID from remote MSG_GAME_OVER */
     unsigned long   gameOverTimeoutStart;  /* TickCount() when started, 0 = inactive */
     unsigned long   disconnectGraceStart;  /* TickCount() when started, 0 = inactive */
-    int             gameOverAuthority;     /* TRUE if this machine sends MSG_GAME_OVER */
     int             localGameOverDetected; /* TRUE if local game over detected, not authority */
     unsigned long   gameOverFailsafeStart; /* TickCount() when started, 0 = inactive */
     long            heapCheckTimer;        /* ticks since last periodic heap check */
