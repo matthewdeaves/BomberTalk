@@ -327,8 +327,9 @@ static void on_map_state(PT_Peer *peer, const void *data, size_t len,
     cols = (short)msg->cols;
     rows = (short)msg->rows;
 
-    /* TileMap_SetState rejects out-of-range dims and a payload shorter than
-     * cols*rows without modifying the map (no clamp-then-overread). */
+    /* TileMap_SetState rejects out-of-range dims, dims that differ from the
+     * local map (playWidth/Height are fixed at startup) and a payload shorter
+     * than cols*rows without modifying the map (no clamp-then-overread). */
     if (TileMap_SetState(cols, rows, msg->tiles, (long)(len - 2))) {
         Renderer_RequestRebuildBackground();
         CLOG_INFO("Applied in-progress map snapshot (%dx%d)", cols, rows);

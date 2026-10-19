@@ -163,7 +163,7 @@ int TileMap_SetState(short cols, short rows, const unsigned char *tiles,
 {
     /* Validation (dims in range, payload length) lives in the host-tested
      * TileMap_ApplySnapshot; a rejected snapshot changes nothing. */
-    return TileMap_ApplySnapshot(gMap.tiles, &gMap.cols, &gMap.rows,
+    return TileMap_ApplySnapshot(gMap.tiles, gMap.cols, gMap.rows,
                                  cols, rows, tiles, tilesLen) == 1;
 }
 

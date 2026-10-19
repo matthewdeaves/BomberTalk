@@ -13,9 +13,10 @@ void TileMap_Init(void);
 void TileMap_Reset(void);
 unsigned char TileMap_GetTile(short col, short row);
 void TileMap_SetTile(short col, short row, unsigned char type);
-/* Replace the whole tilemap from a row-major snapshot (join-in-progress map
- * sync). tilesLen is the number of tile bytes actually received. Dims outside
- * [7, MAX_GRID_*] or tilesLen < cols*rows are rejected with no state change;
+/* Apply a row-major tile snapshot (join-in-progress map sync). tilesLen is the
+ * number of tile bytes actually received. Dims outside [7, MAX_GRID_*], dims
+ * different from the live map (all peers share one map; playWidth/Height are
+ * fixed at startup) or tilesLen < cols*rows are rejected with no state change;
  * tiles are sanitised. Returns 1 if the map actually changed (caller should
  * rebuild the background), 0 if identical or rejected. */
 int TileMap_SetState(short cols, short rows, const unsigned char *tiles,

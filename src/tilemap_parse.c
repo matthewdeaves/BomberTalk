@@ -52,7 +52,7 @@ int TileMap_ParseData(const unsigned char *data, long size,
 }
 
 int TileMap_ApplySnapshot(unsigned char tiles[MAX_GRID_ROWS][MAX_GRID_COLS],
-                          short *curCols, short *curRows,
+                          short curCols, short curRows,
                           short cols, short rows,
                           const unsigned char *src, long srcLen)
 {
@@ -67,7 +67,12 @@ int TileMap_ApplySnapshot(unsigned char tiles[MAX_GRID_ROWS][MAX_GRID_COLS],
     if (rows < 7 || rows > MAX_GRID_ROWS) return -1;
     if (srcLen < (long)cols * rows) return -1;
 
-    if (cols != *curCols || rows != *curRows) changed = 1;
+    /* Every peer plays the same map (TMAP 128 / kLevel1; no map choice in the
+     * lobby), so a snapshot only ever carries tile changes. One with other
+     * dimensions cannot be applied safely: gGame.playWidth/Height (window,
+     * offscreen buffers, collision clamp, renderer bounds) are fixed at
+     * startup and would go stale. Ignore it. */
+    if (cols != curCols || rows != curRows) return -1;
 
     for (r = 0; r < rows; r++) {
         for (c = 0; c < cols; c++) {
@@ -80,7 +85,5 @@ int TileMap_ApplySnapshot(unsigned char tiles[MAX_GRID_ROWS][MAX_GRID_COLS],
         }
     }
 
-    *curCols = cols;
-    *curRows = rows;
     return changed;
 }

@@ -38,14 +38,15 @@ int TileMap_ParseData(const unsigned char *data, long size,
  * (MsgMapState payload) to a tile grid.
  *
  *   tiles      destination grid (the live map)
- *   curCols    live map column count, updated on a successful apply
- *   curRows    live map row count, updated on a successful apply
+ *   curCols    live map column count
+ *   curRows    live map row count
  *   cols,rows  dimensions declared by the sender
  *   src        row-major snapshot tile bytes (cols*rows of them)
  *   srcLen     number of bytes actually available at src
  *
- * The declared dimensions must already be legal ([7, MAX_GRID_*]; a sender
- * only ever transmits its own clamped map) and src must hold cols*rows bytes.
+ * The declared dimensions must be legal ([7, MAX_GRID_*]), must EQUAL the live
+ * map's (all peers share one map; a resize would leave gGame.playWidth/Height
+ * and the offscreen buffers stale) and src must hold cols*rows bytes.
  * Anything else is rejected outright -- NOT clamped, because clamping would
  * make the loop read more bytes than were validated. On rejection nothing is
  * modified. Tile values above TILE_SPAWN are sanitised to TILE_FLOOR.
@@ -54,7 +55,7 @@ int TileMap_ParseData(const unsigned char *data, long size,
  * applied and the map changed.
  */
 int TileMap_ApplySnapshot(unsigned char tiles[MAX_GRID_ROWS][MAX_GRID_COLS],
-                          short *curCols, short *curRows,
+                          short curCols, short curRows,
                           short cols, short rows,
                           const unsigned char *src, long srcLen);
 
