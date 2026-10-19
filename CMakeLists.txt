@@ -91,6 +91,7 @@ set(GAME_SOURCES
     src/net.c
     src/netcoord.c
     src/net_wire.c
+    src/net_auth.c
     src/wincond.c
 )
 
